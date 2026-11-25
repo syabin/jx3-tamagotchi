@@ -178,6 +178,8 @@ const GOODS = {
   pill:  { name: "玉露丸", type: "med",  price: 20, desc: "解毒/治重伤" },
 };
 const BAG_ORDER = ["baozi", "fish", "feast", "pill"];
+const BETS = [5, 10, 20, 50, 100];   // 赌坊押注档位
+let gameSt = null;
 const HOME_NAMES = ["荒地", "草庐", "木屋", "庭院", "山庄"];
 const SPEEDS = { 60: 60, 600: 600, 1: 1 };
 
@@ -331,6 +333,7 @@ const MENU = [
   { id: "sit",     label: "打坐", desc: "心情+20 修为+3" },
   { id: "train",   label: "木桩", desc: "修为+12 耗体力" },
   { id: "dig",     label: "挖宝", desc: "挖宝得金币" },
+  { id: "game",    label: "小游戏", desc: "黑市赌坊·押大小" },
   { id: "clean",   label: "打扫", desc: "清理狼藉" },
   { id: "home",    label: "家园", desc: "升级宅子" },
   { id: "settings",label: "设置", desc: "升级/WiFi/热点" },
@@ -405,6 +408,11 @@ function doAct(id, sub) {
     }
     case "bag":
       page = "bag"; subIdx = 0; sfx.ok(); return;
+    case "game":   // 黑市赌坊·押大小
+      if (S.coins < 5) { toastMsg("赌坊最低押 5 金币，先去赚点本钱", sfx.err); return; }
+      page = "game";
+      gameSt = { phase: "side", side: 1, betIdx: 1, dice: [1, 1, 1], t: 0, sum: 0, win: false, baozi: false, pay: 0 };
+      sfx.ok(); return;
     case "shop":
       page = "shop"; subIdx = 0; sfx.ok(); return;
     case "settings":
@@ -421,7 +429,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "6.5";
+const APP_VERSION = "6.6";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -694,6 +702,10 @@ function icon(id, x, y, sel) {
   if (id === "cure") { px(x + 6, y + 3, 4, 10, c1); px(x + 3, y + 6, 10, 4, "#e88a8a"); px(x + 7, y + 4, 2, 2, c1); }
   if (id === "status"){px(x + 3, y + 2, 10, 12, c1); px(x + 5, y + 5, 6, 1, "#262a38"); px(x + 5, y + 8, 6, 1, "#262a38"); px(x + 5, y + 11, 4, 1, "#262a38"); }
   if (id === "dig")   { px(x + 7, y + 2, 2, 8, c1); px(x + 5, y + 9, 6, 2, c1); px(x + 4, y + 11, 8, 3, "#b8c0d0"); }
+  if (id === "game")  { // 赌坊骰子
+    px(x + 2, y + 3, 7, 7, c1); px(x + 4, y + 5, 2, 2, "#262a38");
+    px(x + 8, y + 8, 7, 7, c1); px(x + 10, y + 10, 2, 2, "#262a38"); px(x + 12, y + 12, 2, 2, "#262a38");
+  }
   if (id === "dungeon"){ px(x + 2, y + 10, 12, 4, c1); px(x + 4, y + 4, 8, 6, "#e88a8a"); px(x + 5, y + 6, 2, 2, "#262a38"); px(x + 9, y + 6, 2, 2, "#262a38"); }
   if (id === "home")  { px(x + 3, y + 8, 10, 6, c1); px(x + 6, y + 10, 4, 4, "#262a38"); px(x + 2, y + 3, 12, 2, c1); px(x + 4, y + 5, 8, 2, c1); px(x + 7, y + 1, 2, 2, "#e8c860"); }
   if (id === "bag")   { px(x + 3, y + 6, 10, 8, c1); px(x + 5, y + 3, 6, 3, c1); px(x + 7, y + 4, 2, 2, "#262a38"); px(x + 4, y + 9, 2, 2, "#262a38"); px(x + 10, y + 9, 2, 2, "#262a38"); }
@@ -742,6 +754,7 @@ function render() {
   if (page === "bag") return renderGoodsPage("bag");
   if (page === "shop") return renderGoodsPage("shop");
   if (page === "settings") return renderSettings();
+  if (page === "game") { gameRollTick(); return renderGame(); }
   if (page === "home") return renderHome();
   if (page === "daily") return renderDaily();
   renderMain();
@@ -955,12 +968,14 @@ function renderMain() {
     px(vx + 2, vy + 2, Math.round(66 * p), 6, "#e8a04a");
     text("副本中…", vx + 72, vy + 2, "#f5ecd0", 8);
   }
-  // ===== 图标网格（上5下4）=====
+  // ===== 图标网格（上5下6）=====
   const sel = menuIdx % MENU.length;
-  const cdMap = { sit: "sit", train: "train", dig: "dig", clean: null, home: null, status: null, daily: null, bag: null, shop: null };
+  const cdMap = { sit: "sit", train: "train", dig: "dig", clean: null, game: null, home: null, status: null, daily: null, bag: null, shop: null };
   MENU.forEach((m, i) => {
-    const row = i < 5 ? 0 : 1;
-    const bx = 2 + (i % 5) * 25, by = row === 0 ? 2 : 78;
+    const top = i < 5;
+    const row = top ? 0 : 1;
+    const bx = top ? 2 + i * 25 : 1 + (i - 5) * 21;
+    const by = row === 0 ? 2 : 78;
     px(bx - 3, by - 3, 22, 22, i === sel ? "#d8c68a" : "#2e3345");
     px(bx - 2, by - 2, 20, 20, i === sel ? "#3a3f54" : "#22263a");
     icon(m.id, bx, by, i === sel);
@@ -1039,6 +1054,73 @@ function renderGoodsPage(kind) {
   const gdesc = g.type === "food" ? "体力+" + g.gain : g.desc;
   textC(g.name + " · " + gdesc, 64, 107, "#cfd4e8", 8);
   textC(isShop ? "A 购买 · B 返回" : (g.type === "med" ? "A 服用 · B 返回" : "A 吃掉 · B 返回"), 64, 117, "#8a92ad", 7);
+}
+
+/* ================= 黑市赌坊 · 押大小 =================
+   三颗骰子：三同（豹子）庄家通吃；点数 11+ 为大、10 以下为小。
+   ▲▼ 选边/调注 · A 确认 · B 后退/离开。赢按 1:1 赔付，额外修为+2。 */
+function renderGame() {
+  const st = gameSt;
+  px(0, 0, W, H, "#141824");
+  textC("— 黑市赌坊 · 押大小 —", 64, 6, "#d8c68a", 10);
+  text("金币：" + S.coins, 10, 20, "#e8c860", 9);
+
+  // 三颗骰子（摇动时闪烁）
+  const rolling = st.phase === "roll";
+  for (let i = 0; i < 3; i++) {
+    const dx = 23 + i * 30, dy = 34;
+    px(dx, dy, 22, 22, "#2e3345");
+    px(dx + 1, dy + 1, 20, 20, rolling && (frame + i * 9) % 12 < 6 ? "#4a5270" : "#e8ddc8");
+    const v = rolling && (frame + i * 9) % 12 < 6 ? "?" : String(st.dice[i]);
+    textC(v, dx + 11, dy + 5, "#262a38", 12);
+  }
+  if (st.phase === "roll" || st.phase === "result") textC("点数：" + st.sum, 64, 60, "#cfd4e8", 9);
+
+  // 押大 / 押小 选项
+  const on1 = st.side === 1, on2 = st.side === 0;
+  const y1 = 74, y2 = 86;
+  if (st.phase === "side") { if (on1) px(10, y1 - 2, 108, 11, "#3a3f54"); if (on2) px(10, y2 - 2, 108, 11, "#3a3f54"); }
+  text((st.phase === "side" && on1 ? "▶" : " ") + "押大 · 11点以上", 14, y1, on1 ? "#f5e9b8" : "#8a92ad", 9);
+  text((st.phase === "side" && on2 ? "▶" : " ") + "押小 · 10点以下", 14, y2, on2 ? "#f5e9b8" : "#8a92ad", 9);
+
+  // 结果 / 注额 / 提示
+  if (st.phase === "result") {
+    if (st.baozi) textC("豹子！庄家通吃 -" + st.pay, 64, 100, "#e8a08a", 10);
+    else if (st.win) textC("押中！金币 +" + st.pay + " · 修为+2", 64, 100, "#b8e88a", 10);
+    else textC("没押中，- " + st.pay + " 金", 64, 100, "#e8a08a", 10);
+    textC("A 再来一局 · B 离开", 64, 114, "#8a92ad", 8);
+  } else if (st.phase === "bet") {
+    const bet = BETS[st.betIdx];
+    textC("◀ 注额：" + bet + " 金 ▶", 64, 100, "#e8c860", 10);
+    textC("▲▼ 调整 · A 开骰 · B 返回", 64, 114, "#8a92ad", 8);
+  } else if (st.phase === "side") {
+    textC("豹子（三同）庄家通吃", 64, 100, "#8a8fa5", 7);
+    textC("▲▼ 选边 · A 押注 · B 离开", 64, 114, "#8a92ad", 8);
+  } else {
+    textC("骰盅摇动中…", 64, 100, "#e8c860", 9);
+    textC("B 离开", 64, 114, "#8a92ad", 8);
+  }
+}
+function gameRollTick() {   // 摇骰动画与结算（render 帧驱动）
+  const st = gameSt;
+  if (st.phase !== "roll") return;
+  st.t++;
+  if (st.t % 4 === 0) st.dice = st.dice.map(() => 1 + Math.floor(Math.random() * 6));
+  if (st.t > 60) {
+    st.sum = st.dice[0] + st.dice[1] + st.dice[2];
+    st.baozi = st.dice[0] === st.dice[1] && st.dice[1] === st.dice[2];
+    st.win = !st.baozi && ((st.sum >= 11) === (st.side === 1));
+    const bet = BETS[st.betIdx];
+    st.pay = bet;
+    if (st.win) { S.coins += bet; S.exp += 2; checkTitle(); }
+    else {
+      S.coins = Math.max(0, S.coins - bet);
+      if (S.coins < 5) { st.phase = "result"; save(); toastMsg("输光了…赌坊老板把你请了出去", sfx.err); page = "main"; return; }
+    }
+    (st.win ? (st.baozi ? sfx.err : sfx.up) : sfx.err)();
+    st.phase = "result";
+    save();
+  }
 }
 
 function renderSettings() {
@@ -1205,6 +1287,17 @@ function moveSel(d) {
     }
     return;
   }
+  if (page === "game") {
+    const st = gameSt;
+    if (st.phase === "side") { st.side = 1 - st.side; beep(600, .03, "square", .06); }
+    else if (st.phase === "bet") {
+      const maxIdx = BETS.findIndex(b => b > S.coins);   // 只能押身上有的
+      const cap = maxIdx === -1 ? BETS.length - 1 : maxIdx;
+      st.betIdx = Math.max(0, Math.min(cap, st.betIdx + d));
+      beep(600, .03, "square", .06);
+    }
+    return;
+  }
   if (page === "daily") {
     const rows = buildDailyRows();
     if (!rows) return;
@@ -1262,6 +1355,18 @@ function confirmA() {
       apOn = !apOn;
       toastMsg(apOn ? "热点已开启：JX3-Tama-9027" : "热点已关闭", apOn ? sfx.ok : null);
     }
+  } else if (page === "game") {
+    const st = gameSt;
+    if (st.phase === "side") { st.phase = "bet"; sfx.ok(); }
+    else if (st.phase === "bet") {
+      const bet = BETS[st.betIdx];
+      if (S.coins < bet) { toastMsg("金币不够押这一注，调小点", sfx.err); return; }
+      st.phase = "roll"; st.t = 0; st.dice = [1, 1, 1]; st.sum = 0;   // A 开骰！
+    }
+    else if (st.phase === "result") {
+      if (S.coins < 5) { page = "main"; toastMsg("本钱不够了，赌坊老板请你出去", sfx.err); return; }
+      st.phase = "side"; beep(600, .05);
+    }
   } else if (page === "home") {
     const cost = (S.homeLv + 1) * 50;
     if (S.homeLv >= 4) { toastMsg("家园已至「山庄」，此乃极致", sfx.err); return; }
@@ -1289,6 +1394,12 @@ function pressB() {
   if (page === "settings") {
     if (setPage) { setPage = null; beep(440, .05); }   // 子页 → 设置菜单
     else { page = "main"; beep(440, .05); }
+    return;
+  }
+  if (page === "game") {
+    const st = gameSt;
+    if (st.phase === "bet") { st.phase = "side"; beep(440, .05); }        // 调注 → 退回选边
+    else if (st.phase !== "roll") { page = "main"; beep(440, .05); }      // 摇骰中不许退出
     return;
   }
   if (page === "bag" || page === "shop" || page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
