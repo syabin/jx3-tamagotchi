@@ -581,6 +581,14 @@ function bar(x, y, label, val, color, max) {
     px(x + 20 + i * 4, y, 3, 7, on ? color : "#2e3345");
   }
 }
+/* --- 迷你状态条（主界面用，原版极简风）--- */
+function miniBar(x, y, label, val, color) {
+  text(label, x, y, "#cfd4e8", 7);
+  for (let i = 0; i < 8; i++) {
+    const on = val / 100 * 8 > i;
+    px(x + 11 + i * 4, y + 1, 3, 6, on ? color : "#2e3345");
+  }
+}
 
 /* ================= 页面渲染 ================= */
 function petPose() {
@@ -629,37 +637,34 @@ function renderMain() {
   // 表情
   if (Date.now() < emojiUntil && emoji) drawEmoji(emoji);
   else if (S.mood > 75 && frame % 300 < 120 && Math.floor(frame / 300) % 2) drawEmoji("heart");
-  // 状态条
-  bar(4, 3, "体力", S.hunger, "#e8a04a");
-  bar(4, 12, "心情", S.mood, "#e86a8a");
-  const nt = nextTitle(S.exp);
-  const cur = titleOf(S.exp);
-  const prog = nt ? (S.exp - cur.exp) / (nt.exp - cur.exp) * 100 : 100;
-  bar(4, 21, "修为", prog, "#7ab8e8", 100);
-  text(cur.t, 106, 21, "#d8c68a", 8);
+  // 状态条（紧凑版，左上角两行）
+  miniBar(4, 4, "体", S.hunger, "#e8a04a");
+  miniBar(4, 12, "心", S.mood, "#e86a8a");
   text("金 " + S.coins, 122, 3, "#e8c860", 8);
-  // 中毒/狼藉警示
-  if (S.poisoned && frame % 40 < 25) textC("☠ 中毒", 130, 12, "#b8e88a", 8);
-  if (S.down && frame % 40 < 25) textC("✚ 重伤", 130, 12, "#e88a8a", 8);
+  // 注意图标（原版风）：有异常时闪烁，细节去状态页看
+  if ((S.poisoned || S.down || S.mess > 0 || S.hunger < 15) && frame % 40 < 25)
+    text("！", 150, 2, "#e86a5a", 12);
+  if (S.poisoned && frame % 40 < 25) textC("☠", 130, 12, "#b8e88a", 10);
+  if (S.down && frame % 40 < 25) textC("✚", 130, 12, "#e88a8a", 10);
   // 副本进度条
   if (S.dungeonUntil > Date.now()) {
     const p = 1 - (S.dungeonUntil - Date.now()) / 10000;
-    px(4, 30, 92, 7, "#262a38");
-    px(4, 30, Math.round(92 * p), 7, "#e8a04a");
-    px(4, 30, 92, 1, "#d8c68a"); px(4, 36, 92, 1, "#d8c68a");
-    text("副本中…", 100, 30, "#f5ecd0", 8);
+    px(4, 26, 92, 7, "#262a38");
+    px(4, 26, Math.round(92 * p), 7, "#e8a04a");
+    px(4, 26, 92, 1, "#d8c68a"); px(4, 32, 92, 1, "#d8c68a");
+    text("副本中…", 100, 26, "#f5ecd0", 8);
   }
-  // 当前选中项名（右上，不再压住图标）
+  // 底部菜单（5 秒无操作自动收起，屏幕只剩小人）
   const sel = menuIdx % MENU.length;
-  text("▶" + MENU[sel].label, 126, 40, "#d8c68a", 8);
-  // 底部菜单（9 项紧凑排布，只画图标）
-  MENU.forEach((m, i) => icon(m.id, 3 + i * 17, 106, i === sel));
-  // cooldown 标记
-  MENU.forEach((m, i) => {
-    const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", dungeon: "dungeon", clean: null, cure: "cure", home: null, status: null };
-    const key = cdMap[m.id];
-    if (key && cooling(key)) px(3 + i * 17 + 12, 105, 3, 3, "#e86a5a");
-  });
+  if (menuOpen()) {
+    MENU.forEach((m, i) => icon(m.id, 3 + i * 17, 106, i === sel));
+    text("▶" + MENU[sel].label, 126, 40, "#d8c68a", 8);
+    MENU.forEach((m, i) => {
+      const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", dungeon: "dungeon", clean: null, cure: "cure", home: null, status: null };
+      const key = cdMap[m.id];
+      if (key && cooling(key)) px(3 + i * 17 + 12, 105, 3, 3, "#e86a5a");
+    });
+  }
   // sparkles
   sparkles = sparkles.filter(s => s.life-- > 0);
   sparkles.forEach(s => {
@@ -725,30 +730,41 @@ function renderStatus() {
   const C = SECTS[S.sect];
   const days = ((Date.now() - S.bornTs) / 1000 * speedF / 3600 / 24).toFixed(1);
   const t = titleOf(S.exp);
+  const nt = nextTitle(S.exp);
+  const prog = nt ? Math.round((S.exp - t.exp) / (nt.exp - t.exp) * 100) : 100;
   const lines = [
     "门派：" + C.name,
     "称号：" + t.t,
     "体力：" + Math.round(S.hunger) + " / 100",
     "心情：" + Math.round(S.mood) + " / 100",
-    "修为：" + S.exp,
+    "修为：" + S.exp + "（晋升 " + prog + "%）",
     "银两：" + S.coins,
     "家园：" + HOME_NAMES[S.homeLv] + "（" + S.homeLv + "级）",
     "状态：" + (S.down ? "重伤卧床" : S.poisoned ? "中毒" : "康健"),
     "狼藉：" + S.mess + " 处",
     "江湖岁月：" + days + " 日",
   ];
-  lines.forEach((l, i) => text(l, 22, 22 + i * 10, i === 7 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 9));
-  textC("B 返回", 80, 118, "#8a92ad", 8);
+  lines.forEach((l, i) => text(l, 22, 20 + i * 9, i === 7 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 8));
+  textC("B 返回", 80, 116, "#8a92ad", 8);
 }
 
 /* ================= 输入 ================= */
 function moveSel(d) {
+  pokeMenu();
   // 按当前页面分发：伙房子菜单用 feedIdx，主菜单用 menuIdx
   if (page === "feed") { feedIdx = (feedIdx + d + FEEDS.length * 10) % FEEDS.length; beep(600, .03, "square", .06); return; }
   if (page !== "main") return;
+  if (!menuOpen()) return;   // 菜单收起时，第一次按键只展开菜单
   menuIdx = (menuIdx + d + MENU.length * 10) % MENU.length; beep(600, .03, "square", .06);
 }
+/* ---- 菜单自动收起（原版极简风）---- */
+let menuHideAt = 0;                                   // 0 = 从未展开
+function pokeMenu() { menuHideAt = Date.now() + 4500; }
+function menuOpen() { return Date.now() < menuHideAt; }
+
 function confirmA() {
+  if (page === "main" && !menuOpen()) { pokeMenu(); return; }  // 先展开再操作
+  pokeMenu();
   if (page === "sect") {
     const keys = Object.keys(SECTS);
     S.sect = keys[menuIdx % keys.length];
@@ -775,6 +791,8 @@ function confirmA() {
   }
 }
 function pressB() {
+  pokeMenu();
+  if (page === "main" && !menuOpen()) return;          // 菜单收起时 B 只负责展开
   if (page === "feed" || page === "status" || page === "home") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
