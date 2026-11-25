@@ -170,15 +170,15 @@ const TITLES = [
   { exp: 350, t: "威震八方" },
   { exp: 700, t: "天下无双" },
 ];
-/* 物品目录：food 吃（体力+），med 药（解毒/治重伤），shop 价 = 商城售价 */
+/* 物品目录：food 吃（体力+），med 药（解毒/治重伤），shop 价 = 商城售价（经济锚点：大战固定掉落 250 金） */
 const GOODS = {
-  baozi: { name: "包子",   type: "food", gain: 15, cd: 12, price: 8 },
-  fish:  { name: "蒸鱼",   type: "food", gain: 30, cd: 25, price: 15 },
-  feast: { name: "烧尾宴", type: "food", gain: 50, cd: 60, price: 30 },
-  pill:  { name: "玉露丸", type: "med",  price: 20, desc: "解毒/治重伤" },
+  baozi: { name: "包子",   type: "food", gain: 15, cd: 12, price: 80 },
+  fish:  { name: "蒸鱼",   type: "food", gain: 30, cd: 25, price: 150 },
+  feast: { name: "烧尾宴", type: "food", gain: 50, cd: 60, price: 300 },
+  pill:  { name: "玉露丸", type: "med",  price: 200, desc: "解毒/治重伤" },
 };
 const BAG_ORDER = ["baozi", "fish", "feast", "pill"];
-const BETS = [5, 10, 20, 50, 100];   // 赌坊押注档位
+const BETS = [50, 100, 200, 500, 1000];   // 赌坊押注档位
 let gameSt = null;
 const HOME_NAMES = ["荒地", "草庐", "木屋", "庭院", "山庄"];
 const SPEEDS = { 60: 60, 600: 600, 1: 1 };
@@ -198,7 +198,7 @@ let downGraceH = 0;           // 中毒累计游戏小时
 function newState() {
   return {
     sect: null,
-    hunger: 80, mood: 80, exp: 0, coins: 20, homeLv: 0,
+    hunger: 80, mood: 80, exp: 0, coins: 200, homeLv: 0,
     poisoned: false, down: false, mess: 0, dungeonUntil: 0,
     bornTs: Date.now(), lastTs: Date.now(),
     cool: {}, poisonedH: 0,
@@ -271,7 +271,7 @@ function applyTime(dtSec, f, silent) {
     if (!silent) {
       const win = Math.random() < Math.min(0.9, 0.4 + S.exp / 500 + S.hunger / 300);
       if (win) {
-        const c = 18 + Math.floor(Math.random() * 24), e = 18 + Math.floor(Math.random() * 16);
+        const c = 250 + Math.floor(Math.random() * 60), e = 18 + Math.floor(Math.random() * 16);
         S.coins += c; S.exp += e;
         toastMsg("副本通关！金币 +" + c + "，修为 +" + e, sfx.up);
         for (let i = 0; i < 10; i++) sparkles.push({ x: 50 + Math.random() * 60, y: 35 + Math.random() * 40, life: 30 + Math.random() * 15 });
@@ -399,8 +399,8 @@ function doAct(id, sub) {
       S.hunger = Math.max(0, S.hunger - 6);
       S.cool.dig = now + 30000;
       const r = Math.random();
-      if (r < 0.55) { const g = 5 + Math.floor(Math.random() * 12); S.coins += g; toastMsg("挖到 " + g + " 金币！", sfx.ok); }
-      else if (r < 0.80) { S.coins += 10; S.exp += 3; toastMsg("挖出一本《剑意残页》，修为 +3！", sfx.up); }
+      if (r < 0.55) { const g = 50 + Math.floor(Math.random() * 110); S.coins += g; toastMsg("挖到 " + g + " 金币！", sfx.ok); }
+      else if (r < 0.80) { S.coins += 100; S.exp += 3; toastMsg("挖出一本《剑意残页》，修为 +3！", sfx.up); }
       else if (r < 0.93) { toastMsg("挖了半天，只有一块石头…", sfx.err); }
       else if (S.mess < 3) { S.mess++; toastMsg("挖塌了土堆，弄得到处是泥…记得打扫", sfx.err); }
       else { toastMsg("挖到一块碎瓦，正好补屋顶", sfx.ok); }
@@ -409,7 +409,7 @@ function doAct(id, sub) {
     case "bag":
       page = "bag"; subIdx = 0; sfx.ok(); return;
     case "game":   // 黑市赌坊·押大小
-      if (S.coins < 5) { toastMsg("赌坊最低押 5 金币，先去赚点本钱", sfx.err); return; }
+      if (S.coins < 50) { toastMsg("赌坊最低押 50 金币，先去赚点本钱", sfx.err); return; }
       page = "game";
       gameSt = { phase: "side", side: 1, betIdx: 1, dice: [1, 1, 1], t: 0, sum: 0, win: false, baozi: false, pay: 0 };
       sfx.ok(); return;
@@ -1115,7 +1115,7 @@ function gameRollTick() {   // 摇骰动画与结算（render 帧驱动）
     if (st.win) { S.coins += bet; S.exp += 2; checkTitle(); }
     else {
       S.coins = Math.max(0, S.coins - bet);
-      if (S.coins < 5) { st.phase = "result"; save(); toastMsg("输光了…赌坊老板把你请了出去", sfx.err); page = "main"; return; }
+      if (S.coins < 50) { st.phase = "result"; save(); toastMsg("输光了…赌坊老板把你请了出去", sfx.err); page = "main"; return; }
     }
     (st.win ? (st.baozi ? sfx.err : sfx.up) : sfx.err)();
     st.phase = "result";
@@ -1237,7 +1237,7 @@ function renderSettings() {
 }
 
 function renderHome() {  px(0, 0, W, H, "#141824");
-  const lv = S.homeLv, cost = (lv + 1) * 50;
+  const lv = S.homeLv, cost = (lv + 1) * 500;
   textC("— 家园 · " + HOME_NAMES[lv] + " —", 64, 8, "#d8c68a", 10);
   drawHouse(58, 116);
   const lines = [
@@ -1364,11 +1364,11 @@ function confirmA() {
       st.phase = "roll"; st.t = 0; st.dice = [1, 1, 1]; st.sum = 0;   // A 开骰！
     }
     else if (st.phase === "result") {
-      if (S.coins < 5) { page = "main"; toastMsg("本钱不够了，赌坊老板请你出去", sfx.err); return; }
+      if (S.coins < 50) { page = "main"; toastMsg("本钱不够了，赌坊老板请你出去", sfx.err); return; }
       st.phase = "side"; beep(600, .05);
     }
   } else if (page === "home") {
-    const cost = (S.homeLv + 1) * 50;
+    const cost = (S.homeLv + 1) * 500;
     if (S.homeLv >= 4) { toastMsg("家园已至「山庄」，此乃极致", sfx.err); return; }
     if (S.coins < cost) { toastMsg("金币不足，还差 " + (cost - S.coins) + " 金", sfx.err); return; }
     S.coins -= cost; S.homeLv++;
