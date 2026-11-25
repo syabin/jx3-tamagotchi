@@ -421,7 +421,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "6.3";
+const APP_VERSION = "6.4";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -504,6 +504,25 @@ function textC(str, cx, y, c, size) {
   const w = ctx.measureText(str).width;
   ctx.fillStyle = c; ctx.textBaseline = "top";
   ctx.fillText(str, Math.round(cx - w / 2), y);
+}
+/* --- 走马灯：超宽文字自动横向滚动（像素屏风），不超宽则静止 --- */
+function marquee(str, x, y, w, c, size, spd) {
+  size = size || 9; spd = spd || 0.5;
+  ctx.font = size + "px 'Microsoft YaHei', sans-serif";
+  const tw = ctx.measureText(str).width;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y - 1, w, size + 4); ctx.clip();
+  ctx.fillStyle = c; ctx.textBaseline = "top";
+  if (tw <= w) {
+    ctx.fillText(str, x, y);
+  } else {
+    const gap = 14;                       // 首尾衔接空隙
+    const total = tw + gap;
+    const off = (Math.max(0, frame * spd - 26)) % total;   // 先停留约半秒再滚
+    ctx.fillText(str, x - off, y);
+    ctx.fillText(str, x - off + total, y);
+  }
+  ctx.restore();
 }
 
 /* --- 背景（多画面布局：主界面为纯底色，场景画在视窗里） --- */
@@ -717,6 +736,7 @@ let emoji = null, emojiUntil = 0;
 
 function render() {
   frame++;
+  if (page === "boot") return renderBoot();
   if (page === "sect") return renderSect();
   if (page === "status") return renderStatus();
   if (page === "bag") return renderGoodsPage("bag");
@@ -827,7 +847,8 @@ function renderDaily() {
         text(cur ? "▶" : " ", 5, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
         if (row.key && DUNGEON_KEYS[row.key]) text("本", 114, y + 1, "#e8a04a", 8);  // 可打本标记
         const l = row.t;
-        text(l.length > 11 ? l.slice(0, 10) + "…" : l, 14, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
+        if (cur) marquee(l, 14, y, 96, "#f5e9b8", 9, 0.4);   // 选中项全文滚动
+        else text(l.length > 11 ? l.slice(0, 10) + "…" : l, 14, y, "#cfd4e8", 9);
       });
       if (rows.length > visible) {
         textC((dailySel + 1) + "/" + rows.length, 64, 106, "#8a8fa5", 8);
@@ -843,6 +864,42 @@ function renderDaily() {
     if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 64, 116, "#8a8fa5", 8);
   }
   textC("A 进本/刷新 · B 返回", 64, 118, "#8a92ad", 8);
+}
+
+/* ================= 开机画面（大 LOGO + PRESS A START） ================= */
+function renderBoot() {
+  px(0, 0, W, H, "#0d0f18");
+  // 星空背景
+  const st = [[14,16],[30,10],[52,20],[80,12],[104,18],[22,40],[100,44],[12,72],[112,66],[40,98],[90,100],[64,8]];
+  st.forEach(([x, y], i) => { if ((frame + i * 23) % 120 < 82) px(x, y, 1, 1, "#3a4160"); });
+  // 上下金线 + 角饰
+  px(14, 22, 100, 1, "#8a7440"); px(14, 76, 100, 1, "#8a7440");
+  px(14, 22, 6, 1, "#d8c68a"); px(14, 22, 1, 5, "#d8c68a");
+  px(108, 22, 6, 1, "#d8c68a"); px(113, 22, 1, 5, "#d8c68a");
+  px(14, 71, 6, 1, "#d8c68a"); px(14, 67, 1, 5, "#d8c68a");
+  px(108, 71, 6, 1, "#d8c68a"); px(113, 67, 1, 5, "#d8c68a");
+  // 大 LOGO：剑网3（四向描边 + 悬浮微动）
+  const t = "剑网3";
+  ctx.font = "bold 36px 'Microsoft YaHei', sans-serif";
+  ctx.textBaseline = "top";
+  const tw = ctx.measureText(t).width;
+  const bob = Math.floor(frame / 30) % 2;
+  const lx = Math.round(64 - tw / 2), ly = 32 + bob;
+  ctx.fillStyle = "#2a1e0a";
+  [[2,0],[-2,0],[0,2],[0,-2],[2,2],[-2,-2]].forEach(([dx,dy]) => ctx.fillText(t, lx+dx, ly+dy));
+  ctx.fillStyle = "#d8c68a";
+  ctx.fillText(t, lx, ly);
+  // LOGO 两侧小剑光闪烁
+  if (frame % 90 < 30) { text("✦", lx - 14, ly + 10, "#f5ecd0", 12); text("✦", lx + tw + 4, ly + 10, "#f5ecd0", 12); }
+  // 副标题
+  textC("剑侠情缘 · 拓麻歌子", 64, 84 + bob, "#8a92ad", 8);
+  // PRESS A START（呼吸闪烁）
+  if (frame % 64 < 40) textC("PRESS A START", 64, 102, "#f5ecd0", 10);
+  // 底部小字
+  textC("v" + APP_VERSION, 64, 118, "#5a6078", 7);
+  // 四角星光
+  sparkles = sparkles.filter(s => s.life-- > 0);
+  sparkles.forEach(s => { const tw2 = (frame + s.x) % 20 < 10; px(s.x, s.y, tw2 ? 3 : 1, tw2 ? 3 : 1, "#f5e9b8"); });
 }
 
 function renderSect() {
@@ -907,8 +964,7 @@ function renderMain() {
   px(8, 102, 112, 24, "#1a1e2c");
   px(8, 102, 112, 1, "#d8c68a"); px(8, 125, 112, 1, "#d8c68a");
   if (toast && Date.now() < toast.until) {
-    const t2 = toast.text.length > 12 ? toast.text.slice(0, 12) : toast.text;
-    textC(t2, 64, 108, "#f5ecd0", 9);
+    marquee(toast.text, 12, 108, 104, "#f5ecd0", 9, 0.7);   // 长提示滚动显示
   } else {
     textC(MENU[sel].label, 64, 103, "#f5e9b8", 11);
     textC(MENU[sel].desc, 64, 115, "#8a92ad", 7);
@@ -1157,6 +1213,11 @@ function pokeMenu() { menuHideAt = Date.now() + 4500; }
 function menuOpen() { return true; }
 
 function confirmA() {
+  if (page === "boot") {          // 开机画面按 A → 进门派选择
+    page = "sect"; sfx.up();
+    for (let i = 0; i < 8; i++) sparkles.push({ x: 30 + Math.random() * 68, y: 30 + Math.random() * 50, life: 25 + Math.random() * 15 });
+    return;
+  }
   if (page === "sect") {
     const keys = Object.keys(SECTS);
     S.sect = keys[menuIdx % keys.length];
@@ -1270,12 +1331,12 @@ document.getElementById("mute").onchange = e => muted = e.target.checked;
 document.getElementById("reset").onclick = () => {
   if (confirm("确定清档重开？侠士的江湖岁月将归零。")) {
     localStorage.removeItem("jx3tama");
-    S = newState(); page = "sect"; menuIdx = 0;
+    S = newState(); page = "boot"; menuIdx = 0;   // 清档回到开机 LOGO 画面
   }
 };
 
 /* ================= 主循环 ================= */
-if (!load()) { S = newState(); page = "sect"; }
+if (!load()) { S = newState(); page = "boot"; }   // 新档先看开机 LOGO
 else { page = "main"; S._lastTitle = titleOf(S.exp).t; }
 speedF = +document.getElementById("speed").value;
 
@@ -1284,7 +1345,7 @@ setInterval(() => {
   const now = Date.now();
   const dt = (now - lastTick) / 1000;
   lastTick = now;
-  if (page !== "sect") applyTime(dt, speedF, false);
+  if (page !== "sect" && page !== "boot") applyTime(dt, speedF, false);   // 开机/选门派时时间不走
   save();
 }, 1000);
 
