@@ -145,6 +145,7 @@ const FEEDS = [
   { id: "fish",  name: "蒸鱼",   gain: 30, cd: 25 },
   { id: "feast", name: "烧尾宴", gain: 50, cd: 60 },
 ];
+const HOME_NAMES = ["荒地", "草庐", "木屋", "庭院", "山庄"];
 const SPEEDS = { 60: 60, 600: 600, 1: 1 };
 
 /* ================= 状态 ================= */
@@ -162,8 +163,8 @@ let downGraceH = 0;           // 中毒累计游戏小时
 function newState() {
   return {
     sect: null,
-    hunger: 80, mood: 80, exp: 0,
-    poisoned: false, down: false, mess: 0,
+    hunger: 80, mood: 80, exp: 0, coins: 20, homeLv: 0,
+    poisoned: false, down: false, mess: 0, dungeonUntil: 0,
     bornTs: Date.now(), lastTs: Date.now(),
     cool: {}, poisonedH: 0,
   };
@@ -217,8 +218,27 @@ function applyTime(dtSec, f, silent) {
   if (S.poisoned) hMul *= 2;
   if (S.mess > 0) mMul *= 2;
   if (S.down) { hMul *= 0.4; mMul *= 0.4; }
+  mMul *= 1 - 0.15 * (S.homeLv || 0);        // 家园等级降低心情流失
   S.hunger = Math.max(0, S.hunger - 9 * gh * hMul);
   S.mood   = Math.max(0, S.mood  - 7 * gh * mMul);
+
+  // 副本结算
+  if (S.dungeonUntil > 0 && Date.now() >= S.dungeonUntil) {
+    S.dungeonUntil = 0;
+    if (!silent) {
+      const win = Math.random() < Math.min(0.9, 0.4 + S.exp / 500 + S.hunger / 300);
+      if (win) {
+        const c = 18 + Math.floor(Math.random() * 24), e = 18 + Math.floor(Math.random() * 16);
+        S.coins += c; S.exp += e;
+        toastMsg("副本通关！银两 +" + c + "，修为 +" + e, sfx.up);
+        for (let i = 0; i < 10; i++) sparkles.push({ x: 50 + Math.random() * 60, y: 35 + Math.random() * 40, life: 30 + Math.random() * 15 });
+        checkTitle();
+      } else {
+        S.mood = Math.max(0, S.mood - 10); S.exp += 5;
+        toastMsg("团灭了…侠士灰头土脸（修为+5）", sfx.err);
+      }
+    }
+  }
 
   if (!S.down && !S.poisoned && !silent) {
     if (Math.random() < 0.5 * gh && S.mess < 3) { S.mess++; toastMsg("恶人谷袭击！现场一片狼藉…", sfx.alert); }
@@ -263,16 +283,20 @@ function toastMsg(text, sfxFn) { toast = { text, until: Date.now() + 2800 }; if 
 
 /* ================= 行为 ================= */
 const MENU = [
-  { id: "feed",  label: "喂食" },
-  { id: "sit",   label: "打坐" },
-  { id: "train", label: "木桩" },
-  { id: "clean", label: "打扫" },
-  { id: "cure",  label: "用药" },
-  { id: "status",label: "状态" },
+  { id: "feed",    label: "喂食" },
+  { id: "sit",     label: "打坐" },
+  { id: "train",   label: "木桩" },
+  { id: "dig",     label: "挖宝" },
+  { id: "dungeon", label: "副本" },
+  { id: "clean",   label: "打扫" },
+  { id: "cure",    label: "用药" },
+  { id: "home",    label: "家园" },
+  { id: "status",  label: "状态" },
 ];
 function canAct() {
   if (S.down)  return "重伤卧床，只能用药救治！";
   if (S.poisoned) return "中毒中，先用药解毒！";
+  if (S.dungeonUntil > Date.now()) return "副本进行中，侠士正在拼命！";
   return null;
 }
 function doAct(id, sub) {
@@ -318,6 +342,30 @@ function doAct(id, sub) {
       S.cool.cure = now + 10000;
       toastMsg("九花玉露丸下肚，满血复活！", sfx.up);
       break;
+    case "dig": {
+      if (cooling("dig")) { toastMsg("铁锹都挖冒烟了，歇会儿再挖", sfx.err); return; }
+      if (S.hunger < 10) { toastMsg("饿得举不起锹，先吃点东西", sfx.err); return; }
+      S.hunger = Math.max(0, S.hunger - 6);
+      S.cool.dig = now + 30000;
+      const r = Math.random();
+      if (r < 0.55) { const g = 5 + Math.floor(Math.random() * 12); S.coins += g; toastMsg("挖到 " + g + " 两银子！", sfx.ok); }
+      else if (r < 0.80) { S.coins += 10; S.exp += 3; toastMsg("挖出一本《剑意残页》，修为 +3！", sfx.up); }
+      else if (r < 0.93) { toastMsg("挖了半天，只有一块石头…", sfx.err); }
+      else if (S.mess < 3) { S.mess++; toastMsg("挖塌了土堆，弄得到处是泥…记得打扫", sfx.err); }
+      else { toastMsg("挖到一块碎瓦，正好补屋顶", sfx.ok); }
+      break;
+    }
+    case "dungeon":
+      if (S.hunger < 30) { toastMsg("体力不足 30，下副本会送人头", sfx.err); return; }
+      if (cooling("dungeon")) { toastMsg("侠士刚出本，缓缓再战", sfx.err); return; }
+      S.hunger = Math.max(0, S.hunger - 12);
+      S.mood = Math.max(0, S.mood - 6);
+      S.cool.dungeon = now + 60000;
+      S.dungeonUntil = now + 10000;
+      toastMsg("进入副本【冤魂洞】！战斗中…", sfx.train);
+      break;
+    case "home":
+      page = "home"; sfx.ok(); return;
     case "status":
       page = "status"; sfx.ok(); return;
   }
@@ -453,6 +501,33 @@ function drawPet(pose) {
     if (punch) { px(ox + 2 * u, oy + 1 * u, 2, 3, "#9ad0e8"); }
     return;
   }
+  if (pose === "dig") { // 挖宝
+    const sw = Math.floor(frame / 8) % 2;
+    P(3, 8, 9, 6, C.robe);
+    P(4, 4, 7, 5, skin);
+    P(3, 3, 9, 2, hair); P(6, 2, 3, 2, hair);
+    P(5, 6, 1, 1, dark); P(8, 6, 1, 1, dark);
+    P(3, 14, 9, 2, "#3a3a44");
+    if (sw) { P(12, 5, 5, 2, "#8a6a40"); P(16, 4, 2, 4, "#b8c0d0"); }   // 举锹
+    else    { P(11, 10, 2, 6, "#8a6a40"); P(11, 15, 4, 2, "#b8c0d0"); } // 插地
+    if (!sw) { P(7, 15, 6, 2, "#5a4a30"); } // 土堆
+    return;
+  }
+  if (pose === "dungeon") { // 副本战斗
+    const mx = 112 + (Math.floor(frame / 14) % 2);
+    px(mx, 62, 14, 12, "#4a7a3a"); px(mx + 2, 58, 10, 5, "#4a7a3a");
+    px(mx + 3, 60, 2, 2, "#e8d840"); px(mx + 8, 60, 2, 2, "#e8d840");
+    px(mx - 2, 56, 3, 4, "#2e4a24"); px(mx + 12, 56, 3, 4, "#2e4a24");
+    const slash = Math.floor(frame / 6) % 2;
+    P(3, 7, 9, 6, C.robe);
+    P(4, 2, 7, 6, skin);
+    P(3, 1, 9, 2, hair); P(6, 0, 3, 2, hair);
+    P(5, 4, 1, 1, dark); P(8, 4, 1, 1, dark);
+    P(3, 13, 9, 3, "#3a3a44");
+    if (slash) { P(11, 5, 5, 2, C.trim); px(ox + 16 * u, oy + 5 * u, 8, 2, "#e8f0ff"); } // 挥剑+剑光
+    else { P(10, 8, 4, 2, skin); }
+    return;
+  }
   // idle
   P(3, 7, 9, 6, C.robe);
   P(5, 2, 7, 6, skin);
@@ -493,6 +568,9 @@ function icon(id, x, y, sel) {
   if (id === "clean"){ px(x + 3, y + 10, 10, 3, c1); px(x + 7, y + 3, 2, 7, c1); px(x + 5, y + 2, 6, 2, c1); }
   if (id === "cure") { px(x + 6, y + 3, 4, 10, c1); px(x + 3, y + 6, 10, 4, "#e88a8a"); px(x + 7, y + 4, 2, 2, c1); }
   if (id === "status"){px(x + 3, y + 2, 10, 12, c1); px(x + 5, y + 5, 6, 1, "#262a38"); px(x + 5, y + 8, 6, 1, "#262a38"); px(x + 5, y + 11, 4, 1, "#262a38"); }
+  if (id === "dig")   { px(x + 7, y + 2, 2, 8, c1); px(x + 5, y + 9, 6, 2, c1); px(x + 4, y + 11, 8, 3, "#b8c0d0"); }
+  if (id === "dungeon"){ px(x + 2, y + 10, 12, 4, c1); px(x + 4, y + 4, 8, 6, "#e88a8a"); px(x + 5, y + 6, 2, 2, "#262a38"); px(x + 9, y + 6, 2, 2, "#262a38"); }
+  if (id === "home")  { px(x + 3, y + 8, 10, 6, c1); px(x + 6, y + 10, 4, 4, "#262a38"); px(x + 2, y + 3, 12, 2, c1); px(x + 4, y + 5, 8, 2, c1); px(x + 7, y + 1, 2, 2, "#e8c860"); }
 }
 
 /* --- 状态条 --- */
@@ -508,6 +586,8 @@ function bar(x, y, label, val, color, max) {
 function petPose() {
   if (S.down) return "down";
   if (S.poisoned) return "sick";
+  if (S.dungeonUntil > Date.now()) return "dungeon";
+  if (cooling("dig") && Date.now() - (S.cool.dig - 30000) < 6000) return "dig";
   if (cooling("sit") && Date.now() - (S.cool.sit - 15000) < 8000) return "sit";
   if (cooling("feed_baozi") && Date.now() - (S.cool.feed_baozi - 12000) < 6000) return "eat";
   if (cooling("train") && Date.now() - (S.cool.train - 25000) < 9000) return "train";
@@ -522,6 +602,7 @@ function render() {
   if (page === "sect") return renderSect();
   if (page === "status") return renderStatus();
   if (page === "feed") return renderFeed();
+  if (page === "home") return renderHome();
   renderMain();
 }
 
@@ -542,6 +623,7 @@ function renderSect() {
 
 function renderMain() {
   drawScene();
+  drawHouse();
   drawPet(petPose());
   drawMess();
   // 表情
@@ -554,19 +636,29 @@ function renderMain() {
   const cur = titleOf(S.exp);
   const prog = nt ? (S.exp - cur.exp) / (nt.exp - cur.exp) * 100 : 100;
   bar(4, 21, "修为", prog, "#7ab8e8", 100);
-  text(cur.t, 108, 21, "#d8c68a", 8);
+  text(cur.t, 106, 21, "#d8c68a", 8);
+  text("金 " + S.coins, 122, 3, "#e8c860", 8);
   // 中毒/狼藉警示
   if (S.poisoned && frame % 40 < 25) textC("☠ 中毒", 130, 12, "#b8e88a", 8);
   if (S.down && frame % 40 < 25) textC("✚ 重伤", 130, 12, "#e88a8a", 8);
-  // 底部菜单
+  // 副本进度条
+  if (S.dungeonUntil > Date.now()) {
+    const p = 1 - (S.dungeonUntil - Date.now()) / 10000;
+    px(4, 30, 92, 7, "#262a38");
+    px(4, 30, Math.round(92 * p), 7, "#e8a04a");
+    px(4, 30, 92, 1, "#d8c68a"); px(4, 36, 92, 1, "#d8c68a");
+    text("副本中…", 100, 30, "#f5ecd0", 8);
+  }
+  // 当前选中项名（右上，不再压住图标）
   const sel = menuIdx % MENU.length;
-  MENU.forEach((m, i) => icon(m.id, 6 + i * 26, 106, i === sel));
-  text(MENU[sel].label, 6 + sel * 26 + 2, 124 - 14, sel === sel ? "#f5e9b8" : "#8a92ad", 8);
+  text("▶" + MENU[sel].label, 126, 40, "#d8c68a", 8);
+  // 底部菜单（9 项紧凑排布，只画图标）
+  MENU.forEach((m, i) => icon(m.id, 3 + i * 17, 106, i === sel));
   // cooldown 标记
   MENU.forEach((m, i) => {
-    const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", clean: null, cure: "cure", status: null };
+    const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", dungeon: "dungeon", clean: null, cure: "cure", home: null, status: null };
     const key = cdMap[m.id];
-    if (key && cooling(key)) px(6 + i * 26 + 12, 105, 3, 3, "#e86a5a");
+    if (key && cooling(key)) px(3 + i * 17 + 12, 105, 3, 3, "#e86a5a");
   });
   // sparkles
   sparkles = sparkles.filter(s => s.life-- > 0);
@@ -584,6 +676,19 @@ function renderMain() {
   }
 }
 
+/* --- 家园小屋（随等级变大变漂亮） --- */
+function drawHouse() {
+  const lv = S.homeLv || 0;
+  if (lv === 0) return; // 荒地，无房
+  const w = 12 + lv * 5, h = 7 + lv * 3;
+  const x0 = 8, y0 = 100;
+  px(x0 + 1, y0 - h, w, h, lv >= 3 ? "#8a6a44" : "#6a5a3a");       // 墙
+  for (let i = 0; i < 3; i++)                                       // 屋顶
+    px(x0 - 2 + i, y0 - h - 3 + i, w + 4 - i * 2, 1, lv >= 4 ? "#d8c68a" : (lv >= 2 ? "#a04030" : "#4a3a26"));
+  px(x0 + Math.floor(w / 2) - 1, y0 - 5, 3, 5, "#2e2519");          // 门
+  if (lv >= 3) { px(x0 + w - 3, y0 - h - 7, 1, 4, "#5a4a32"); px(x0 + w - 2, y0 - h - 7, 4, 2, "#e8c860"); } // 金旗
+}
+
 function renderFeed() {
   renderMain();
   px(30, 30, 100, 68, "#1a1e2c");
@@ -593,9 +698,25 @@ function renderFeed() {
     const y = 46 + i * 14;
     const on = i === feedIdx % FEEDS.length;
     if (on) px(36, y - 2, 88, 12, "#3a3f54");
-    text(f.name + "  气力+" + f.gain + (cooling("feed_" + f.id) ? "（烹饪中）" : ""), 42, y, on ? "#f5e9b8" : "#8a92ad", 9);
+    text(f.name + "  体力+" + f.gain + (cooling("feed_" + f.id) ? "（烹饪中）" : ""), 42, y, on ? "#f5e9b8" : "#8a92ad", 9);
   });
-  textC("A 吃！ · B 返回", 80, 88, "#8a92ad", 8);
+  textC("▲▼ 选择 · A 吃！ · B 返回", 80, 88, "#8a92ad", 8);
+}
+
+function renderHome() {
+  px(0, 0, W, H, "#141824");
+  drawScene();
+  const lv = S.homeLv, cost = (lv + 1) * 50;
+  textC("— 家园 · " + HOME_NAMES[lv] + " —", 80, 8, "#d8c68a", 10);
+  drawHouse();
+  const lines = [
+    "等级：" + lv + "（" + HOME_NAMES[lv] + "）",
+    "效果：心情流失 -" + (lv * 15) + "%",
+    (lv >= 4 ? "已达最高等级" : "升级花费：" + cost + " 两银子"),
+    "现有银两：" + S.coins,
+  ];
+  lines.forEach((l, i) => text(l, 30, 34 + i * 13, "#cfd4e8", 9));
+  textC(lv >= 4 ? "B 返回" : "A 升级 · B 返回", 80, 92, "#8a92ad", 8);
 }
 
 function renderStatus() {
@@ -610,16 +731,23 @@ function renderStatus() {
     "体力：" + Math.round(S.hunger) + " / 100",
     "心情：" + Math.round(S.mood) + " / 100",
     "修为：" + S.exp,
+    "银两：" + S.coins,
+    "家园：" + HOME_NAMES[S.homeLv] + "（" + S.homeLv + "级）",
     "状态：" + (S.down ? "重伤卧床" : S.poisoned ? "中毒" : "康健"),
     "狼藉：" + S.mess + " 处",
     "江湖岁月：" + days + " 日",
   ];
-  lines.forEach((l, i) => text(l, 22, 26 + i * 12, i === 5 && S.down || (i === 5 && S.poisoned) ? "#e8a08a" : "#cfd4e8", 9));
-  textC("B 返回", 80, 116, "#8a92ad", 8);
+  lines.forEach((l, i) => text(l, 22, 22 + i * 10, i === 7 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 9));
+  textC("B 返回", 80, 118, "#8a92ad", 8);
 }
 
 /* ================= 输入 ================= */
-function moveSel(d) { menuIdx = (menuIdx + d + MENU.length * 10) % MENU.length; beep(600, .03, "square", .06); }
+function moveSel(d) {
+  // 按当前页面分发：伙房子菜单用 feedIdx，主菜单用 menuIdx
+  if (page === "feed") { feedIdx = (feedIdx + d + FEEDS.length * 10) % FEEDS.length; beep(600, .03, "square", .06); return; }
+  if (page !== "main") return;
+  menuIdx = (menuIdx + d + MENU.length * 10) % MENU.length; beep(600, .03, "square", .06);
+}
 function confirmA() {
   if (page === "sect") {
     const keys = Object.keys(SECTS);
@@ -634,12 +762,20 @@ function confirmA() {
     else doAct(id);
   } else if (page === "feed") {
     doAct("feed", feedIdx % FEEDS.length);
+  } else if (page === "home") {
+    const cost = (S.homeLv + 1) * 50;
+    if (S.homeLv >= 4) { toastMsg("家园已至「山庄」，此乃极致", sfx.err); return; }
+    if (S.coins < cost) { toastMsg("银两不足，还差 " + (cost - S.coins) + " 两", sfx.err); return; }
+    S.coins -= cost; S.homeLv++;
+    toastMsg("家园升为「" + HOME_NAMES[S.homeLv] + "」！心情更稳了", sfx.up);
+    for (let i = 0; i < 12; i++) sparkles.push({ x: 30 + Math.random() * 100, y: 25 + Math.random() * 60, life: 30 + Math.random() * 20 });
+    save();
   } else if (page === "status") {
     page = "main"; sfx.ok();
   }
 }
 function pressB() {
-  if (page === "feed" || page === "status") { page = "main"; beep(440, .05); }
+  if (page === "feed" || page === "status" || page === "home") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
 
