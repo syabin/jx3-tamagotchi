@@ -43,6 +43,15 @@
     background: #10131c;
     cursor: pointer;
   }
+  /* ---------- 真实尺寸模式（1 canvas 像素 = 1 CSS 像素） ---------- */
+  body.real-size .device { width: auto; }
+  body.real-size canvas#screen { width: 160px; height: 128px; }
+  .size-toggle {
+    display: block; margin: 10px auto 0; padding: 4px 14px;
+    background: #262a38; color: #8a92ad; border: 1px solid #3c4152; border-radius: 14px;
+    font-size: 11px; cursor: pointer; user-select: none;
+  }
+  .size-toggle.on { color: #f5e9b8; border-color: #d8c68a; }
   /* ---------- 控制 ---------- */
   .controls { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding: 0 8px; }
   .dpad { display: flex; flex-direction: column; gap: 8px; }
@@ -97,6 +106,7 @@
     </div>
   </div>
   <div class="hint">▲▼ 选图标 · A 进入 · B 返回（主页 B = 状态手札）</div>
+  <button class="size-toggle" id="sizeToggle">切换：真实尺寸 160×128</button>
 </div>
 
 <div class="panel">
@@ -921,6 +931,16 @@ document.getElementById("btnUp").onclick = () => moveSel(-1);
 document.getElementById("btnDown").onclick = () => moveSel(1);
 document.getElementById("btnA").onclick = confirmA;
 document.getElementById("btnB").onclick = pressB;
+// 真实尺寸切换（1 canvas 像素 = 1 CSS 像素，即真机 1.8 寸屏的显示密度）
+const sizeToggle = document.getElementById("sizeToggle");
+function applyRealSize(on) {
+  document.body.classList.toggle("real-size", on);
+  sizeToggle.classList.toggle("on", on);
+  sizeToggle.textContent = on ? "切换：自适应屏幕" : "切换：真实尺寸 160×128";
+  try { localStorage.setItem("jx3realsize", on ? "1" : "0"); } catch (e) {}
+}
+sizeToggle.addEventListener("click", () => applyRealSize(!document.body.classList.contains("real-size")));
+try { applyRealSize(localStorage.getItem("jx3realsize") === "1"); } catch (e) {}
 const deviceEl = document.querySelector(".device");
 // 滚轮在整个机身上都可用（选单旋转）
 deviceEl.addEventListener("wheel", e => { e.preventDefault(); moveSel(e.deltaY > 0 ? 1 : -1); }, { passive: false });
