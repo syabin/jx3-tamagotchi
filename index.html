@@ -245,7 +245,7 @@ function applyTime(dtSec, f, silent) {
       if (win) {
         const c = 18 + Math.floor(Math.random() * 24), e = 18 + Math.floor(Math.random() * 16);
         S.coins += c; S.exp += e;
-        toastMsg("副本通关！银两 +" + c + "，修为 +" + e, sfx.up);
+        toastMsg("副本通关！金币 +" + c + "，修为 +" + e, sfx.up);
         for (let i = 0; i < 10; i++) sparkles.push({ x: 50 + Math.random() * 60, y: 35 + Math.random() * 40, life: 30 + Math.random() * 15 });
         checkTitle();
       } else {
@@ -303,8 +303,7 @@ const MENU = [
   { id: "feed",    label: "喂食", desc: "挑一份菜" },
   { id: "sit",     label: "打坐", desc: "心情+20 修为+3" },
   { id: "train",   label: "木桩", desc: "修为+12 耗体力" },
-  { id: "dig",     label: "挖宝", desc: "挖宝得银两" },
-  { id: "dungeon", label: "副本", desc: "10秒战斗得奖励" },
+  { id: "dig",     label: "挖宝", desc: "挖宝得金币" },
   { id: "clean",   label: "打扫", desc: "清理狼藉" },
   { id: "cure",    label: "用药", desc: "解毒/治重伤" },
   { id: "home",    label: "家园", desc: "升级宅子" },
@@ -365,22 +364,13 @@ function doAct(id, sub) {
       S.hunger = Math.max(0, S.hunger - 6);
       S.cool.dig = now + 30000;
       const r = Math.random();
-      if (r < 0.55) { const g = 5 + Math.floor(Math.random() * 12); S.coins += g; toastMsg("挖到 " + g + " 两银子！", sfx.ok); }
+      if (r < 0.55) { const g = 5 + Math.floor(Math.random() * 12); S.coins += g; toastMsg("挖到 " + g + " 金币！", sfx.ok); }
       else if (r < 0.80) { S.coins += 10; S.exp += 3; toastMsg("挖出一本《剑意残页》，修为 +3！", sfx.up); }
       else if (r < 0.93) { toastMsg("挖了半天，只有一块石头…", sfx.err); }
       else if (S.mess < 3) { S.mess++; toastMsg("挖塌了土堆，弄得到处是泥…记得打扫", sfx.err); }
       else { toastMsg("挖到一块碎瓦，正好补屋顶", sfx.ok); }
       break;
     }
-    case "dungeon":
-      if (S.hunger < 30) { toastMsg("体力不足 30，下副本会送人头", sfx.err); return; }
-      if (cooling("dungeon")) { toastMsg("侠士刚出本，缓缓再战", sfx.err); return; }
-      S.hunger = Math.max(0, S.hunger - 12);
-      S.mood = Math.max(0, S.mood - 6);
-      S.cool.dungeon = now + 60000;
-      S.dungeonUntil = now + 10000;
-      toastMsg("进入副本【冤魂洞】！战斗中…", sfx.train);
-      break;
     case "home":
       page = "home"; sfx.ok(); return;
     case "daily":
@@ -391,6 +381,20 @@ function doAct(id, sub) {
       page = "status"; sfx.ok(); return;
   }
   page = "main";
+}
+/* 从日常页发起打本（副本已从主菜单移除） */
+function startDungeon(name) {
+  const now = Date.now();
+  const block = canAct();
+  if (block) { toastMsg(block, sfx.err); return; }
+  if (S.hunger < 30) { toastMsg("体力不足 30，下副本会送人头", sfx.err); return; }
+  if (cooling("dungeon")) { toastMsg("侠士刚出本，缓缓再战", sfx.err); return; }
+  S.hunger = Math.max(0, S.hunger - 12);
+  S.mood = Math.max(0, S.mood - 6);
+  S.cool.dungeon = now + 60000;
+  S.dungeonUntil = now + 10000;
+  toastMsg("进入副本【" + (name || "冤魂洞") + "】！战斗中…", sfx.train);
+  save();
 }
 
 /* ================= 像素绘制 ================= */
@@ -646,10 +650,13 @@ const DAILY_FIELDS = [
   ["weekly.raid", "团本周本", "arr"],
 ];
 function pick(obj, path) { return path.split(".").reduce((o, k) => o && o[k], obj); }
+// 这些日常条目可以按 A 进副本打
+const DUNGEON_KEYS = { war: true, battle: true, card: true, "weekly.raid": true };
 function buildDailyRows() {
   if (!dailyData || typeof dailyData !== "object") return null;
   const rows = [];
   const head = dailyData.date ? (dailyData.date + (dailyData.week ? " · 周" + dailyData.week : "")) : null;
+  if (head) rows.push({ t: head, key: null, label: null });
   for (const [key, label] of DAILY_FIELDS) {
     let v = pick(dailyData, key);
     if (v == null) continue;
@@ -659,9 +666,8 @@ function buildDailyRows() {
     }
     v = String(v).trim();
     if (!v) continue;
-    rows.push(label + "：" + v);
+    rows.push({ t: label + "：" + v, key, label });
   }
-  if (head) rows.unshift(head);
   return rows.length ? rows : null;
 }
 async function fetchDaily() {
@@ -713,13 +719,15 @@ function renderDaily() {
       if (dailySel < 0) dailySel = 0;
       const visible = 6;
       let start = Math.max(0, Math.min(dailySel - Math.floor(visible / 2), rows.length - visible));
-      rows.slice(start, start + visible).forEach((l, i) => {
+      rows.slice(start, start + visible).forEach((row, i) => {
         const idx = start + i;
         const y = 24 + i * 13;
         const cur = idx === dailySel;
         if (cur) px(4, y - 2, W - 8, 12, "#26314a");
         text(cur ? "▶" : " ", 5, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
-        text(l.length > 16 ? l.slice(0, 15) + "…" : l, 14, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
+        if (row.key && DUNGEON_KEYS[row.key]) text("本", 148, y + 1, "#e8a04a", 8);  // 可打本标记
+        const l = row.t;
+        text(l.length > 15 ? l.slice(0, 14) + "…" : l, 14, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
       });
       if (rows.length > visible) {
         textC((dailySel + 1) + "/" + rows.length, 80, 106, "#8a8fa5", 8);
@@ -734,7 +742,7 @@ function renderDaily() {
     }
     if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 80, 116, "#8a8fa5", 8);
   }
-  textC("A 刷新 · B 返回", 80, 118, "#8a92ad", 8);
+  textC("A 进本/刷新 · B 返回", 80, 118, "#8a92ad", 8);
 }
 
 function renderSect() {
@@ -785,7 +793,7 @@ function renderMain() {
   }
   // ===== 图标网格（上5下5）=====
   const sel = menuIdx % MENU.length;
-  const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", dungeon: "dungeon", clean: null, cure: "cure", home: null, status: null, daily: null };
+  const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", clean: null, cure: "cure", home: null, status: null, daily: null };
   MENU.forEach((m, i) => {
     const row = i < 5 ? 0 : 1;
     const bx = 6 + (i % 5) * 32, by = row === 0 ? 2 : 78;
@@ -844,8 +852,8 @@ function renderHome() {
   const lines = [
     "等级：" + lv + "（" + HOME_NAMES[lv] + "）",
     "效果：心情流失 -" + (lv * 15) + "%",
-    (lv >= 4 ? "已达最高等级" : "升级花费：" + cost + " 两银子"),
-    "现有银两：" + S.coins,
+    (lv >= 4 ? "已达最高等级" : "升级花费：" + cost + " 金币"),
+    "现有金币：" + S.coins,
   ];
   lines.forEach((l, i) => text(l, 30, 34 + i * 13, "#cfd4e8", 9));
   textC(lv >= 4 ? "B 返回" : "A 升级 · B 返回", 80, 92, "#8a92ad", 8);
@@ -865,7 +873,7 @@ function renderStatus() {
     "体力：" + Math.round(S.hunger) + " / 100",
     "心情：" + Math.round(S.mood) + " / 100",
     "修为：" + S.exp + "（晋升 " + prog + "%）",
-    "银两：" + S.coins,
+    "金币：" + S.coins,
     "家园：" + HOME_NAMES[S.homeLv] + "（" + S.homeLv + "级）",
     "状态：" + (S.down ? "重伤卧床" : S.poisoned ? "中毒" : "康健"),
     "狼藉：" + S.mess + " 处",
@@ -910,7 +918,7 @@ function confirmA() {
   } else if (page === "home") {
     const cost = (S.homeLv + 1) * 50;
     if (S.homeLv >= 4) { toastMsg("家园已至「山庄」，此乃极致", sfx.err); return; }
-    if (S.coins < cost) { toastMsg("银两不足，还差 " + (cost - S.coins) + " 两", sfx.err); return; }
+    if (S.coins < cost) { toastMsg("金币不足，还差 " + (cost - S.coins) + " 金", sfx.err); return; }
     S.coins -= cost; S.homeLv++;
     toastMsg("家园升为「" + HOME_NAMES[S.homeLv] + "」！心情更稳了", sfx.up);
     for (let i = 0; i < 12; i++) sparkles.push({ x: 30 + Math.random() * 100, y: 25 + Math.random() * 60, life: 30 + Math.random() * 20 });
@@ -918,7 +926,16 @@ function confirmA() {
   } else if (page === "status") {
     page = "main"; sfx.ok();
   } else if (page === "daily") {
-    fetchDaily();
+    const rows = buildDailyRows();
+    const row = rows && rows[dailySel];
+    if (row && row.key && DUNGEON_KEYS[row.key]) {
+      const name = row.t.split("：")[1] || row.label;
+      page = "main";
+      startDungeon(name);
+    } else {
+      fetchDaily();
+      toastMsg("已刷新今日日常", sfx.ok);
+    }
   }
 }
 function pressB() {
