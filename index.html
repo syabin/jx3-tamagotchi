@@ -693,7 +693,7 @@ async function fetchDaily() {
 }
 function renderDaily() {
   px(0, 0, W, H, "#141824");
-  textC("— 今日日常 · " + DAILY_SERVER + " —", 80, 8, "#d8c68a", 9);
+  textC("— 今日日常 · " + DAILY_SERVER + " —", 80, 8, "#d8c68a", 10);
   if (dailyLoading) {
     textC("拉取中…", 80, 50, "#8a92ad", 10);
   } else {
@@ -701,20 +701,20 @@ function renderDaily() {
     if (rows) {
       if (dailySel >= rows.length) dailySel = rows.length - 1;
       if (dailySel < 0) dailySel = 0;
-      const visible = 8;
+      const visible = 6;
       let start = Math.max(0, Math.min(dailySel - Math.floor(visible / 2), rows.length - visible));
       rows.slice(start, start + visible).forEach((l, i) => {
         const idx = start + i;
-        const y = 22 + i * 11;
+        const y = 24 + i * 13;
         const cur = idx === dailySel;
-        if (cur) px(4, y - 1, W - 8, 10, "#26314a");
-        text(cur ? "▶" : " ", 6, y, cur ? "#f5e9b8" : "#cfd4e8", 8);
-        text(l.length > 25 ? l.slice(0, 25) : l, 13, y, cur ? "#f5e9b8" : "#cfd4e8", 8);
+        if (cur) px(4, y - 2, W - 8, 12, "#26314a");
+        text(cur ? "▶" : " ", 5, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
+        text(l.length > 16 ? l.slice(0, 15) + "…" : l, 14, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
       });
       if (rows.length > visible) {
-        textC((dailySel + 1) + "/" + rows.length, 80, 110, "#8a8fa5", 7);
-        if (start > 0) text("▲", 8, 20, "#8a8fa5", 8);
-        if (start + visible < rows.length) text("▼", 148, 104, "#8a8fa5", 8);
+        textC((dailySel + 1) + "/" + rows.length, 80, 106, "#8a8fa5", 8);
+        if (start > 0) text("▲", 8, 21, "#8a8fa5", 9);
+        if (start + visible < rows.length) text("▼", 147, 88, "#8a8fa5", 9);
       }
     } else if (dailyErr) {
       textC(dailyErr, 80, 44, "#e8a08a", 9);
@@ -722,7 +722,7 @@ function renderDaily() {
     } else {
       textC("暂无数据 · A 刷新", 80, 50, "#8a92ad", 9);
     }
-    if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 80, 104, "#8a8fa5", 7);
+    if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 80, 116, "#8a8fa5", 8);
   }
   textC("A 刷新 · B 返回", 80, 118, "#8a92ad", 8);
 }
