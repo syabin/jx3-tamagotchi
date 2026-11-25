@@ -333,6 +333,7 @@ const MENU = [
   { id: "dig",     label: "挖宝", desc: "挖宝得金币" },
   { id: "clean",   label: "打扫", desc: "清理狼藉" },
   { id: "home",    label: "家园", desc: "升级宅子" },
+  { id: "settings",label: "设置", desc: "升级/WiFi/热点" },
 ];
 const DAILY_SERVER = "梦江南";   // jx3api 查询的区服，可改
 function canAct() {
@@ -406,6 +407,8 @@ function doAct(id, sub) {
       page = "bag"; subIdx = 0; sfx.ok(); return;
     case "shop":
       page = "shop"; subIdx = 0; sfx.ok(); return;
+    case "settings":
+      page = "settings"; setIdx = 0; setPage = null; sfx.ok(); return;
     case "home":
       page = "home"; sfx.ok(); return;
     case "daily":
@@ -417,9 +420,66 @@ function doAct(id, sub) {
   }
   page = "main";
 }
+/* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
+const APP_VERSION = "6.3";
+const bootTs = Date.now();
+let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
+let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
+let apOn = false;
+let wifiState = { phase: "idle", sel: 0, list: [], ssid: null, ip: null, pct: 0 };  // idle|scanning|list|connecting|ok|fail
+const WIFI_MOCK = ["JX3-Home", "公司WiFi-办公区", "TP-LINK_A32C", "Xiaomi_Router_5G", "iPhone热点"];
+const SET_MENU = [
+  { id: "ota",   label: "系统升级", desc: "在线检查更新" },
+  { id: "wifi",  label: "WiFi连接", desc: "连接无线网络" },
+  { id: "ap",    label: "热点模式", desc: "手机传更新包" },
+  { id: "about", label: "关于本机", desc: "版本与状态" },
+];
+function otaCheck() {
+  otaState = { phase: "checking", ver: null, pct: 0 };
+  // 网页版：拉线上 index.html 比对版本号；固件版：请求 /version.json 后下载 .bin 写 Flash
+  fetch("index.html?ts=" + Date.now(), { cache: "no-store" })
+    .then(r => r.text())
+    .then(t => {
+      const m = t.match(/APP_VERSION = "([^"]+)"/);
+      otaState.ver = m && m[1];
+      otaState.phase = (otaState.ver && otaState.ver !== APP_VERSION) ? "found" : "latest";
+    })
+    .catch(() => { otaState.phase = "fail"; });
+}
+function otaUpgrade() {
+  otaState.phase = "writing"; otaState.pct = 0;
+  const tmr = setInterval(() => {
+    otaState.pct += 6 + Math.random() * 10;
+    if (otaState.pct >= 100) {
+      clearInterval(tmr);
+      toastMsg("更新包写入完成，重启中…", sfx.up);
+      setTimeout(() => location.replace("?t=" + Date.now()), 800);   // 带时间戳强制刷新，绕过缓存
+    }
+  }, 120);
+}
+function wifiScan() {
+  wifiState.phase = "scanning";
+  setTimeout(() => {
+    wifiState.list = WIFI_MOCK.slice();
+    wifiState.phase = "list"; wifiState.sel = 0;
+  }, 900);
+}
+function wifiConnect(ssid) {
+  wifiState.phase = "connecting"; wifiState.ssid = ssid; wifiState.pct = 0;
+  const ok = Math.random() > 0.25;   // 模拟连接过程（固件版为真实 wpa_supplicant 流程）
+  const tmr = setInterval(() => {
+    wifiState.pct += 12;
+    if (wifiState.pct >= 100) {
+      clearInterval(tmr);
+      if (ok) { wifiState.phase = "ok"; wifiState.ip = "192.168.1." + (100 + Math.floor(Math.random() * 50)); toastMsg("已连接 " + ssid, sfx.ok); }
+      else { wifiState.phase = "fail"; toastMsg("连接失败，信号弱或密码错", sfx.err); }
+    }
+  }, 150);
+}
+function wifiReset() { wifiState = { phase: "idle", sel: 0, list: [], ssid: null, ip: null, pct: 0 }; }
+
 /* 从日常页发起打本（副本已从主菜单移除） */
-function startDungeon(name) {
-  const now = Date.now();
+function startDungeon(name) {  const now = Date.now();
   const block = canAct();
   if (block) { toastMsg(block, sfx.err); return; }
   if (S.hunger < 30) { toastMsg("体力不足 30，下副本会送人头", sfx.err); return; }
@@ -620,6 +680,7 @@ function icon(id, x, y, sel) {
   if (id === "bag")   { px(x + 3, y + 6, 10, 8, c1); px(x + 5, y + 3, 6, 3, c1); px(x + 7, y + 4, 2, 2, "#262a38"); px(x + 4, y + 9, 2, 2, "#262a38"); px(x + 10, y + 9, 2, 2, "#262a38"); }
   if (id === "shop")  { px(x + 2, y + 4, 12, 2, c1); px(x + 3, y + 6, 10, 8, c1); px(x + 6, y + 9, 4, 5, "#262a38"); px(x + 2, y + 1, 3, 3, "#e8c860"); px(x + 11, y + 1, 3, 3, "#e8c860"); }
   if (id === "daily") { px(x + 3, y + 2, 10, 3, c1); px(x + 3, y + 5, 10, 9, c1); px(x + 5, y + 7, 2, 2, "#262a38"); px(x + 8, y + 9, 2, 2, "#262a38"); px(x + 7, y + 4, 2, 2, "#e8c860"); }
+  if (id === "settings"){ px(x + 4, y + 1, 8, 2, c1); px(x + 4, y + 13, 8, 2, c1); px(x + 1, y + 4, 2, 8, c1); px(x + 13, y + 4, 2, 8, c1); px(x + 4, y + 4, 8, 8, c1); px(x + 6, y + 6, 4, 4, "#262a38"); }
 }
 
 /* --- 状态条 --- */
@@ -660,6 +721,7 @@ function render() {
   if (page === "status") return renderStatus();
   if (page === "bag") return renderGoodsPage("bag");
   if (page === "shop") return renderGoodsPage("shop");
+  if (page === "settings") return renderSettings();
   if (page === "home") return renderHome();
   if (page === "daily") return renderDaily();
   renderMain();
@@ -834,7 +896,7 @@ function renderMain() {
   const cdMap = { sit: "sit", train: "train", dig: "dig", clean: null, home: null, status: null, daily: null, bag: null, shop: null };
   MENU.forEach((m, i) => {
     const row = i < 5 ? 0 : 1;
-    const bx = (row === 0 ? 2 : 14) + (i % 5) * 25, by = row === 0 ? 2 : 78;
+    const bx = 2 + (i % 5) * 25, by = row === 0 ? 2 : 78;
     px(bx - 3, by - 3, 22, 22, i === sel ? "#d8c68a" : "#2e3345");
     px(bx - 2, by - 2, 20, 20, i === sel ? "#3a3f54" : "#22263a");
     icon(m.id, bx, by, i === sel);
@@ -916,8 +978,120 @@ function renderGoodsPage(kind) {
   textC(isShop ? "A 购买 · B 返回" : (g.type === "med" ? "A 服用 · B 返回" : "A 吃掉 · B 返回"), 64, 117, "#8a92ad", 7);
 }
 
-function renderHome() {
+function renderSettings() {
   px(0, 0, W, H, "#141824");
+  if (!setPage) {
+    textC("— 系统设置 —", 64, 6, "#d8c68a", 10);
+    SET_MENU.forEach((m, i) => {
+      const y = 28 + i * 20;
+      const on = i === setIdx;
+      if (on) px(8, y - 3, 112, 17, "#3a3f54");
+      text((on ? "▶" : " ") + m.label, 12, y, on ? "#f5e9b8" : "#cfd4e8", 9);
+      text(m.desc, 62, y + 1, "#8a92ad", 7);
+    });
+    textC("A 进入 · B 返回", 64, 114, "#8a92ad", 8);
+    return;
+  }
+  /* ---- 系统升级 ---- */
+  if (setPage === "ota") {
+    textC("— 系统升级 —", 64, 6, "#d8c68a", 10);
+    text("当前版本 v" + APP_VERSION, 10, 26, "#cfd4e8", 9);
+    let tip = "", act = "", hot = "#cfd4e8";
+    if (otaState.phase === "idle") tip = "A 检查在线更新";
+    else if (otaState.phase === "checking") tip = "正在连接更新服务器…";
+    else if (otaState.phase === "latest") tip = "已是最新版本";
+    else if (otaState.phase === "found") { tip = "发现新版本 v" + otaState.ver; act = "A 下载并写入"; hot = "#e8c860"; }
+    else if (otaState.phase === "fail") tip = "检查失败（离线?）· A 重试";
+    else if (otaState.phase === "writing") tip = "写入固件中… " + Math.min(99, Math.round(otaState.pct)) + "%";
+    textC(tip, 64, 44, hot, 9);
+    if (otaState.phase === "writing") {
+      px(14, 58, 100, 10, "#262a38");
+      px(14, 58, Math.round(100 * Math.min(1, otaState.pct / 100)), 10, "#e8a04a");
+      px(14, 58, 100, 1, "#d8c68a"); px(14, 67, 100, 1, "#d8c68a");
+    }
+    textC("也可以开热点让手机直传", 64, 78, "#8a92ad", 7);
+    textC(".bin 更新包（见热点模式）", 64, 89, "#8a92ad", 7);
+    textC(act || "B 返回", 64, 112, "#8a92ad", 8);
+    return;
+  }
+  /* ---- WiFi 连接（固件蓝图：扫描→选SSID→输密→连接） ---- */
+  if (setPage === "wifi") {
+    textC("— WiFi 连接 —", 64, 6, "#d8c68a", 10);
+    const w = wifiState;
+    if (w.phase === "idle") {
+      textC(w.ssid ? "未连接" : "未连接网络", 64, 36, "#8a92ad", 9);
+      textC("A 扫描附近网络", 64, 70, "#8a92ad", 9);
+    } else if (w.phase === "scanning") {
+      textC("扫描中…", 64, 40, "#cfd4e8", 9);
+    } else if (w.phase === "list") {
+      w.list.slice(0, 5).forEach((s, i) => {
+        const y = 22 + i * 15;
+        const on = i === w.sel;
+        if (on) px(8, y - 2, 112, 13, "#3a3f54");
+        text((on ? "▶" : " ") + s, 12, y, on ? "#f5e9b8" : "#cfd4e8", 9);
+        text("▮▮", 106, y + 1, "#b8e88a", 7);   // 模拟信号格
+      });
+      textC("A 连接 · B 返回", 64, 112, "#8a92ad", 8);
+      return;
+    } else if (w.phase === "connecting") {
+      textC("连接 " + w.ssid + " …", 64, 34, "#cfd4e8", 9);
+      px(14, 52, 100, 9, "#262a38");
+      px(14, 52, Math.round(100 * Math.min(1, w.pct / 100)), 9, "#7ab8e8");
+      return;
+    } else if (w.phase === "ok") {
+      text("已连接：" + w.ssid, 12, 28, "#b8e88a", 9);
+      text("本机 IP：" + w.ip, 12, 42, "#cfd4e8", 9);
+      textC("A 断开 · B 返回", 64, 112, "#8a92ad", 8);
+      return;
+    } else if (w.phase === "fail") {
+      textC("连接失败", 64, 32, "#e8a08a", 10);
+      textC("信号弱或密码错误", 64, 46, "#8a92ad", 8);
+      textC("A 重试扫描 · B 返回", 64, 112, "#8a92ad", 8);
+      return;
+    }
+    textC("B 返回", 64, 112, "#8a92ad", 8);
+    return;
+  }
+  /* ---- 热点模式（固件蓝图：AP + WebServer 192.168.4.1 传 .bin） ---- */
+  if (setPage === "ap") {
+    textC("— 热点模式 —", 64, 6, "#d8c68a", 10);
+    if (!apOn) {
+      textC("热点未开启", 64, 28, "#8a92ad", 9);
+      textC("开启后手机连接本机热点，", 64, 46, "#cfd4e8", 8);
+      textC("访问管理页即可丢入更新包", 64, 58, "#cfd4e8", 8);
+      textC("A 开启热点 · B 返回", 64, 112, "#8a92ad", 8);
+    } else {
+      text("SSID：JX3-Tama-9027", 12, 24, "#b8e88a", 9);
+      text("密码：12345678", 12, 38, "#cfd4e8", 9);
+      text("管理页：192.168.4.1", 12, 52, "#cfd4e8", 9);
+      textC("状态：等待手机接入…" , 64, 72, "#e8c860", 8);
+      textC("接入后上传 .bin 即自动升级", 64, 84, "#8a92ad", 7);
+      textC("A 关闭热点 · B 返回", 64, 112, "#8a92ad", 8);
+    }
+    return;
+  }
+  /* ---- 关于本机 ---- */
+  if (setPage === "about") {
+    textC("— 关于本机 —", 64, 6, "#d8c68a", 10);
+    const upMin = Math.floor((Date.now() - bootTs) / 60000);
+    const saveKB = Math.round((localStorage.getItem("jx3tama") || "").length / 1024 * 10) / 10;
+    const t = titleOf(S.exp);
+    const lines = [
+      "固件版本：v" + APP_VERSION,
+      "模拟硬件：ESP32-C3 + 1.44寸屏",
+      "侠士：" + (SECTS[S.sect] || SECTS.cy).name + " · " + t.t,
+      "运行时长：" + upMin + " 分钟",
+      "存档大小：" + saveKB + " KB",
+      "WiFi：" + (wifiState.phase === "ok" ? "已连 " + wifiState.ssid : "未连接"),
+      "热点：" + (apOn ? "已开启" : "关闭"),
+    ];
+    lines.forEach((l, i) => text(l, 10, 22 + i * 12, "#cfd4e8", 8));
+    textC("B 返回", 64, 114, "#8a92ad", 8);
+    return;
+  }
+}
+
+function renderHome() {  px(0, 0, W, H, "#141824");
   const lv = S.homeLv, cost = (lv + 1) * 50;
   textC("— 家园 · " + HOME_NAMES[lv] + " —", 64, 8, "#d8c68a", 10);
   drawHouse(58, 116);
@@ -958,8 +1132,16 @@ function renderStatus() {
 
 /* ================= 输入 ================= */
 function moveSel(d) {
-  // 按当前页面分发：背包/商城用 subIdx，日常页滚动列表，主菜单用 menuIdx
+  // 按当前页面分发：背包/商城用 subIdx，设置页按层级分发，日常页滚动列表，主菜单用 menuIdx
   if (page === "bag" || page === "shop") { subIdx = (subIdx + d + BAG_ORDER.length * 10) % BAG_ORDER.length; beep(600, .03, "square", .06); return; }
+  if (page === "settings") {
+    if (!setPage) { setIdx = (setIdx + d + SET_MENU.length * 10) % SET_MENU.length; beep(600, .03, "square", .06); }
+    else if (setPage === "wifi" && wifiState.phase === "list") {
+      wifiState.sel = Math.max(0, Math.min(wifiState.list.length - 1, wifiState.sel + d));
+      beep(600, .03, "square", .06);
+    }
+    return;
+  }
   if (page === "daily") {
     const rows = buildDailyRows();
     if (!rows) return;
@@ -996,6 +1178,22 @@ function confirmA() {
     S.coins -= g.price; S.bag[gid] = (S.bag[gid] || 0) + 1;
     toastMsg("购得「" + g.name + "」！已放入行囊", sfx.ok);
     save();
+  } else if (page === "settings") {
+    if (!setPage) {
+      setPage = SET_MENU[setIdx].id; sfx.ok();
+      if (setPage === "wifi" && wifiState.phase === "idle" && !wifiState.ssid) wifiScan();
+    } else if (setPage === "ota") {
+      if (otaState.phase === "idle" || otaState.phase === "fail") otaCheck();
+      else if (otaState.phase === "found") otaUpgrade();
+    } else if (setPage === "wifi") {
+      if (wifiState.phase === "idle") wifiScan();
+      else if (wifiState.phase === "list") wifiConnect(wifiState.list[wifiState.sel]);
+      else if (wifiState.phase === "ok") { wifiReset(); toastMsg("已断开 WiFi", null); }
+      else if (wifiState.phase === "fail") wifiScan();
+    } else if (setPage === "ap") {
+      apOn = !apOn;
+      toastMsg(apOn ? "热点已开启：JX3-Tama-9027" : "热点已关闭", apOn ? sfx.ok : null);
+    }
   } else if (page === "home") {
     const cost = (S.homeLv + 1) * 50;
     if (S.homeLv >= 4) { toastMsg("家园已至「山庄」，此乃极致", sfx.err); return; }
@@ -1020,6 +1218,11 @@ function confirmA() {
   }
 }
 function pressB() {
+  if (page === "settings") {
+    if (setPage) { setPage = null; beep(440, .05); }   // 子页 → 设置菜单
+    else { page = "main"; beep(440, .05); }
+    return;
+  }
   if (page === "bag" || page === "shop" || page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
