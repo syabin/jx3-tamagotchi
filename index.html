@@ -343,7 +343,8 @@ function canAct() {
 }
 function doAct(id, sub) {
   const block = canAct();
-  if (block && id !== "status") { toastMsg(block, sfx.err); return; }
+  // 背包/商城/用药不受异常状态拦截——重伤时必须能打开背包吃药
+  if (block && id !== "status" && id !== "bag" && id !== "shop" && id !== "useMed") { toastMsg(block, sfx.err); return; }
   const now = Date.now();
   switch (id) {
     case "eat": {   // 从背包吃食物（sub = 物品 id）
