@@ -96,7 +96,7 @@
       <div class="btn" id="btnB">B</div>
     </div>
   </div>
-  <div class="hint">▲▼ 选单 · A 确认 · B 返回（滚轮 / ← → / 屏幕左右滑动也能选）</div>
+  <div class="hint">▲▼ 选图标 · A 进入 · B 返回（主页 B = 状态手札）</div>
 </div>
 
 <div class="panel">
@@ -174,8 +174,13 @@ function load() {
   try {
     const raw = localStorage.getItem("jx3tama");
     if (!raw) return false;
-    S = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    S = Object.assign(newState(), parsed);   // 旧档兼容：新字段自动补默认值
     if (!S.sect) return false;
+    // 数值字段防 NaN 清洗
+    ["hunger", "mood", "exp", "coins", "homeLv"].forEach(k => S[k] = +S[k] || 0);
+    S.dungeonUntil = +S.dungeonUntil || 0;
+    S.cool = S.cool || {}; S.poisonedH = +S.poisonedH || 0;
     // 离线结算：最多按 2 游戏小时衰减
     const elapsed = Math.min((Date.now() - (S.lastTs || Date.now())) / 1000, 7200);
     applyTime(elapsed, 60, true);
@@ -283,16 +288,18 @@ function toastMsg(text, sfxFn) { toast = { text, until: Date.now() + 2800 }; if 
 
 /* ================= 行为 ================= */
 const MENU = [
-  { id: "feed",    label: "喂食" },
-  { id: "sit",     label: "打坐" },
-  { id: "train",   label: "木桩" },
-  { id: "dig",     label: "挖宝" },
-  { id: "dungeon", label: "副本" },
-  { id: "clean",   label: "打扫" },
-  { id: "cure",    label: "用药" },
-  { id: "home",    label: "家园" },
-  { id: "status",  label: "状态" },
+  { id: "status",  label: "状态", desc: "侠士手札" },
+  { id: "daily",   label: "日常", desc: "今日剑网三日常" },
+  { id: "feed",    label: "喂食", desc: "挑一份菜" },
+  { id: "sit",     label: "打坐", desc: "心情+20 修为+3" },
+  { id: "train",   label: "木桩", desc: "修为+12 耗体力" },
+  { id: "dig",     label: "挖宝", desc: "挖宝得银两" },
+  { id: "dungeon", label: "副本", desc: "10秒战斗得奖励" },
+  { id: "clean",   label: "打扫", desc: "清理狼藉" },
+  { id: "cure",    label: "用药", desc: "解毒/治重伤" },
+  { id: "home",    label: "家园", desc: "升级宅子" },
 ];
+const DAILY_SERVER = "梦江南";   // jx3api 查询的区服，可改
 function canAct() {
   if (S.down)  return "重伤卧床，只能用药救治！";
   if (S.poisoned) return "中毒中，先用药解毒！";
@@ -366,6 +373,10 @@ function doAct(id, sub) {
       break;
     case "home":
       page = "home"; sfx.ok(); return;
+    case "daily":
+      page = "daily"; sfx.ok();
+      if (!dailyData && !dailyErr) fetchDaily();
+      return;
     case "status":
       page = "status"; sfx.ok(); return;
   }
@@ -386,42 +397,28 @@ function textC(str, cx, y, c, size) {
   ctx.fillText(str, Math.round(cx - w / 2), y);
 }
 
-/* --- 天空/场景 --- */
+/* --- 背景（多画面布局：主界面为纯底色，场景画在视窗里） --- */
 function drawScene(t) {
-  // 昼夜：按游戏小时取模（体验速度下几分钟一昼夜）
   const gh = (Date.now() - S.bornTs) / 1000 * speedF / 3600;
-  const hour = gh % 24;
-  const day = hour > 6 && hour < 18;
-  px(0, 0, W, H, day ? "#2a3a5e" : "#12141f");
-  // 星星（夜晚）
-  if (!day) {
-    const st = [[12,14],[30,8],[52,18],[88,10],[120,16],[140,8],[100,26],[20,30]];
-    st.forEach(([x, y], i) => { if ((frame + i) % 90 < 70) px(x, y, 1, 1, "#cfd8ea"); });
-  } else {
-    px(128, 12, 10, 10, "#f5e9b8"); px(131, 15, 4, 4, "#e8d890");
-  }
-  px(0, 100, W, 28, "#3a2f22");
-  px(0, 100, W, 2, "#5a4a32");
-  for (let i = 0; i < 12; i++) px((i * 37 + 8) % W, 106 + (i % 3) * 6, 3, 1, "#2e2519");
-  return hour;
+  px(0, 0, W, H, "#141824");
+  return gh % 24;
 }
 
-/* --- 狼藉 --- */
+/* --- 狼藉（画在视窗地面） --- */
 function drawMess() {
   for (let i = 0; i < S.mess; i++) {
-    const x = 18 + i * 14;
-    px(x, 96, 8, 4, "#6a5a3a"); px(x + 1, 94, 6, 2, "#8a7a52");
-    px(x + 2, 92, 3, 2, "#8a7a52");
-    text("骨", x - 1, 102, "#9a8a68", 7);
+    const x = 16 + i * 14;
+    px(x, 59, 8, 4, "#6a5a3a"); px(x + 1, 57, 6, 2, "#8a7a52");
+    px(x + 2, 55, 3, 2, "#8a7a52");
   }
 }
 
 /* --- 侠士小人（程序化像素，单位 u=2） --- */
-function drawPet(pose) {
+function drawPet(pose, pox = 70, poy = 32) {
   const u = 2;
   const C = SECTS[S.sect] || SECTS.cy;
   const bob = pose === "idle" ? (Math.floor(frame / 30) % 2) : 0;
-  const ox = 60, oy = 42 + bob * 2;
+  const ox = pox, oy = poy + bob * 2;
   const P = (x, y, w, h, c) => px(ox + x * u, oy + y * u, w * u, h * u, c);
   const hair = "#26262e", skin = "#f2c9a0", dark = "#1a1a22";
 
@@ -483,10 +480,10 @@ function drawPet(pose) {
     return;
   }
   if (pose === "train") { // 打木桩
-    // 木桩
-    const x0 = 118;
-    px(x0, 60, 12, 44, "#7a5a34"); px(x0 + 2, 56, 8, 6, "#8a6a40");
-    px(x0 - 2, 80, 16, 4, "#6a4a2a"); px(x0 - 2, 70, 16, 4, "#6a4a2a");
+    // 木桩（视窗内）
+    const x0 = 122;
+    px(x0, 42, 12, 24, "#7a5a34"); px(x0 + 2, 38, 8, 5, "#8a6a40");
+    px(x0 - 2, 46, 16, 3, "#6a4a2a"); px(x0 - 2, 56, 16, 3, "#6a4a2a");
     const punch = Math.floor(frame / 10) % 2;
     P(3, 7, 9, 6, C.robe);
     P(4, 2, 7, 6, skin);
@@ -515,9 +512,9 @@ function drawPet(pose) {
   }
   if (pose === "dungeon") { // 副本战斗
     const mx = 112 + (Math.floor(frame / 14) % 2);
-    px(mx, 62, 14, 12, "#4a7a3a"); px(mx + 2, 58, 10, 5, "#4a7a3a");
-    px(mx + 3, 60, 2, 2, "#e8d840"); px(mx + 8, 60, 2, 2, "#e8d840");
-    px(mx - 2, 56, 3, 4, "#2e4a24"); px(mx + 12, 56, 3, 4, "#2e4a24");
+    px(mx, 44, 14, 12, "#4a7a3a"); px(mx + 2, 40, 10, 5, "#4a7a3a");
+    px(mx + 3, 42, 2, 2, "#e8d840"); px(mx + 8, 42, 2, 2, "#e8d840");
+    px(mx - 2, 38, 3, 4, "#2e4a24"); px(mx + 12, 38, 3, 4, "#2e4a24");
     const slash = Math.floor(frame / 6) % 2;
     P(3, 7, 9, 6, C.robe);
     P(4, 2, 7, 6, skin);
@@ -571,6 +568,7 @@ function icon(id, x, y, sel) {
   if (id === "dig")   { px(x + 7, y + 2, 2, 8, c1); px(x + 5, y + 9, 6, 2, c1); px(x + 4, y + 11, 8, 3, "#b8c0d0"); }
   if (id === "dungeon"){ px(x + 2, y + 10, 12, 4, c1); px(x + 4, y + 4, 8, 6, "#e88a8a"); px(x + 5, y + 6, 2, 2, "#262a38"); px(x + 9, y + 6, 2, 2, "#262a38"); }
   if (id === "home")  { px(x + 3, y + 8, 10, 6, c1); px(x + 6, y + 10, 4, 4, "#262a38"); px(x + 2, y + 3, 12, 2, c1); px(x + 4, y + 5, 8, 2, c1); px(x + 7, y + 1, 2, 2, "#e8c860"); }
+  if (id === "daily") { px(x + 3, y + 2, 10, 3, c1); px(x + 3, y + 5, 10, 9, c1); px(x + 5, y + 7, 2, 2, "#262a38"); px(x + 8, y + 9, 2, 2, "#262a38"); px(x + 7, y + 4, 2, 2, "#e8c860"); }
 }
 
 /* --- 状态条 --- */
@@ -611,7 +609,59 @@ function render() {
   if (page === "status") return renderStatus();
   if (page === "feed") return renderFeed();
   if (page === "home") return renderHome();
+  if (page === "daily") return renderDaily();
   renderMain();
+}
+
+/* ================= 今日日常（jx3api） ================= */
+let dailyData = null, dailyErr = null, dailyLoading = false;
+(function loadDailyCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem("jx3daily") || "null");
+    if (c && c.d) dailyData = c.d;
+  } catch (e) {}
+})();
+function dailyLines() {
+  if (!dailyData) return null;
+  const first = Array.isArray(dailyData) ? dailyData[0] : dailyData;
+  if (!first || typeof first !== "object") return null;
+  const skip = ["date", "week", "day", "time", "server"];
+  return Object.entries(first)
+    .filter(([k, v]) => typeof v === "string" && v.length > 1 && !skip.includes(k))
+    .map(([k, v]) => k + "：" + v)
+    .slice(0, 6);
+}
+async function fetchDaily() {
+  dailyLoading = true; dailyErr = null;
+  try {
+    const r = await fetch("https://www.jx3api.com/data/daily?server=" + encodeURIComponent(DAILY_SERVER));
+    const j = await r.json();
+    if (j && (j.code === 0 || j.code === 200) && j.data) {
+      dailyData = j.data;
+      localStorage.setItem("jx3daily", JSON.stringify({ t: Date.now(), d: j.data }));
+    } else {
+      dailyErr = (j && j.msg) ? String(j.msg).slice(0, 20) : "接口返回异常";
+    }
+  } catch (e) {
+    dailyErr = "请求失败（跨域/断网）";
+  }
+  dailyLoading = false;
+}
+function renderDaily() {
+  px(0, 0, W, H, "#141824");
+  textC("— 今日日常 · " + DAILY_SERVER + " —", 80, 8, "#d8c68a", 9);
+  if (dailyLoading) {
+    textC("拉取中…", 80, 50, "#8a92ad", 10);
+  } else if (dailyErr && !dailyData) {
+    textC(dailyErr, 80, 44, "#e8a08a", 9);
+    textC("需能访问 jx3api.com", 80, 58, "#8a92ad", 8);
+  } else {
+    const ls = dailyLines();
+    if (ls) ls.forEach((l, i) => text(l.length > 18 ? l.slice(0, 18) : l, 12, 24 + i * 12, "#cfd4e8", 9));
+    else textC("暂无数据", 80, 50, "#8a92ad", 9);
+    if (dailyErr) textC("(显示缓存 · " + dailyErr + ")", 80, 104, "#8a8fa5", 7);
+  }
+  textC("A 刷新 · B 返回", 80, 116, "#8a92ad", 8);
 }
 
 function renderSect() {
@@ -630,63 +680,68 @@ function renderSect() {
 }
 
 function renderMain() {
-  drawScene();
-  drawHouse();
-  drawPet(petPose());
+  const hour = drawScene();
+  // ===== 中央场景视窗 =====
+  const vx = 10, vy = 24, vw = 140, vh = 46;
+  const day = hour > 6 && hour < 18;
+  px(vx - 3, vy - 3, vw + 6, vh + 6, "#20263a");                 // 视窗外框
+  for (let i = 0; i < 48; i++)                                    // 边框点纹
+    px(vx - 3 + (i * 7) % (vw + 6), vy - 3 + Math.floor((i * 7) / (vw + 6)) * 2, 1, 1, "#39415e");
+  px(vx, vy, vw, vh, day ? "#2a3a5e" : "#0d0f18");               // 天空
+  if (!day) {
+    const st = [[20, 28], [44, 26], [70, 28], [100, 26], [126, 28], [36, 32], [112, 30]];
+    st.forEach(([x, y], i) => { if ((frame + i) % 90 < 70) px(x, y, 1, 1, "#cfd8ea"); });
+  } else {
+    px(126, 26, 10, 10, "#f5e9b8"); px(129, 29, 4, 4, "#e8d890"); // 太阳
+  }
+  px(vx + 1, vy + 40, vw - 2, 5, "#3a2f22");                      // 地面
+  drawHouse(14, vy + 40);
   drawMess();
-  // 表情
+  drawPet(petPose(), 70, vy + 8);
   if (Date.now() < emojiUntil && emoji) drawEmoji(emoji);
   else if (S.mood > 75 && frame % 300 < 120 && Math.floor(frame / 300) % 2) drawEmoji("heart");
-  // 状态条（紧凑版，左上角两行）
-  miniBar(4, 4, "体", S.hunger, "#e8a04a");
-  miniBar(4, 12, "心", S.mood, "#e86a8a");
-  text("金 " + S.coins, 122, 3, "#e8c860", 8);
-  // 注意图标（原版风）：有异常时闪烁，细节去状态页看
+  // 注意图标（视窗右上，原版风）
   if ((S.poisoned || S.down || S.mess > 0 || S.hunger < 15) && frame % 40 < 25)
-    text("！", 150, 2, "#e86a5a", 12);
-  if (S.poisoned && frame % 40 < 25) textC("☠", 130, 12, "#b8e88a", 10);
-  if (S.down && frame % 40 < 25) textC("✚", 130, 12, "#e88a8a", 10);
-  // 副本进度条
+    text("！", vx + vw - 10, vy + 2, "#e86a5a", 12);
+  // 副本进度条（视窗顶部）
   if (S.dungeonUntil > Date.now()) {
     const p = 1 - (S.dungeonUntil - Date.now()) / 10000;
-    px(4, 26, 92, 7, "#262a38");
-    px(4, 26, Math.round(92 * p), 7, "#e8a04a");
-    px(4, 26, 92, 1, "#d8c68a"); px(4, 32, 92, 1, "#d8c68a");
-    text("副本中…", 100, 26, "#f5ecd0", 8);
+    px(vx + 2, vy + 2, 92, 6, "#262a38");
+    px(vx + 2, vy + 2, Math.round(92 * p), 6, "#e8a04a");
+    text("副本中…", vx + 98, vy + 2, "#f5ecd0", 8);
   }
-  // 底部菜单（5 秒无操作自动收起，屏幕只剩小人）
+  // ===== 图标网格（上5下5）=====
   const sel = menuIdx % MENU.length;
-  if (menuOpen()) {
-    MENU.forEach((m, i) => icon(m.id, 3 + i * 17, 106, i === sel));
-    text("▶" + MENU[sel].label, 126, 40, "#d8c68a", 8);
-    MENU.forEach((m, i) => {
-      const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", dungeon: "dungeon", clean: null, cure: "cure", home: null, status: null };
-      const key = cdMap[m.id];
-      if (key && cooling(key)) px(3 + i * 17 + 12, 105, 3, 3, "#e86a5a");
-    });
+  const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", dungeon: "dungeon", clean: null, cure: "cure", home: null, status: null, daily: null };
+  MENU.forEach((m, i) => {
+    const row = i < 5 ? 0 : 1;
+    const bx = 6 + (i % 5) * 32, by = row === 0 ? 2 : 78;
+    px(bx - 3, by - 3, 22, 22, i === sel ? "#d8c68a" : "#2e3345");
+    px(bx - 2, by - 2, 20, 20, i === sel ? "#3a3f54" : "#22263a");
+    icon(m.id, bx, by, i === sel);
+    const key = cdMap[m.id];
+    if (key && cooling(key)) px(bx + 13, by - 3, 3, 3, "#e86a5a");
+  });
+  // ===== 底部信息栏（消息优先，否则显示选中项）=====
+  px(24, 102, 112, 24, "#1a1e2c");
+  px(24, 102, 112, 1, "#d8c68a"); px(24, 125, 112, 1, "#d8c68a");
+  if (toast && Date.now() < toast.until) {
+    const t2 = toast.text.length > 14 ? toast.text.slice(0, 14) : toast.text;
+    textC(t2, 80, 108, "#f5ecd0", 9);
+  } else {
+    textC(MENU[sel].label, 80, 103, "#f5e9b8", 11);
+    textC(MENU[sel].desc, 80, 115, "#8a92ad", 7);
   }
   // sparkles
   sparkles = sparkles.filter(s => s.life-- > 0);
-  sparkles.forEach(s => {
-    const tw = (frame + s.x) % 20 < 10;
-    px(s.x, s.y, tw ? 3 : 1, tw ? 3 : 1, "#f5e9b8");
-  });
-  // toast
-  if (toast && Date.now() < toast.until) {
-    ctx.font = "9px 'Microsoft YaHei'";
-    const w = Math.min(150, ctx.measureText(toast.text).width + 8);
-    px(80 - w / 2, 82, w, 14, "rgba(10,12,20,.88)");
-    px(80 - w / 2, 82, w, 1, "#d8c68a"); px(80 - w / 2, 95, w, 1, "#d8c68a");
-    text(toast.text.length > 17 ? toast.text.slice(0, 17) : toast.text, 80 - w / 2 + 4, 85, "#f5ecd0");
-  }
+  sparkles.forEach(s => { const tw = (frame + s.x) % 20 < 10; px(s.x, s.y, tw ? 3 : 1, tw ? 3 : 1, "#f5e9b8"); });
 }
 
-/* --- 家园小屋（随等级变大变漂亮） --- */
-function drawHouse() {
+/* --- 家园小屋（随等级变大变漂亮，可指定落点） --- */
+function drawHouse(x0 = 8, y0 = 100) {
   const lv = S.homeLv || 0;
   if (lv === 0) return; // 荒地，无房
   const w = 12 + lv * 5, h = 7 + lv * 3;
-  const x0 = 8, y0 = 100;
   px(x0 + 1, y0 - h, w, h, lv >= 3 ? "#8a6a44" : "#6a5a3a");       // 墙
   for (let i = 0; i < 3; i++)                                       // 屋顶
     px(x0 - 2 + i, y0 - h - 3 + i, w + 4 - i * 2, 1, lv >= 4 ? "#d8c68a" : (lv >= 2 ? "#a04030" : "#4a3a26"));
@@ -710,10 +765,9 @@ function renderFeed() {
 
 function renderHome() {
   px(0, 0, W, H, "#141824");
-  drawScene();
   const lv = S.homeLv, cost = (lv + 1) * 50;
   textC("— 家园 · " + HOME_NAMES[lv] + " —", 80, 8, "#d8c68a", 10);
-  drawHouse();
+  drawHouse(58, 116);
   const lines = [
     "等级：" + lv + "（" + HOME_NAMES[lv] + "）",
     "效果：心情流失 -" + (lv * 15) + "%",
@@ -750,21 +804,17 @@ function renderStatus() {
 
 /* ================= 输入 ================= */
 function moveSel(d) {
-  pokeMenu();
   // 按当前页面分发：伙房子菜单用 feedIdx，主菜单用 menuIdx
   if (page === "feed") { feedIdx = (feedIdx + d + FEEDS.length * 10) % FEEDS.length; beep(600, .03, "square", .06); return; }
   if (page !== "main") return;
-  if (!menuOpen()) return;   // 菜单收起时，第一次按键只展开菜单
   menuIdx = (menuIdx + d + MENU.length * 10) % MENU.length; beep(600, .03, "square", .06);
 }
-/* ---- 菜单自动收起（原版极简风）---- */
-let menuHideAt = 0;                                   // 0 = 从未展开
+/* ---- 菜单自动收起（已弃用：多画面布局下图标常驻）---- */
+let menuHideAt = 0;
 function pokeMenu() { menuHideAt = Date.now() + 4500; }
-function menuOpen() { return Date.now() < menuHideAt; }
+function menuOpen() { return true; }
 
 function confirmA() {
-  if (page === "main" && !menuOpen()) { pokeMenu(); return; }  // 先展开再操作
-  pokeMenu();
   if (page === "sect") {
     const keys = Object.keys(SECTS);
     S.sect = keys[menuIdx % keys.length];
@@ -788,12 +838,12 @@ function confirmA() {
     save();
   } else if (page === "status") {
     page = "main"; sfx.ok();
+  } else if (page === "daily") {
+    fetchDaily();
   }
 }
 function pressB() {
-  pokeMenu();
-  if (page === "main" && !menuOpen()) return;          // 菜单收起时 B 只负责展开
-  if (page === "feed" || page === "status" || page === "home") { page = "main"; beep(440, .05); }
+  if (page === "feed" || page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
 
