@@ -15,37 +15,57 @@
     display: flex; align-items: center; justify-content: center;
     padding: 16px; gap: 24px; flex-wrap: wrap;
   }
-  /* ---------- 机身 ---------- */
+  /* ---------- 蛋形机身（参照初代拓麻歌子 / TamaLIB） ---------- */
   .device {
-    background: linear-gradient(160deg, #2b2f3a, #1c1f28);
-    border-radius: 36px;
-    padding: 18px 18px 14px;
-    box-shadow: 0 18px 40px rgba(30,30,40,.45), inset 0 2px 4px rgba(255,255,255,.12);
-    border: 3px solid #3c4152;
-    width: 540px;
+    background: linear-gradient(165deg, #faf7f0 0%, #efe9dc 55%, #ddd5c4 100%);
+    border-radius: 50% 50% 50% 50% / 56% 56% 44% 44%;
+    padding: 26px 16px 22px;
+    box-shadow: 0 18px 40px rgba(30,30,40,.35), inset 0 3px 6px rgba(255,255,255,.85), inset 0 -8px 14px rgba(120,110,90,.22);
+    border: 3px solid #c9c2b2;
+    width: 320px;
     max-width: calc(100vw - 16px);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .egg-screen-wrap {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; gap: 8px;
   }
   .device-title {
-    text-align: center; color: #d8c68a; font-size: 14px; letter-spacing: 4px;
-    margin-bottom: 10px; font-weight: bold;
+    text-align: center; color: #9a7a30; font-size: 12px; letter-spacing: 3px;
+    margin-top: 10px; font-weight: bold;
   }
   .screen-frame {
-    background: #0c0e14;
-    border-radius: 14px;
-    padding: 10px;
-    border: 2px solid #444a5e;
-    box-shadow: inset 0 0 18px rgba(0,0,0,.8);
+    background: linear-gradient(160deg, #4a4132, #2e2820);
+    border-radius: 16px;
+    padding: 9px;
+    border: 3px solid #c9a94a;
+    box-shadow: inset 0 0 14px rgba(0,0,0,.8), 0 2px 4px rgba(0,0,0,.3);
   }
   canvas#screen {
-    display: block; width: 100%; height: auto; aspect-ratio: 160 / 128;
+    display: block; width: 100%; height: auto; aspect-ratio: 1 / 1;
     image-rendering: pixelated;
     border-radius: 6px;
     background: #10131c;
     cursor: pointer;
   }
+  /* 三颗实体键：A 选单 / B 确认 / C 返回（初代布局：左右 + 底部中央） */
+  .ebtn {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e8b4c8, #b86888 65%, #8a4a68);
+    border: 3px solid #5a3048; color: #4a2840;
+    font-size: 14px; font-weight: bold; cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0,0,0,.35), inset 0 2px 4px rgba(255,255,255,.4);
+    display: flex; align-items: center; justify-content: center;
+    user-select: none; touch-action: manipulation;
+    transition: transform .06s;
+    flex: 0 0 auto;
+  }
+  .ebtn:active { transform: translateY(2px) scale(.94); }
+  .ebtn.btm { margin-top: 12px; }
+  .ebtn-cap { font-size: 9px; color: #9a8a68; text-align: center; margin-top: 2px; }
   /* ---------- 真实尺寸模式（1 canvas 像素 = 1 CSS 像素） ---------- */
   body.real-size .device { width: auto; }
-  body.real-size canvas#screen { width: 160px; height: 128px; }
+  body.real-size canvas#screen { width: 128px; height: 128px; }
   .size-toggle {
     display: block; margin: 10px auto 0; padding: 4px 14px;
     background: #262a38; color: #8a92ad; border: 1px solid #3c4152; border-radius: 14px;
@@ -91,22 +111,25 @@
 <body>
 
 <div class="device">
-  <div class="device-title">剑 网 三 · 拓 麻 歌 子</div>
-  <div class="screen-frame">
-    <canvas id="screen" width="160" height="128"></canvas>
-  </div>
-  <div class="controls">
-    <div class="dpad">
-      <div class="btn d" id="btnUp">▲</div>
-      <div class="btn d" id="btnDown">▼</div>
+  <div class="egg-screen-wrap">
+    <div>
+      <div class="ebtn" id="btnA">A</div>
+      <div class="ebtn-cap">选单</div>
     </div>
-    <div class="btns">
-      <div class="btn" id="btnA">A</div>
-      <div class="btn" id="btnB">B</div>
+    <div class="screen-frame">
+      <canvas id="screen" width="128" height="128"></canvas>
+    </div>
+    <div>
+      <div class="ebtn" id="btnC">C</div>
+      <div class="ebtn-cap">返回</div>
     </div>
   </div>
-  <div class="hint">▲▼ 选图标 · A 进入 · B 返回（主页 B = 状态手札）</div>
-  <button class="size-toggle" id="sizeToggle">切换：真实尺寸 160×128</button>
+  <div>
+    <div class="ebtn btm" id="btnB">B</div>
+    <div class="ebtn-cap">确认</div>
+  </div>
+  <div class="device-title">剑网三 · 拓麻歌子</div>
+  <button class="size-toggle" id="sizeToggle">切换：真实尺寸 128×128</button>
 </div>
 
 <div class="panel">
@@ -114,6 +137,7 @@
   <div>你的侠士需要<b>体力</b>与<b>心情</b>维持，<b>打木桩</b>涨修为但耗体力，<b>打坐</b>回心情。</div>
   <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤卧床</b>，记得用药！</div>
   <div>✨ 偶尔触发<b>奇遇</b>，白捡修为。修为攒够就晋见称号。</div>
+  <div>🕹️ <b>A</b> 选单 · <b>B</b> 确认 · <b>C</b> 返回（键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选，日常页选中"本"字条目按 B 进副本）</div>
   <div class="row">
     时间流速
     <select id="speed">
@@ -132,7 +156,7 @@
 <script>
 "use strict";
 /* ================= 基础 ================= */
-const W = 160, H = 128;
+const W = 128, H = 128;
 const cv = document.getElementById("screen");
 const ctx = cv.getContext("2d");
 ctx.imageSmoothingEnabled = false;
@@ -428,7 +452,7 @@ function drawMess() {
 }
 
 /* --- 侠士小人（程序化像素，单位 u=2） --- */
-function drawPet(pose, pox = 70, poy = 32) {
+function drawPet(pose, pox = 52, poy = 32) {
   const u = 2;
   const C = SECTS[S.sect] || SECTS.cy;
   const bob = pose === "idle" ? (Math.floor(frame / 30) % 2) : 0;
@@ -495,7 +519,7 @@ function drawPet(pose, pox = 70, poy = 32) {
   }
   if (pose === "train") { // 打木桩
     // 木桩（视窗内）
-    const x0 = 122;
+    const x0 = 96;
     px(x0, 42, 12, 24, "#7a5a34"); px(x0 + 2, 38, 8, 5, "#8a6a40");
     px(x0 - 2, 46, 16, 3, "#6a4a2a"); px(x0 - 2, 56, 16, 3, "#6a4a2a");
     const punch = Math.floor(frame / 10) % 2;
@@ -525,7 +549,7 @@ function drawPet(pose, pox = 70, poy = 32) {
     return;
   }
   if (pose === "dungeon") { // 副本战斗
-    const mx = 112 + (Math.floor(frame / 14) % 2);
+    const mx = 92 + (Math.floor(frame / 14) % 2);
     px(mx, 44, 14, 12, "#4a7a3a"); px(mx + 2, 40, 10, 5, "#4a7a3a");
     px(mx + 3, 42, 2, 2, "#e8d840"); px(mx + 8, 42, 2, 2, "#e8d840");
     px(mx - 2, 38, 3, 4, "#2e4a24"); px(mx + 12, 38, 3, 4, "#2e4a24");
@@ -559,7 +583,7 @@ function drawPet(pose, pox = 70, poy = 32) {
 
 /* --- 气泡/表情 --- */
 function drawEmoji(kind) {
-  const u = 2, ox = 92, oy = 36;
+  const u = 2, ox = 78, oy = 28;
   if (kind === "heart") {
     px(ox, oy, 3, 3, "#e85a7a"); px(ox + 3, oy, 3, 3, "#e85a7a");
     px(ox + 1, oy + 1, 4, 3, "#e85a7a"); px(ox + 2, oy + 4, 2, 1, "#e85a7a");
@@ -709,9 +733,9 @@ async function fetchDaily() {
 }
 function renderDaily() {
   px(0, 0, W, H, "#141824");
-  textC("— 今日日常 · " + DAILY_SERVER + " —", 80, 8, "#d8c68a", 10);
+  textC("— 今日日常 · " + DAILY_SERVER + " —", 64, 8, "#d8c68a", 10);
   if (dailyLoading) {
-    textC("拉取中…", 80, 50, "#8a92ad", 10);
+    textC("拉取中…", 64, 50, "#8a92ad", 10);
   } else {
     const rows = buildDailyRows();
     if (rows) {
@@ -725,60 +749,60 @@ function renderDaily() {
         const cur = idx === dailySel;
         if (cur) px(4, y - 2, W - 8, 12, "#26314a");
         text(cur ? "▶" : " ", 5, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
-        if (row.key && DUNGEON_KEYS[row.key]) text("本", 148, y + 1, "#e8a04a", 8);  // 可打本标记
+        if (row.key && DUNGEON_KEYS[row.key]) text("本", 114, y + 1, "#e8a04a", 8);  // 可打本标记
         const l = row.t;
-        text(l.length > 15 ? l.slice(0, 14) + "…" : l, 14, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
+        text(l.length > 11 ? l.slice(0, 10) + "…" : l, 14, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
       });
       if (rows.length > visible) {
-        textC((dailySel + 1) + "/" + rows.length, 80, 106, "#8a8fa5", 8);
+        textC((dailySel + 1) + "/" + rows.length, 64, 106, "#8a8fa5", 8);
         if (start > 0) text("▲", 8, 21, "#8a8fa5", 9);
-        if (start + visible < rows.length) text("▼", 147, 88, "#8a8fa5", 9);
+        if (start + visible < rows.length) text("▼", 113, 88, "#8a8fa5", 9);
       }
     } else if (dailyErr) {
-      textC(dailyErr, 80, 44, "#e8a08a", 9);
-      textC("需能访问 jx3api.com", 80, 58, "#8a92ad", 8);
+      textC(dailyErr, 64, 44, "#e8a08a", 9);
+      textC("需能访问 jx3api.com", 64, 58, "#8a92ad", 8);
     } else {
-      textC("暂无数据 · A 刷新", 80, 50, "#8a92ad", 9);
+      textC("暂无数据 · A 刷新", 64, 50, "#8a92ad", 9);
     }
-    if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 80, 116, "#8a8fa5", 8);
+    if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 64, 116, "#8a8fa5", 8);
   }
-  textC("A 进本/刷新 · B 返回", 80, 118, "#8a92ad", 8);
+  textC("A 进本/刷新 · C 返回", 64, 118, "#8a92ad", 8);
 }
 
 function renderSect() {
   px(0, 0, W, H, "#141824");
-  textC("— 初入江湖 · 择门派 —", 80, 12, "#d8c68a", 10);
+  textC("— 初入江湖 · 择门派 —", 64, 12, "#d8c68a", 10);
   const keys = Object.keys(SECTS);
   const sel = keys[menuIdx % keys.length];
   keys.forEach((k, i) => {
     const y = 34 + i * 18;
     const on = k === sel;
-    if (on) px(38, y - 3, 84, 15, "#3a3f54");
-    px(42, y, 8, 8, SECTS[k].robe);
-    text(SECTS[k].name + (on ? "  ◀" : ""), 56, y, on ? "#f5e9b8" : "#8a92ad", 10);
+    if (on) px(22, y - 3, 84, 15, "#3a3f54");
+    px(26, y, 8, 8, SECTS[k].robe);
+    text(SECTS[k].name + (on ? "  ◀" : ""), 40, y, on ? "#f5e9b8" : "#8a92ad", 10);
   });
-  textC("▲▼ 选择门派 · A 确认拜入", 80, 112, "#8a92ad", 8);
+  textC("A 选择门派 · B 确认拜入", 64, 112, "#8a92ad", 8);
 }
 
 function renderMain() {
   const hour = drawScene();
   // ===== 中央场景视窗 =====
-  const vx = 10, vy = 24, vw = 140, vh = 46;
+  const vx = 4, vy = 24, vw = 120, vh = 46;
   const day = hour > 6 && hour < 18;
   px(vx - 3, vy - 3, vw + 6, vh + 6, "#20263a");                 // 视窗外框
   for (let i = 0; i < 48; i++)                                    // 边框点纹
     px(vx - 3 + (i * 7) % (vw + 6), vy - 3 + Math.floor((i * 7) / (vw + 6)) * 2, 1, 1, "#39415e");
   px(vx, vy, vw, vh, day ? "#2a3a5e" : "#0d0f18");               // 天空
   if (!day) {
-    const st = [[20, 28], [44, 26], [70, 28], [100, 26], [126, 28], [36, 32], [112, 30]];
+    const st = [[20, 28], [44, 26], [70, 28], [96, 26], [114, 28], [36, 32], [106, 30]];
     st.forEach(([x, y], i) => { if ((frame + i) % 90 < 70) px(x, y, 1, 1, "#cfd8ea"); });
   } else {
-    px(126, 26, 10, 10, "#f5e9b8"); px(129, 29, 4, 4, "#e8d890"); // 太阳
+    px(108, 26, 10, 10, "#f5e9b8"); px(111, 29, 4, 4, "#e8d890"); // 太阳
   }
   px(vx + 1, vy + 40, vw - 2, 5, "#3a2f22");                      // 地面
   drawHouse(14, vy + 40);
   drawMess();
-  drawPet(petPose(), 70, vy + 8);
+  drawPet(petPose(), 52, vy + 8);
   if (Date.now() < emojiUntil && emoji) drawEmoji(emoji);
   else if (S.mood > 75 && frame % 300 < 120 && Math.floor(frame / 300) % 2) drawEmoji("heart");
   // 注意图标（视窗右上，原版风）
@@ -787,16 +811,16 @@ function renderMain() {
   // 副本进度条（视窗顶部）
   if (S.dungeonUntil > Date.now()) {
     const p = 1 - (S.dungeonUntil - Date.now()) / 10000;
-    px(vx + 2, vy + 2, 92, 6, "#262a38");
-    px(vx + 2, vy + 2, Math.round(92 * p), 6, "#e8a04a");
-    text("副本中…", vx + 98, vy + 2, "#f5ecd0", 8);
+    px(vx + 2, vy + 2, 66, 6, "#262a38");
+    px(vx + 2, vy + 2, Math.round(66 * p), 6, "#e8a04a");
+    text("副本中…", vx + 72, vy + 2, "#f5ecd0", 8);
   }
-  // ===== 图标网格（上5下5）=====
+  // ===== 图标网格（上5下4）=====
   const sel = menuIdx % MENU.length;
   const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", clean: null, cure: "cure", home: null, status: null, daily: null };
   MENU.forEach((m, i) => {
     const row = i < 5 ? 0 : 1;
-    const bx = 6 + (i % 5) * 32, by = row === 0 ? 2 : 78;
+    const bx = (row === 0 ? 2 : 14) + (i % 5) * 25, by = row === 0 ? 2 : 78;
     px(bx - 3, by - 3, 22, 22, i === sel ? "#d8c68a" : "#2e3345");
     px(bx - 2, by - 2, 20, 20, i === sel ? "#3a3f54" : "#22263a");
     icon(m.id, bx, by, i === sel);
@@ -804,14 +828,14 @@ function renderMain() {
     if (key && cooling(key)) px(bx + 13, by - 3, 3, 3, "#e86a5a");
   });
   // ===== 底部信息栏（消息优先，否则显示选中项）=====
-  px(24, 102, 112, 24, "#1a1e2c");
-  px(24, 102, 112, 1, "#d8c68a"); px(24, 125, 112, 1, "#d8c68a");
+  px(8, 102, 112, 24, "#1a1e2c");
+  px(8, 102, 112, 1, "#d8c68a"); px(8, 125, 112, 1, "#d8c68a");
   if (toast && Date.now() < toast.until) {
-    const t2 = toast.text.length > 14 ? toast.text.slice(0, 14) : toast.text;
-    textC(t2, 80, 108, "#f5ecd0", 9);
+    const t2 = toast.text.length > 12 ? toast.text.slice(0, 12) : toast.text;
+    textC(t2, 64, 108, "#f5ecd0", 9);
   } else {
-    textC(MENU[sel].label, 80, 103, "#f5e9b8", 11);
-    textC(MENU[sel].desc, 80, 115, "#8a92ad", 7);
+    textC(MENU[sel].label, 64, 103, "#f5e9b8", 11);
+    textC(MENU[sel].desc, 64, 115, "#8a92ad", 7);
   }
   // sparkles
   sparkles = sparkles.filter(s => s.life-- > 0);
@@ -832,22 +856,22 @@ function drawHouse(x0 = 8, y0 = 100) {
 
 function renderFeed() {
   renderMain();
-  px(30, 30, 100, 68, "#1a1e2c");
-  px(30, 30, 100, 1, "#d8c68a"); px(30, 97, 100, 1, "#d8c68a");
-  textC("· 伙房 ·", 80, 34, "#d8c68a", 9);
+  px(12, 30, 104, 68, "#1a1e2c");
+  px(12, 30, 104, 1, "#d8c68a"); px(12, 97, 104, 1, "#d8c68a");
+  textC("· 伙房 ·", 64, 34, "#d8c68a", 9);
   FEEDS.forEach((f, i) => {
     const y = 46 + i * 14;
     const on = i === feedIdx % FEEDS.length;
-    if (on) px(36, y - 2, 88, 12, "#3a3f54");
-    text(f.name + "  体力+" + f.gain + (cooling("feed_" + f.id) ? "（烹饪中）" : ""), 42, y, on ? "#f5e9b8" : "#8a92ad", 9);
+    if (on) px(18, y - 2, 92, 12, "#3a3f54");
+    text(f.name + " 体力+" + f.gain + (cooling("feed_" + f.id) ? " 烹饪中" : ""), 22, y, on ? "#f5e9b8" : "#8a92ad", 8);
   });
-  textC("▲▼ 选择 · A 吃！ · B 返回", 80, 88, "#8a92ad", 8);
+  textC("A 吃！ · C 返回", 64, 88, "#8a92ad", 8);
 }
 
 function renderHome() {
   px(0, 0, W, H, "#141824");
   const lv = S.homeLv, cost = (lv + 1) * 50;
-  textC("— 家园 · " + HOME_NAMES[lv] + " —", 80, 8, "#d8c68a", 10);
+  textC("— 家园 · " + HOME_NAMES[lv] + " —", 64, 8, "#d8c68a", 10);
   drawHouse(58, 116);
   const lines = [
     "等级：" + lv + "（" + HOME_NAMES[lv] + "）",
@@ -855,13 +879,13 @@ function renderHome() {
     (lv >= 4 ? "已达最高等级" : "升级花费：" + cost + " 金币"),
     "现有金币：" + S.coins,
   ];
-  lines.forEach((l, i) => text(l, 30, 34 + i * 13, "#cfd4e8", 9));
-  textC(lv >= 4 ? "B 返回" : "A 升级 · B 返回", 80, 92, "#8a92ad", 8);
+  lines.forEach((l, i) => text(l, 24, 34 + i * 13, "#cfd4e8", 8));
+  textC(lv >= 4 ? "C 返回" : "A 升级 · C 返回", 64, 92, "#8a92ad", 8);
 }
 
 function renderStatus() {
   px(0, 0, W, H, "#141824");
-  textC("— 侠士手札 —", 80, 8, "#d8c68a", 10);
+  textC("— 侠士手札 —", 64, 8, "#d8c68a", 10);
   const C = SECTS[S.sect];
   const days = ((Date.now() - S.bornTs) / 1000 * speedF / 3600 / 24).toFixed(1);
   const t = titleOf(S.exp);
@@ -872,15 +896,16 @@ function renderStatus() {
     "称号：" + t.t,
     "体力：" + Math.round(S.hunger) + " / 100",
     "心情：" + Math.round(S.mood) + " / 100",
-    "修为：" + S.exp + "（晋升 " + prog + "%）",
+    "修为：" + S.exp,
+    "晋升进度：" + prog + "%",
     "金币：" + S.coins,
     "家园：" + HOME_NAMES[S.homeLv] + "（" + S.homeLv + "级）",
     "状态：" + (S.down ? "重伤卧床" : S.poisoned ? "中毒" : "康健"),
     "狼藉：" + S.mess + " 处",
     "江湖岁月：" + days + " 日",
   ];
-  lines.forEach((l, i) => text(l, 22, 20 + i * 9, i === 7 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 8));
-  textC("B 返回", 80, 116, "#8a92ad", 8);
+  lines.forEach((l, i) => text(l, 10, 18 + i * 8, i === 8 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 8));
+  textC("C 返回", 64, 118, "#8a92ad", 8);
 }
 
 /* ================= 输入 ================= */
@@ -921,7 +946,7 @@ function confirmA() {
     if (S.coins < cost) { toastMsg("金币不足，还差 " + (cost - S.coins) + " 金", sfx.err); return; }
     S.coins -= cost; S.homeLv++;
     toastMsg("家园升为「" + HOME_NAMES[S.homeLv] + "」！心情更稳了", sfx.up);
-    for (let i = 0; i < 12; i++) sparkles.push({ x: 30 + Math.random() * 100, y: 25 + Math.random() * 60, life: 30 + Math.random() * 20 });
+    for (let i = 0; i < 12; i++) sparkles.push({ x: 20 + Math.random() * 88, y: 25 + Math.random() * 60, life: 30 + Math.random() * 20 });
     save();
   } else if (page === "status") {
     page = "main"; sfx.ok();
@@ -943,17 +968,16 @@ function pressB() {
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
 
-/* ---- 4 实体键：▲▼ 选单 / A 确认 / B 返回 ---- */
-document.getElementById("btnUp").onclick = () => moveSel(-1);
-document.getElementById("btnDown").onclick = () => moveSel(1);
-document.getElementById("btnA").onclick = confirmA;
-document.getElementById("btnB").onclick = pressB;
-// 真实尺寸切换（1 canvas 像素 = 1 CSS 像素，即真机 1.8 寸屏的显示密度）
+/* ---- 三实体键（初代拓麻歌子逻辑）：A 选单 / B 确认 / C 返回 ---- */
+document.getElementById("btnA").onclick = () => moveSel(1);
+document.getElementById("btnB").onclick = confirmA;
+document.getElementById("btnC").onclick = pressB;
+// 真实尺寸切换（1 canvas 像素 = 1 CSS 像素，即真机 1.44 寸屏的显示密度）
 const sizeToggle = document.getElementById("sizeToggle");
 function applyRealSize(on) {
   document.body.classList.toggle("real-size", on);
   sizeToggle.classList.toggle("on", on);
-  sizeToggle.textContent = on ? "切换：自适应屏幕" : "切换：真实尺寸 160×128";
+  sizeToggle.textContent = on ? "切换：自适应屏幕" : "切换：真实尺寸 128×128";
   try { localStorage.setItem("jx3realsize", on ? "1" : "0"); } catch (e) {}
 }
 sizeToggle.addEventListener("click", () => applyRealSize(!document.body.classList.contains("real-size")));
