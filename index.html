@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剑网三拓麻歌子 · 网页原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", sans-serif;
+    background: #f2ede3;
+    background-image: radial-gradient(#e5ddcc 1px, transparent 1px);
+    background-size: 24px 24px;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; gap: 24px; flex-wrap: wrap;
+  }
+  /* ---------- 机身 ---------- */
+  .device {
+    background: linear-gradient(160deg, #2b2f3a, #1c1f28);
+    border-radius: 36px;
+    padding: 18px 18px 14px;
+    box-shadow: 0 18px 40px rgba(30,30,40,.45), inset 0 2px 4px rgba(255,255,255,.12);
+    border: 3px solid #3c4152;
+    width: 540px;
+    max-width: calc(100vw - 16px);
+  }
+  .device-title {
+    text-align: center; color: #d8c68a; font-size: 14px; letter-spacing: 4px;
+    margin-bottom: 10px; font-weight: bold;
+  }
+  .screen-frame {
+    background: #0c0e14;
+    border-radius: 14px;
+    padding: 10px;
+    border: 2px solid #444a5e;
+    box-shadow: inset 0 0 18px rgba(0,0,0,.8);
+  }
+  canvas#screen {
+    display: block; width: 100%; height: auto; aspect-ratio: 160 / 128;
+    image-rendering: pixelated;
+    border-radius: 6px;
+    background: #10131c;
+    cursor: pointer;
+  }
+  /* ---------- 控制 ---------- */
+  .controls { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding: 0 8px; }
+  .dpad { display: flex; flex-direction: column; gap: 8px; }
+  .btn.d { width: 56px; height: 42px; border-radius: 12px; font-size: 15px; }
+  .btns { display: flex; gap: 14px; }
+  .btn {
+    width: 58px; height: 58px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e8b4c8, #b86888 65%, #8a4a68);
+    border: 3px solid #5a3048; color: #4a2840;
+    font-size: 20px; font-weight: bold; cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,.45), inset 0 2px 5px rgba(255,255,255,.4);
+    display: flex; align-items: center; justify-content: center;
+    user-select: none; touch-action: manipulation;
+    transition: transform .06s;
+  }
+  .btn:active { transform: translateY(2px) scale(.96); }
+  .hint { color: #8a8fa5; font-size: 11px; text-align: center; margin-top: 10px; }
+  /* ---------- 说明面板 ---------- */
+  .panel {
+    background: #fffdf6; border: 2px solid #d8cbb0; border-radius: 14px;
+    width: 300px; max-width: calc(100vw - 16px);
+    padding: 18px 20px; font-size: 13px; color: #4a4335;
+    box-shadow: 0 8px 20px rgba(60,50,30,.15);
+    line-height: 1.75;
+  }
+  .panel h2 { font-size: 16px; color: #6a5a2a; border-bottom: 2px solid #d8c68a; padding-bottom: 6px; margin-bottom: 10px; }
+  .panel b { color: #8a5a1a; }
+  .panel .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  .panel select, .panel button {
+    padding: 4px 10px; border-radius: 8px; border: 1px solid #c8b890;
+    background: #f5eeda; cursor: pointer; font-size: 12px;
+  }
+  .panel button:hover { background: #eadfb8; }
+  kbd { background: #2b2f3a; color: #d8c68a; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="device-title">剑 网 三 · 拓 麻 歌 子</div>
+  <div class="screen-frame">
+    <canvas id="screen" width="160" height="128"></canvas>
+  </div>
+  <div class="controls">
+    <div class="dpad">
+      <div class="btn d" id="btnUp">▲</div>
+      <div class="btn d" id="btnDown">▼</div>
+    </div>
+    <div class="btns">
+      <div class="btn" id="btnA">A</div>
+      <div class="btn" id="btnB">B</div>
+    </div>
+  </div>
+  <div class="hint">▲▼ 选单 · A 确认 · B 返回（滚轮 / ← → / 屏幕左右滑动也能选）</div>
+</div>
+
+<div class="panel">
+  <h2>江湖生存指南</h2>
+  <div>你的侠士需要<b>体力</b>与<b>心情</b>维持，<b>打木桩</b>涨修为但耗体力，<b>打坐</b>回心情。</div>
+  <div>⚠️ <b>恶人谷袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤卧床</b>，记得用药！</div>
+  <div>✨ 偶尔触发<b>奇遇</b>，白捡修为。修为攒够就晋见称号。</div>
+  <div class="row">
+    时间流速
+    <select id="speed">
+      <option value="60">体验 ×60（推荐）</option>
+      <option value="600">快进 ×600</option>
+      <option value="1">真实 ×1</option>
+    </select>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="mute"> 静音</label>
+    <button id="reset">重新开号（清档）</button>
+  </div>
+  <div style="margin-top:8px; color:#9a8f78; font-size:11px;">存档自动保存在浏览器 localStorage，关页面不丢。</div>
+</div>
+
+<script>
+"use strict";
+/* ================= 基础 ================= */
+const W = 160, H = 128;
+const cv = document.getElementById("screen");
+const ctx = cv.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+const SECTS = {
+  cy: { name: "纯阳", robe: "#4a8db8", trim: "#e8eef5", accent: "#bfe3ff" },
+  tc: { name: "天策", robe: "#a53a3a", trim: "#e8c860", accent: "#ffb0a0" },
+  qx: { name: "七秀", robe: "#d16a9a", trim: "#f5e5f2", accent: "#ffc0e0" },
+  sl: { name: "少林", robe: "#a08040", trim: "#e8d8b0", accent: "#e8c890" },
+};
+const TITLES = [
+  { exp: 0,   t: "初入江湖" },
+  { exp: 50,  t: "小有名气" },
+  { exp: 150, t: "名动一方" },
+  { exp: 350, t: "威震八方" },
+  { exp: 700, t: "天下无双" },
+];
+const FEEDS = [
+  { id: "baozi", name: "包子",   gain: 15, cd: 12 },
+  { id: "fish",  name: "蒸鱼",   gain: 30, cd: 25 },
+  { id: "feast", name: "烧尾宴", gain: 50, cd: 60 },
+];
+const SPEEDS = { 60: 60, 600: 600, 1: 1 };
+
+/* ================= 状态 ================= */
+let S = null;
+let speedF = 60;
+let page = "sect";            // sect | main | feed | status
+let menuIdx = 0;
+let feedIdx = 0;
+let frame = 0;
+let toast = null;             // {text, until}
+let sparkles = [];
+let selectLock = 0;           // 键盘重复节流
+let downGraceH = 0;           // 中毒累计游戏小时
+
+function newState() {
+  return {
+    sect: null,
+    hunger: 80, mood: 80, exp: 0,
+    poisoned: false, down: false, mess: 0,
+    bornTs: Date.now(), lastTs: Date.now(),
+    cool: {}, poisonedH: 0,
+  };
+}
+function save() { S.lastTs = Date.now(); localStorage.setItem("jx3tama", JSON.stringify(S)); }
+function load() {
+  try {
+    const raw = localStorage.getItem("jx3tama");
+    if (!raw) return false;
+    S = JSON.parse(raw);
+    if (!S.sect) return false;
+    // 离线结算：最多按 2 游戏小时衰减
+    const elapsed = Math.min((Date.now() - (S.lastTs || Date.now())) / 1000, 7200);
+    applyTime(elapsed, 60, true);
+    return true;
+  } catch (e) { return false; }
+}
+const titleOf = exp => { for (let i = TITLES.length - 1; i >= 0; i--) if (exp >= TITLES[i].exp) return TITLES[i]; return TITLES[0]; };
+const nextTitle = exp => TITLES.find(t => t.exp > exp) || null;
+const cooling = id => (S.cool[id] || 0) > Date.now();
+
+/* ================= 音效 ================= */
+let muted = false;
+let AC = null;
+function beep(freq, dur = 0.08, type = "square", vol = 0.15) {
+  if (muted) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + dur);
+  } catch (e) {}
+}
+const sfx = {
+  ok:    () => { beep(880, .06); beep(1320, .08); },
+  err:   () => beep(160, .15, "sawtooth"),
+  eat:   () => { beep(520, .06); beep(660, .06); beep(780, .08); },
+  train: () => { beep(300, .05, "square", .12); beep(220, .07, "square", .12); },
+  up:    () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, .1), i * 90)); },
+  alert: () => { beep(940, .1); setTimeout(() => beep(940, .1), 160); },
+};
+
+/* ================= 时间推进 ================= */
+function applyTime(dtSec, f, silent) {
+  const gh = dtSec * f / 3600;               // 经过的游戏小时
+  if (gh <= 0) return;
+  let hMul = 1, mMul = 1;
+  if (S.poisoned) hMul *= 2;
+  if (S.mess > 0) mMul *= 2;
+  if (S.down) { hMul *= 0.4; mMul *= 0.4; }
+  S.hunger = Math.max(0, S.hunger - 9 * gh * hMul);
+  S.mood   = Math.max(0, S.mood  - 7 * gh * mMul);
+
+  if (!S.down && !S.poisoned && !silent) {
+    if (Math.random() < 0.5 * gh && S.mess < 3) { S.mess++; toastMsg("恶人谷袭击！现场一片狼藉…", sfx.alert); }
+    if (Math.random() < 0.12 * gh) { S.poisoned = true; S.poisonedH = 0; toastMsg("中毒了！快用「用药」解毒！", sfx.alert); }
+    if (Math.random() < 0.10 * gh) {
+      const gains = [8, 12, 20];
+      const g = gains[Math.floor(Math.random() * gains.length)];
+      S.exp += g;
+      toastMsg("奇遇：拾得《剑意残页》，修为 +" + g, sfx.ok);
+    }
+  }
+  if (S.poisoned && !S.down) {
+    S.poisonedH += gh;
+    if (S.poisonedH >= 3) {
+      S.down = true; S.poisoned = false;
+      toastMsg("中毒过深，侠士重伤卧床！快「用药」救治！", sfx.alert);
+    }
+  }
+  checkDown("饿");
+  checkDown("郁");
+  checkTitle();
+}
+function checkDown(kind) {
+  const low = kind === "饿" ? S.hunger : S.mood;
+  if (low <= 0 && !S.down && !S.poisoned) {
+    if (!S._lowH) S._lowH = 0; else S._lowH += 1;
+    if (S._lowH > 60) { // 约 1 游戏小时维持 0
+      S.down = true; S._lowH = 0;
+      toastMsg("侠士" + (kind === "饿" ? "饿到" : "郁到") + "重伤卧床！用药并好好照料！", sfx.alert);
+    }
+  } else if (low > 10) S._lowH = 0;
+}
+function checkTitle() {
+  const t = titleOf(S.exp);
+  if (S._lastTitle && S._lastTitle !== t.t) {
+    toastMsg("晋见！称号晋升为「" + t.t + "」！", sfx.up);
+    for (let i = 0; i < 14; i++) sparkles.push({ x: 60 + Math.random() * 40, y: 40 + Math.random() * 40, life: 30 + Math.random() * 20 });
+  }
+  S._lastTitle = t.t;
+}
+function toastMsg(text, sfxFn) { toast = { text, until: Date.now() + 2800 }; if (sfxFn) sfxFn(); }
+
+/* ================= 行为 ================= */
+const MENU = [
+  { id: "feed",  label: "喂食" },
+  { id: "sit",   label: "打坐" },
+  { id: "train", label: "木桩" },
+  { id: "clean", label: "打扫" },
+  { id: "cure",  label: "用药" },
+  { id: "status",label: "状态" },
+];
+function canAct() {
+  if (S.down)  return "重伤卧床，只能用药救治！";
+  if (S.poisoned) return "中毒中，先用药解毒！";
+  return null;
+}
+function doAct(id, sub) {
+  const block = canAct();
+  if (block && id !== "cure" && id !== "status") { toastMsg(block, sfx.err); return; }
+  const now = Date.now();
+  switch (id) {
+    case "feed": {
+      const f = FEEDS[sub];
+      if (cooling("feed_" + f.id)) { toastMsg(f.name + "还没凉透，稍后再吃", sfx.err); return; }
+      S.hunger = Math.min(100, S.hunger + f.gain);
+      S.mood = Math.min(100, S.mood + 5);
+      S.cool["feed_" + f.id] = now + f.cd * 1000;
+      if (Math.random() < 0.25 && S.mess < 3) { S.mess++; toastMsg("吃剩的骨头丢了一地…记得打扫", null); }
+      else toastMsg("侠士吃下" + f.name + "，气力恢复！", sfx.eat);
+      break;
+    }
+    case "sit":
+      if (cooling("sit")) { toastMsg("气息未定，稍后再打坐", sfx.err); return; }
+      S.mood = Math.min(100, S.mood + 20);
+      S.hunger = Math.max(0, S.hunger - 3);
+      S.exp += 3;
+      S.cool.sit = now + 15000;
+      toastMsg("打坐吐纳，心境澄明（修为+3）", sfx.ok);
+      break;
+    case "train":
+      if (S.hunger < 20) { toastMsg("饿得握不动剑了，先吃点东西", sfx.err); return; }
+      if (cooling("train")) { toastMsg("木桩刚打完，歇口气", sfx.err); return; }
+      S.exp += 12; S.hunger = Math.max(0, S.hunger - 8); S.mood = Math.max(0, S.mood - 5);
+      S.cool.train = now + 25000;
+      toastMsg("打木桩一百式，修为 +12！", sfx.train);
+      break;
+    case "clean":
+      if (S.mess <= 0) { toastMsg("屋里挺干净的，无需打扫", sfx.err); return; }
+      S.mess = 0; S.mood = Math.min(100, S.mood + 5); S.exp += 1;
+      toastMsg("打扫完毕，窗明几净（修为+1）", sfx.ok);
+      break;
+    case "cure":
+      if (!S.down && !S.poisoned) { toastMsg("侠士好得很，不用吃药", sfx.err); return; }
+      if (cooling("cure")) { toastMsg("药效未过，稍等片刻", sfx.err); return; }
+      S.poisoned = false; S.down = false; S.poisonedH = 0; S._lowH = 0;
+      S.hunger = Math.max(S.hunger, 30); S.mood = Math.min(100, S.mood + 10);
+      S.cool.cure = now + 10000;
+      toastMsg("九花玉露丸下肚，满血复活！", sfx.up);
+      break;
+    case "status":
+      page = "status"; sfx.ok(); return;
+  }
+  page = "main";
+}
+
+/* ================= 像素绘制 ================= */
+function px(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
+function text(str, x, y, c, size) {
+  ctx.font = (size || 9) + "px 'Microsoft YaHei', sans-serif";
+  ctx.fillStyle = c; ctx.textBaseline = "top";
+  ctx.fillText(str, x, y);
+}
+function textC(str, cx, y, c, size) {
+  ctx.font = (size || 9) + "px 'Microsoft YaHei', sans-serif";
+  const w = ctx.measureText(str).width;
+  ctx.fillStyle = c; ctx.textBaseline = "top";
+  ctx.fillText(str, Math.round(cx - w / 2), y);
+}
+
+/* --- 天空/场景 --- */
+function drawScene(t) {
+  // 昼夜：按游戏小时取模（体验速度下几分钟一昼夜）
+  const gh = (Date.now() - S.bornTs) / 1000 * speedF / 3600;
+  const hour = gh % 24;
+  const day = hour > 6 && hour < 18;
+  px(0, 0, W, H, day ? "#2a3a5e" : "#12141f");
+  // 星星（夜晚）
+  if (!day) {
+    const st = [[12,14],[30,8],[52,18],[88,10],[120,16],[140,8],[100,26],[20,30]];
+    st.forEach(([x, y], i) => { if ((frame + i) % 90 < 70) px(x, y, 1, 1, "#cfd8ea"); });
+  } else {
+    px(128, 12, 10, 10, "#f5e9b8"); px(131, 15, 4, 4, "#e8d890");
+  }
+  px(0, 100, W, 28, "#3a2f22");
+  px(0, 100, W, 2, "#5a4a32");
+  for (let i = 0; i < 12; i++) px((i * 37 + 8) % W, 106 + (i % 3) * 6, 3, 1, "#2e2519");
+  return hour;
+}
+
+/* --- 狼藉 --- */
+function drawMess() {
+  for (let i = 0; i < S.mess; i++) {
+    const x = 18 + i * 14;
+    px(x, 96, 8, 4, "#6a5a3a"); px(x + 1, 94, 6, 2, "#8a7a52");
+    px(x + 2, 92, 3, 2, "#8a7a52");
+    text("骨", x - 1, 102, "#9a8a68", 7);
+  }
+}
+
+/* --- 侠士小人（程序化像素，单位 u=2） --- */
+function drawPet(pose) {
+  const u = 2;
+  const C = SECTS[S.sect] || SECTS.cy;
+  const bob = pose === "idle" ? (Math.floor(frame / 30) % 2) : 0;
+  const ox = 60, oy = 42 + bob * 2;
+  const P = (x, y, w, h, c) => px(ox + x * u, oy + y * u, w * u, h * u, c);
+  const hair = "#26262e", skin = "#f2c9a0", dark = "#1a1a22";
+
+  if (pose === "down") { // 重伤卧床
+    P(1, 10, 12, 3, C.robe);            // 躺倒的身体
+    P(11, 8, 5, 4, skin);               // 头
+    P(12, 8, 5, 2, hair);
+    P(12, 10, 1, 1, dark); P(14, 10, 1, 1, dark); // X眼用点
+    P(12, 10, 1, 1, "#803030");
+    P(6, 8, 4, 2, "#e8e0d0");           // 被子
+    // 头顶转圈星星
+    const a = frame / 12;
+    const sx = 8 + Math.cos(a) * 5, sy = 5 + Math.sin(a) * 2;
+    ctx.fillStyle = "#f5e9b8"; ctx.fillRect(ox + sx * u, oy + sy * u, 3, 3);
+    return;
+  }
+  if (pose === "sick") { // 中毒
+    P(3, 8, 8, 6, C.robe);              // 蜷坐
+    P(4, 3, 7, 6, skin);                // 头
+    P(3, 2, 9, 3, hair); P(6, 1, 3, 2, hair);
+    P(5, 5, 1, 1, "#3a6a30"); P(8, 5, 1, 1, "#3a6a30"); // 绿眼圈
+    P(6, 7, 3, 1, "#6a8a4a");           // 苦脸嘴
+    P(3, 14, 9, 2, "#3a3a44");          // 腿
+    // 头顶眩晕螺旋
+    const a = frame / 10;
+    for (let i = 0; i < 3; i++) {
+      const sx = 7 + Math.cos(a + i * 2.1) * 4;
+      const sy = 0 - Math.abs(Math.sin(a + i * 2.1)) * 3;
+      px(ox + sx * u, oy + (sy - 2) * u, 2, 2, "#b8d88a");
+    }
+    return;
+  }
+  if (pose === "sit") { // 打坐
+    P(2, 12, 12, 3, C.robe);            // 盘腿
+    P(4, 10, 8, 3, C.robe);             // 身
+    P(5, 4, 6, 6, skin);                // 头
+    P(4, 3, 8, 2, hair); P(7, 2, 2, 2, hair); // 发髻
+    P(6, 6, 4, 1, dark);                // 闭眼线
+    P(3, 11, 1, 2, C.trim); P(12, 11, 1, 2, C.trim); // 手结印
+    // 气环
+    const r = 3 + Math.sin(frame / 15) * 1.5;
+    ctx.strokeStyle = C.accent; ctx.globalAlpha = .8;
+    ctx.beginPath();
+    ctx.ellipse(ox + 8 * u, oy + (1 - r) * u, r * u, r * u * .4, 0, 0, Math.PI * 2);
+    ctx.stroke(); ctx.globalAlpha = 1;
+    return;
+  }
+  if (pose === "eat") { // 吃饭
+    P(3, 7, 9, 6, C.robe);
+    P(4, 2, 7, 6, skin);
+    P(3, 1, 9, 2, hair); P(6, 0, 3, 2, hair);
+    P(5, 4, 1, 1, dark); P(8, 4, 1, 1, dark);
+    P(6, 6, 3, 2, dark);                // 张嘴
+    P(3, 13, 9, 3, "#3a3a44");
+    // 饭碗
+    const bo = Math.floor(frame / 8) % 2;
+    P(12, 12, 6, 2, "#d8d8e0"); P(13, 14, 4, 1, "#d8d8e0");
+    if (bo) { P(13, 10, 2, 2, "#e8d8a0"); P(15, 9, 1, 1, "#e8d8a0"); }
+    return;
+  }
+  if (pose === "train") { // 打木桩
+    // 木桩
+    const x0 = 118;
+    px(x0, 60, 12, 44, "#7a5a34"); px(x0 + 2, 56, 8, 6, "#8a6a40");
+    px(x0 - 2, 80, 16, 4, "#6a4a2a"); px(x0 - 2, 70, 16, 4, "#6a4a2a");
+    const punch = Math.floor(frame / 10) % 2;
+    P(3, 7, 9, 6, C.robe);
+    P(4, 2, 7, 6, skin);
+    P(3, 1, 9, 2, hair); P(6, 0, 3, 2, hair);
+    P(5, 4, 1, 1, dark); P(8, 4, 1, 1, dark);
+    P(3, 13, 9, 3, "#3a3a44");
+    // 冲拳
+    if (punch) { P(11, 8, 6, 2, skin); P(16, 8, 2, 2, C.trim); }
+    else { P(11, 10, 4, 2, skin); }
+    P(10, 5, 2, 4, C.robe);             // 背剑
+    // 汗滴
+    if (punch) { px(ox + 2 * u, oy + 1 * u, 2, 3, "#9ad0e8"); }
+    return;
+  }
+  // idle
+  P(3, 7, 9, 6, C.robe);
+  P(5, 2, 7, 6, skin);
+  P(4, 1, 9, 2, hair); P(7, 0, 3, 2, hair);
+  const blink = frame % 160 < 8;
+  if (!blink) { P(6, 4, 1, 2, dark); P(9, 4, 1, 2, dark); }
+  else { P(6, 5, 1, 1, dark); P(9, 5, 1, 1, dark); }
+  P(7, 6, 2, 1, "#c88a6a");             // 嘴
+  P(3, 13, 4, 3, "#3a3a44"); P(8, 13, 4, 3, "#3a3a44"); // 腿
+  P(2, 8, 2, 4, C.robe); P(11, 8, 2, 4, C.robe);        // 手臂
+  // 背剑
+  ctx.strokeStyle = "#b8c0d0"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(ox + 2 * u, oy + 2 * u); ctx.lineTo(ox + 12 * u, oy + 9 * u);
+  ctx.stroke();
+  px(ox + 12 * u, oy + 9 * u, 4, 2, "#8a5a2a"); // 剑柄
+}
+
+/* --- 气泡/表情 --- */
+function drawEmoji(kind) {
+  const u = 2, ox = 92, oy = 36;
+  if (kind === "heart") {
+    px(ox, oy, 3, 3, "#e85a7a"); px(ox + 3, oy, 3, 3, "#e85a7a");
+    px(ox + 1, oy + 1, 4, 3, "#e85a7a"); px(ox + 2, oy + 4, 2, 1, "#e85a7a");
+  } else if (kind === "zzz") {
+    text("Z", ox + (frame / 20 % 8), oy - (frame / 20 % 8), "#b8c8e8", 10);
+  }
+}
+
+/* --- 菜单图标 --- */
+function icon(id, x, y, sel) {
+  px(x - 1, y - 1, 18, 18, sel ? "#d8c68a" : "#2e3345");
+  px(x, y, 16, 16, sel ? "#3a3f54" : "#262a38");
+  const c1 = sel ? "#f5e9b8" : "#8a92ad";
+  if (id === "feed") { px(x + 2, y + 7, 12, 5, c1); px(x + 3, y + 12, 10, 1, c1); px(x + 6, y + 4, 4, 2, "#c88a6a"); }
+  if (id === "sit")  { px(x + 4, y + 2, 8, 2, c1); px(x + 6, y + 4, 4, 4, c1); px(x + 3, y + 9, 10, 3, c1); px(x + 7, y + 1, 2, 2, c1); }
+  if (id === "train"){ px(x + 6, y + 2, 4, 10, c1); px(x + 3, y + 5, 10, 2, c1); px(x + 2, y + 12, 12, 2, c1); }
+  if (id === "clean"){ px(x + 3, y + 10, 10, 3, c1); px(x + 7, y + 3, 2, 7, c1); px(x + 5, y + 2, 6, 2, c1); }
+  if (id === "cure") { px(x + 6, y + 3, 4, 10, c1); px(x + 3, y + 6, 10, 4, "#e88a8a"); px(x + 7, y + 4, 2, 2, c1); }
+  if (id === "status"){px(x + 3, y + 2, 10, 12, c1); px(x + 5, y + 5, 6, 1, "#262a38"); px(x + 5, y + 8, 6, 1, "#262a38"); px(x + 5, y + 11, 4, 1, "#262a38"); }
+}
+
+/* --- 状态条 --- */
+function bar(x, y, label, val, color, max) {
+  text(label, x, y, "#cfd4e8", 8);
+  for (let i = 0; i < 10; i++) {
+    const on = val / (max || 100) * 10 > i;
+    px(x + 20 + i * 4, y, 3, 7, on ? color : "#2e3345");
+  }
+}
+
+/* ================= 页面渲染 ================= */
+function petPose() {
+  if (S.down) return "down";
+  if (S.poisoned) return "sick";
+  if (cooling("sit") && Date.now() - (S.cool.sit - 15000) < 8000) return "sit";
+  if (cooling("feed_baozi") && Date.now() - (S.cool.feed_baozi - 12000) < 6000) return "eat";
+  if (cooling("train") && Date.now() - (S.cool.train - 25000) < 9000) return "train";
+  if (cooling("feed_fish") && Date.now() - (S.cool.feed_fish - 25000) < 8000) return "eat";
+  if (cooling("feed_feast") && Date.now() - (S.cool.feed_feast - 60000) < 10000) return "eat";
+  return "idle";
+}
+let emoji = null, emojiUntil = 0;
+
+function render() {
+  frame++;
+  if (page === "sect") return renderSect();
+  if (page === "status") return renderStatus();
+  if (page === "feed") return renderFeed();
+  renderMain();
+}
+
+function renderSect() {
+  px(0, 0, W, H, "#141824");
+  textC("— 初入江湖 · 择门派 —", 80, 12, "#d8c68a", 10);
+  const keys = Object.keys(SECTS);
+  const sel = keys[menuIdx % keys.length];
+  keys.forEach((k, i) => {
+    const y = 34 + i * 18;
+    const on = k === sel;
+    if (on) px(38, y - 3, 84, 15, "#3a3f54");
+    px(42, y, 8, 8, SECTS[k].robe);
+    text(SECTS[k].name + (on ? "  ◀" : ""), 56, y, on ? "#f5e9b8" : "#8a92ad", 10);
+  });
+  textC("▲▼ 选择门派 · A 确认拜入", 80, 112, "#8a92ad", 8);
+}
+
+function renderMain() {
+  drawScene();
+  drawPet(petPose());
+  drawMess();
+  // 表情
+  if (Date.now() < emojiUntil && emoji) drawEmoji(emoji);
+  else if (S.mood > 75 && frame % 300 < 120 && Math.floor(frame / 300) % 2) drawEmoji("heart");
+  // 状态条
+  bar(4, 3, "体力", S.hunger, "#e8a04a");
+  bar(4, 12, "心情", S.mood, "#e86a8a");
+  const nt = nextTitle(S.exp);
+  const cur = titleOf(S.exp);
+  const prog = nt ? (S.exp - cur.exp) / (nt.exp - cur.exp) * 100 : 100;
+  bar(4, 21, "修为", prog, "#7ab8e8", 100);
+  text(cur.t, 108, 21, "#d8c68a", 8);
+  // 中毒/狼藉警示
+  if (S.poisoned && frame % 40 < 25) textC("☠ 中毒", 130, 12, "#b8e88a", 8);
+  if (S.down && frame % 40 < 25) textC("✚ 重伤", 130, 12, "#e88a8a", 8);
+  // 底部菜单
+  const sel = menuIdx % MENU.length;
+  MENU.forEach((m, i) => icon(m.id, 6 + i * 26, 106, i === sel));
+  text(MENU[sel].label, 6 + sel * 26 + 2, 124 - 14, sel === sel ? "#f5e9b8" : "#8a92ad", 8);
+  // cooldown 标记
+  MENU.forEach((m, i) => {
+    const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", clean: null, cure: "cure", status: null };
+    const key = cdMap[m.id];
+    if (key && cooling(key)) px(6 + i * 26 + 12, 105, 3, 3, "#e86a5a");
+  });
+  // sparkles
+  sparkles = sparkles.filter(s => s.life-- > 0);
+  sparkles.forEach(s => {
+    const tw = (frame + s.x) % 20 < 10;
+    px(s.x, s.y, tw ? 3 : 1, tw ? 3 : 1, "#f5e9b8");
+  });
+  // toast
+  if (toast && Date.now() < toast.until) {
+    ctx.font = "9px 'Microsoft YaHei'";
+    const w = Math.min(150, ctx.measureText(toast.text).width + 8);
+    px(80 - w / 2, 82, w, 14, "rgba(10,12,20,.88)");
+    px(80 - w / 2, 82, w, 1, "#d8c68a"); px(80 - w / 2, 95, w, 1, "#d8c68a");
+    text(toast.text.length > 17 ? toast.text.slice(0, 17) : toast.text, 80 - w / 2 + 4, 85, "#f5ecd0");
+  }
+}
+
+function renderFeed() {
+  renderMain();
+  px(30, 30, 100, 68, "#1a1e2c");
+  px(30, 30, 100, 1, "#d8c68a"); px(30, 97, 100, 1, "#d8c68a");
+  textC("· 伙房 ·", 80, 34, "#d8c68a", 9);
+  FEEDS.forEach((f, i) => {
+    const y = 46 + i * 14;
+    const on = i === feedIdx % FEEDS.length;
+    if (on) px(36, y - 2, 88, 12, "#3a3f54");
+    text(f.name + "  气力+" + f.gain + (cooling("feed_" + f.id) ? "（烹饪中）" : ""), 42, y, on ? "#f5e9b8" : "#8a92ad", 9);
+  });
+  textC("A 吃！ · B 返回", 80, 88, "#8a92ad", 8);
+}
+
+function renderStatus() {
+  px(0, 0, W, H, "#141824");
+  textC("— 侠士手札 —", 80, 8, "#d8c68a", 10);
+  const C = SECTS[S.sect];
+  const days = ((Date.now() - S.bornTs) / 1000 * speedF / 3600 / 24).toFixed(1);
+  const t = titleOf(S.exp);
+  const lines = [
+    "门派：" + C.name,
+    "称号：" + t.t,
+    "体力：" + Math.round(S.hunger) + " / 100",
+    "心情：" + Math.round(S.mood) + " / 100",
+    "修为：" + S.exp,
+    "状态：" + (S.down ? "重伤卧床" : S.poisoned ? "中毒" : "康健"),
+    "狼藉：" + S.mess + " 处",
+    "江湖岁月：" + days + " 日",
+  ];
+  lines.forEach((l, i) => text(l, 22, 26 + i * 12, i === 5 && S.down || (i === 5 && S.poisoned) ? "#e8a08a" : "#cfd4e8", 9));
+  textC("B 返回", 80, 116, "#8a92ad", 8);
+}
+
+/* ================= 输入 ================= */
+function moveSel(d) { menuIdx = (menuIdx + d + MENU.length * 10) % MENU.length; beep(600, .03, "square", .06); }
+function confirmA() {
+  if (page === "sect") {
+    const keys = Object.keys(SECTS);
+    S.sect = keys[menuIdx % keys.length];
+    S._lastTitle = titleOf(S.exp).t;
+    page = "main";
+    toastMsg("拜入" + SECTS[S.sect].name + "！江湖路远，多多关照", sfx.up);
+    save();
+  } else if (page === "main") {
+    const id = MENU[menuIdx % MENU.length].id;
+    if (id === "feed") { page = "feed"; feedIdx = 0; sfx.ok(); }
+    else doAct(id);
+  } else if (page === "feed") {
+    doAct("feed", feedIdx % FEEDS.length);
+  } else if (page === "status") {
+    page = "main"; sfx.ok();
+  }
+}
+function pressB() {
+  if (page === "feed" || page === "status") { page = "main"; beep(440, .05); }
+  else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
+}
+
+/* ---- 4 实体键：▲▼ 选单 / A 确认 / B 返回 ---- */
+document.getElementById("btnUp").onclick = () => moveSel(-1);
+document.getElementById("btnDown").onclick = () => moveSel(1);
+document.getElementById("btnA").onclick = confirmA;
+document.getElementById("btnB").onclick = pressB;
+const deviceEl = document.querySelector(".device");
+// 滚轮在整个机身上都可用（选单旋转）
+deviceEl.addEventListener("wheel", e => { e.preventDefault(); moveSel(e.deltaY > 0 ? 1 : -1); }, { passive: false });
+// 屏幕上左右滑也能旋转（手机友好）
+let swipeX = null;
+cv.addEventListener("pointerdown", e => { swipeX = e.clientX; });
+cv.addEventListener("pointermove", e => {
+  if (swipeX === null) return;
+  if (Math.abs(e.clientX - swipeX) > 24) { moveSel(e.clientX < swipeX ? 1 : -1); swipeX = e.clientX; }
+});
+cv.addEventListener("pointerup", () => { swipeX = null; });
+cv.addEventListener("pointercancel", () => { swipeX = null; });
+window.addEventListener("keydown", e => {
+  const now = Date.now();
+  if (now < selectLock) return;
+  if (e.key === "ArrowLeft" || e.key === "ArrowUp") { moveSel(-1); selectLock = now + 90; }
+  else if (e.key === "ArrowRight" || e.key === "ArrowDown") { moveSel(1); selectLock = now + 90; }
+  else if (e.key === "Enter") confirmA();
+  else if (e.key === "Escape" || e.key === "b") pressB();
+  e.preventDefault();
+});
+
+/* ================= 面板控件 ================= */
+document.getElementById("speed").onchange = e => speedF = +e.target.value;
+document.getElementById("mute").onchange = e => muted = e.target.checked;
+document.getElementById("reset").onclick = () => {
+  if (confirm("确定清档重开？侠士的江湖岁月将归零。")) {
+    localStorage.removeItem("jx3tama");
+    S = newState(); page = "sect"; menuIdx = 0;
+  }
+};
+
+/* ================= 主循环 ================= */
+if (!load()) { S = newState(); page = "sect"; }
+else { page = "main"; S._lastTitle = titleOf(S.exp).t; }
+speedF = +document.getElementById("speed").value;
+
+let lastTick = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const dt = (now - lastTick) / 1000;
+  lastTick = now;
+  if (page !== "sect") applyTime(dt, speedF, false);
+  save();
+}, 1000);
+
+(function loop() { render(); requestAnimationFrame(loop); })();
+</script>
+</body>
+</html>
