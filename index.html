@@ -197,7 +197,6 @@ function newState() {
   return {
     sect: null,
     hunger: 80, mood: 80, exp: 0, coins: 20, homeLv: 0,
-    server: "梦江南",   // 日常查询区服（系统设置中可改）
     poisoned: false, down: false, mess: 0, dungeonUntil: 0,
     bornTs: Date.now(), lastTs: Date.now(),
     cool: {}, poisonedH: 0,
@@ -216,7 +215,6 @@ function load() {
     ["hunger", "mood", "exp", "coins", "homeLv"].forEach(k => S[k] = +S[k] || 0);
     S.dungeonUntil = +S.dungeonUntil || 0;
     S.cool = S.cool || {}; S.poisonedH = +S.poisonedH || 0;
-    S.server = S.server || "梦江南";
     S.bag = Object.assign({ baozi: 0, fish: 0, feast: 0, pill: 0 }, S.bag);   // 旧档补背包
     BAG_ORDER.forEach(k => S.bag[k] = Math.max(0, Math.floor(+S.bag[k] || 0)));
     // 离线结算：最多按 2 游戏小时衰减
@@ -337,14 +335,7 @@ const MENU = [
   { id: "home",    label: "家园", desc: "升级宅子" },
   { id: "settings",label: "设置", desc: "升级/WiFi/热点" },
 ];
-// jx3api 查询区服（2025 合服后名单：电信区/双线区/无界区）
-const SERVERS = [
-  "梦江南", "唯我独尊", "蝶恋花", "天鹅坪",           // 人口大服在前
-  "乾坤一掷", "斗转星移", "剑胆琴心", "幽月轮",
-  "绝代天骄", "龙争虎斗", "长安城", "青梅煮酒",
-  "破阵子", "飞龙在天", "有人赴约", "万象长安",
-  "山海相逢", "眉间雪",
-];
+const DAILY_SERVER = "梦江南";   // jx3api 查询的区服，可改
 function canAct() {
   if (S.down)  return "重伤卧床，只能用药救治！";
   if (S.poisoned) return "中毒中，先用药解毒！";
@@ -430,10 +421,9 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "6.6";
+const APP_VERSION = "6.5";
 const bootTs = Date.now();
-let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | srv | about
-let srvIdx = SERVERS.indexOf("梦江南");   // 区服列表选中项
+let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
 let apOn = false;
 let wifiState = { phase: "idle", sel: 0, list: [], ssid: null, ip: null, pct: 0 };  // idle|scanning|list|connecting|ok|fail
@@ -442,7 +432,6 @@ const SET_MENU = [
   { id: "ota",   label: "系统升级", desc: "在线检查更新" },
   { id: "wifi",  label: "WiFi连接", desc: "连接无线网络" },
   { id: "ap",    label: "热点模式", desc: "手机传更新包" },
-  { id: "srv",   label: "区服设置", desc: "日常查询区服" },
   { id: "about", label: "关于本机", desc: "版本与状态" },
 ];
 function otaCheck() {
@@ -807,7 +796,7 @@ function buildDailyRows() {
 }
 async function fetchDaily() {
   dailyLoading = true; dailyErr = null;
-  const url = "https://www.jx3api.com/active/calendar?mode=day&server=" + encodeURIComponent(S.server || "梦江南");
+  const url = "https://www.jx3api.com/active/calendar?mode=day";
   let d = null, netFail = false;
   // 直连 → r.jina.ai（CORS 开放）→ allorigins，逐级回退（jx3api 不开 CORS 头，浏览器直连会被拦）
   try {
@@ -847,7 +836,7 @@ async function fetchDaily() {
 }
 function renderDaily() {
   px(0, 0, W, H, "#141824");
-  textC("— " + (dailyStale ? "日常缓存" : "今日日常") + " · " + (S.server || "梦江南") + " —", 64, 8, "#d8c68a", 10);
+  textC("— " + (dailyStale ? "日常缓存" : "今日日常") + " · " + DAILY_SERVER + " —", 64, 8, "#d8c68a", 10);
   if (dailyLoading) {
     textC("拉取中…", 64, 50, "#8a92ad", 10);
   } else {
@@ -1144,25 +1133,6 @@ function renderSettings() {
     }
     return;
   }
-  /* ---- 区服设置（日常 API 的 server 参数） ---- */
-  if (setPage === "srv") {
-    textC("— 区服设置 —", 64, 6, "#d8c68a", 10);
-    textC("A 确认切换 · ▲▼ 选择", 64, 18, "#8a8fa5", 7);
-    const visible = 6;
-    let start = Math.max(0, Math.min(srvIdx - 2, SERVERS.length - visible));
-    SERVERS.slice(start, start + visible).forEach((n, i) => {
-      const idx = start + i;
-      const y = 32 + i * 12;
-      const cur = idx === srvIdx;
-      const now = SERVERS[idx] === S.server;
-      if (cur) px(8, y - 2, 112, 12, "#3a3f54");
-      text((cur ? "▶" : " ") + (now ? "● " : "  ") + n, 12, y, cur ? "#f5e9b8" : now ? "#b8e88a" : "#cfd4e8", 8);
-    });
-    if (start > 0) text("▲", 8, 30, "#8a8fa5", 8);
-    if (start + visible < SERVERS.length) text("▼", 8, 100, "#8a8fa5", 8);
-    textC("● 当前：" + S.server, 64, 112, "#b8e88a", 8);
-    return;
-  }
   /* ---- 关于本机 ---- */
   if (setPage === "about") {
     textC("— 关于本机 —", 64, 6, "#d8c68a", 10);
@@ -1173,7 +1143,6 @@ function renderSettings() {
       "固件版本：v" + APP_VERSION,
       "模拟硬件：ESP32-C3 + 1.44寸屏",
       "侠士：" + (SECTS[S.sect] || SECTS.cy).name + " · " + t.t,
-      "区服：" + (S.server || "梦江南"),
       "运行时长：" + upMin + " 分钟",
       "存档大小：" + saveKB + " KB",
       "WiFi：" + (wifiState.phase === "ok" ? "已连 " + wifiState.ssid : "未连接"),
@@ -1234,10 +1203,6 @@ function moveSel(d) {
       wifiState.sel = Math.max(0, Math.min(wifiState.list.length - 1, wifiState.sel + d));
       beep(600, .03, "square", .06);
     }
-    else if (setPage === "srv") {
-      srvIdx = (srvIdx + d + SERVERS.length * 10) % SERVERS.length;
-      beep(600, .03, "square", .06);
-    }
     return;
   }
   if (page === "daily") {
@@ -1296,15 +1261,6 @@ function confirmA() {
     } else if (setPage === "ap") {
       apOn = !apOn;
       toastMsg(apOn ? "热点已开启：JX3-Tama-9027" : "热点已关闭", apOn ? sfx.ok : null);
-    } else if (setPage === "srv") {
-      const pick = SERVERS[srvIdx];
-      if (pick === S.server) { toastMsg("已在「" + pick + "」，无需切换", null); return; }
-      S.server = pick; save();
-      // 旧区服缓存作废：清缓存让下次打开日常重新拉取
-      dailyData = null; dailyErr = null; dailyStale = false; dailyStaleCache = null;
-      localStorage.removeItem("jx3daily");
-      srvIdx = SERVERS.indexOf(pick);
-      toastMsg("区服已切至「" + pick + "」，日常将重新拉取", sfx.ok);
     }
   } else if (page === "home") {
     const cost = (S.homeLv + 1) * 50;
