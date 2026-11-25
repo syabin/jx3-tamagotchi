@@ -421,7 +421,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "6.4";
+const APP_VERSION = "6.5";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -749,10 +749,14 @@ function render() {
 
 /* ================= 今日日常（jx3api /active/calendar） ================= */
 let dailyData = null, dailyErr = null, dailyLoading = false, dailySel = 0;
+let dailyStale = false, dailyStaleCache = null;   // 离线兜底：上次成功拉取的旧缓存
 (function loadDailyCache() {
   try {
     const c = JSON.parse(localStorage.getItem("jx3daily") || "null");
-    if (c && c.d && c.day === new Date().toDateString()) dailyData = c.d;   // 只用当天的缓存
+    if (c && c.d) {
+      if (c.day === new Date().toDateString()) dailyData = c.d;   // 当天缓存直接可用
+      else dailyStaleCache = c.d;                                 // 旧日期缓存留作断网兜底
+    }
   } catch (e) {}
 })();
 // 字段中文映射（jx3api 日历接口）
@@ -820,8 +824,11 @@ async function fetchDaily() {
   }
   if (d) {
     dailyData = d;
+    dailyStale = false;
     localStorage.setItem("jx3daily", JSON.stringify({ t: Date.now(), day: new Date().toDateString(), d }));
     dailyErr = null;
+  } else if (!dailyData && dailyStaleCache) {
+    dailyData = dailyStaleCache; dailyStale = true;   // 断网兜底：沿用上次拉取的日常，不报错
   } else {
     dailyErr = netFail ? "跨域/代理均失败" : "接口返回异常";
   }
@@ -829,7 +836,7 @@ async function fetchDaily() {
 }
 function renderDaily() {
   px(0, 0, W, H, "#141824");
-  textC("— 今日日常 · " + DAILY_SERVER + " —", 64, 8, "#d8c68a", 10);
+  textC("— " + (dailyStale ? "日常缓存" : "今日日常") + " · " + DAILY_SERVER + " —", 64, 8, "#d8c68a", 10);
   if (dailyLoading) {
     textC("拉取中…", 64, 50, "#8a92ad", 10);
   } else {
@@ -856,14 +863,14 @@ function renderDaily() {
         if (start + visible < rows.length) text("▼", 113, 88, "#8a8fa5", 9);
       }
     } else if (dailyErr) {
-      textC(dailyErr, 64, 44, "#e8a08a", 9);
-      textC("需能访问 jx3api.com", 64, 58, "#8a92ad", 8);
+      textC("连不上网", 64, 44, "#e8a08a", 10);
+      textC("暂无缓存 · 连网后自动拉取", 64, 60, "#8a92ad", 8);
     } else {
       textC("暂无数据 · A 刷新", 64, 50, "#8a92ad", 9);
     }
-    if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 64, 116, "#8a8fa5", 8);
   }
-  textC("A 进本/刷新 · B 返回", 64, 118, "#8a92ad", 8);
+  const offline = dailyLoading ? false : (!!dailyErr || dailyStale);
+  textC(offline ? "离线 · A 刷新 · B 返回" : "A 进本/刷新 · B 返回", 64, 118, offline ? "#e8a08a" : "#8a92ad", 8);
 }
 
 /* ================= 开机画面（大 LOGO + PRESS A START） ================= */
