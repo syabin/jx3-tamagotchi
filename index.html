@@ -15,20 +15,16 @@
     display: flex; align-items: center; justify-content: center;
     padding: 16px; gap: 24px; flex-wrap: wrap;
   }
-  /* ---------- 蛋形机身（参照初代拓麻歌子 / TamaLIB） ---------- */
+  /* ---------- 蛋形机身（参照初代拓麻歌子 / TamaLIB，按键外置在机身下方） ---------- */
   .device {
     background: linear-gradient(165deg, #faf7f0 0%, #efe9dc 55%, #ddd5c4 100%);
     border-radius: 50% 50% 50% 50% / 56% 56% 44% 44%;
-    padding: 26px 16px 22px;
+    padding: 26px 18px 20px;
     box-shadow: 0 18px 40px rgba(30,30,40,.35), inset 0 3px 6px rgba(255,255,255,.85), inset 0 -8px 14px rgba(120,110,90,.22);
     border: 3px solid #c9c2b2;
-    width: 320px;
+    width: 400px;
     max-width: calc(100vw - 16px);
     display: flex; flex-direction: column; align-items: center;
-  }
-  .egg-screen-wrap {
-    display: flex; align-items: center; justify-content: center;
-    width: 100%; gap: 8px;
   }
   .device-title {
     text-align: center; color: #9a7a30; font-size: 12px; letter-spacing: 3px;
@@ -40,6 +36,7 @@
     padding: 9px;
     border: 3px solid #c9a94a;
     box-shadow: inset 0 0 14px rgba(0,0,0,.8), 0 2px 4px rgba(0,0,0,.3);
+    width: 100%;
   }
   canvas#screen {
     display: block; width: 100%; height: auto; aspect-ratio: 1 / 1;
@@ -48,21 +45,26 @@
     background: #10131c;
     cursor: pointer;
   }
-  /* 三颗实体键：A 选单 / B 确认 / C 返回（初代布局：左右 + 底部中央） */
-  .ebtn {
-    width: 34px; height: 34px; border-radius: 50%;
+  /* ---------- 机身下方按键排（4 键：▲▼ 选单 / A 确认 / B 返回） ---------- */
+  .ctl-row {
+    display: flex; gap: 16px; justify-content: center; align-items: center;
+    margin-top: 16px;
+  }
+  .ctl {
+    width: 54px; height: 44px; border-radius: 14px;
     background: radial-gradient(circle at 35% 30%, #e8b4c8, #b86888 65%, #8a4a68);
     border: 3px solid #5a3048; color: #4a2840;
-    font-size: 14px; font-weight: bold; cursor: pointer;
-    box-shadow: 0 3px 6px rgba(0,0,0,.35), inset 0 2px 4px rgba(255,255,255,.4);
+    font-size: 18px; font-weight: bold; cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,.35), inset 0 2px 5px rgba(255,255,255,.4);
     display: flex; align-items: center; justify-content: center;
     user-select: none; touch-action: manipulation;
     transition: transform .06s;
-    flex: 0 0 auto;
   }
-  .ebtn:active { transform: translateY(2px) scale(.94); }
-  .ebtn.btm { margin-top: 12px; }
-  .ebtn-cap { font-size: 9px; color: #9a8a68; text-align: center; margin-top: 2px; }
+  .ctl.act { border-radius: 50%; width: 50px; height: 50px; font-size: 17px; }
+  .ctl:active { transform: translateY(2px) scale(.94); }
+  .ctl-cap {
+    text-align: center; color: #9a8f78; font-size: 11px; margin-top: 8px;
+  }
   /* ---------- 真实尺寸模式（1 canvas 像素 = 1 CSS 像素） ---------- */
   body.real-size .device { width: auto; }
   body.real-size canvas#screen { width: 128px; height: 128px; }
@@ -111,33 +113,26 @@
 <body>
 
 <div class="device">
-  <div class="egg-screen-wrap">
-    <div>
-      <div class="ebtn" id="btnA">A</div>
-      <div class="ebtn-cap">选单</div>
-    </div>
-    <div class="screen-frame">
-      <canvas id="screen" width="128" height="128"></canvas>
-    </div>
-    <div>
-      <div class="ebtn" id="btnC">C</div>
-      <div class="ebtn-cap">返回</div>
-    </div>
-  </div>
-  <div>
-    <div class="ebtn btm" id="btnB">B</div>
-    <div class="ebtn-cap">确认</div>
+  <div class="screen-frame">
+    <canvas id="screen" width="128" height="128"></canvas>
   </div>
   <div class="device-title">剑网三 · 拓麻歌子</div>
-  <button class="size-toggle" id="sizeToggle">切换：真实尺寸 128×128</button>
 </div>
+<div class="ctl-row">
+  <div class="ctl" id="btnUp">▲</div>
+  <div class="ctl" id="btnDown">▼</div>
+  <div class="ctl act" id="btnA">A</div>
+  <div class="ctl act" id="btnB">B</div>
+</div>
+<div class="ctl-cap">▲▼ 选单 · A 确认 · B 返回（主页 B = 状态手札 · 日常页选"本"字条目按 A 进副本）</div>
+<button class="size-toggle" id="sizeToggle">切换：真实尺寸 128×128</button>
 
 <div class="panel">
   <h2>江湖生存指南</h2>
   <div>你的侠士需要<b>体力</b>与<b>心情</b>维持，<b>打木桩</b>涨修为但耗体力，<b>打坐</b>回心情。</div>
   <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤卧床</b>，记得用药！</div>
   <div>✨ 偶尔触发<b>奇遇</b>，白捡修为。修为攒够就晋见称号。</div>
-  <div>🕹️ <b>A</b> 选单 · <b>B</b> 确认 · <b>C</b> 返回（键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选，日常页选中"本"字条目按 B 进副本）</div>
+  <div>🕹️ <b>▲▼</b> 选单 · <b>A</b> 确认 · <b>B</b> 返回（键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选，日常页选"本"字条目按 A 进副本）</div>
   <div class="row">
     时间流速
     <select id="speed">
@@ -766,7 +761,7 @@ function renderDaily() {
     }
     if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 64, 116, "#8a8fa5", 8);
   }
-  textC("A 进本/刷新 · C 返回", 64, 118, "#8a92ad", 8);
+  textC("A 进本/刷新 · B 返回", 64, 118, "#8a92ad", 8);
 }
 
 function renderSect() {
@@ -865,7 +860,7 @@ function renderFeed() {
     if (on) px(18, y - 2, 92, 12, "#3a3f54");
     text(f.name + " 体力+" + f.gain + (cooling("feed_" + f.id) ? " 烹饪中" : ""), 22, y, on ? "#f5e9b8" : "#8a92ad", 8);
   });
-  textC("A 吃！ · C 返回", 64, 88, "#8a92ad", 8);
+  textC("A 吃！ · B 返回", 64, 88, "#8a92ad", 8);
 }
 
 function renderHome() {
@@ -880,7 +875,7 @@ function renderHome() {
     "现有金币：" + S.coins,
   ];
   lines.forEach((l, i) => text(l, 24, 34 + i * 13, "#cfd4e8", 8));
-  textC(lv >= 4 ? "C 返回" : "A 升级 · C 返回", 64, 92, "#8a92ad", 8);
+  textC(lv >= 4 ? "B 返回" : "A 升级 · B 返回", 64, 92, "#8a92ad", 8);
 }
 
 function renderStatus() {
@@ -905,7 +900,7 @@ function renderStatus() {
     "江湖岁月：" + days + " 日",
   ];
   lines.forEach((l, i) => text(l, 10, 18 + i * 8, i === 8 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 8));
-  textC("C 返回", 64, 118, "#8a92ad", 8);
+  textC("B 返回", 64, 118, "#8a92ad", 8);
 }
 
 /* ================= 输入 ================= */
@@ -968,10 +963,11 @@ function pressB() {
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
 
-/* ---- 三实体键（初代拓麻歌子逻辑）：A 选单 / B 确认 / C 返回 ---- */
-document.getElementById("btnA").onclick = () => moveSel(1);
-document.getElementById("btnB").onclick = confirmA;
-document.getElementById("btnC").onclick = pressB;
+/* ---- 4 实体键（机身下方）：▲▼ 选单 / A 确认 / B 返回 ---- */
+document.getElementById("btnUp").onclick = () => moveSel(-1);
+document.getElementById("btnDown").onclick = () => moveSel(1);
+document.getElementById("btnA").onclick = confirmA;
+document.getElementById("btnB").onclick = pressB;
 // 真实尺寸切换（1 canvas 像素 = 1 CSS 像素，即真机 1.44 寸屏的显示密度）
 const sizeToggle = document.getElementById("sizeToggle");
 function applyRealSize(on) {
