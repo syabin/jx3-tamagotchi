@@ -102,7 +102,7 @@
 <div class="panel">
   <h2>江湖生存指南</h2>
   <div>你的侠士需要<b>体力</b>与<b>心情</b>维持，<b>打木桩</b>涨修为但耗体力，<b>打坐</b>回心情。</div>
-  <div>⚠️ <b>恶人谷袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤卧床</b>，记得用药！</div>
+  <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤卧床</b>，记得用药！</div>
   <div>✨ 偶尔触发<b>奇遇</b>，白捡修为。修为攒够就晋见称号。</div>
   <div class="row">
     时间流速
@@ -241,7 +241,7 @@ function applyTime(dtSec, f, silent) {
   }
 
   if (!S.down && !S.poisoned && !silent) {
-    if (Math.random() < 0.5 * gh && S.mess < 3) { S.mess++; toastMsg("恶人谷袭击！现场一片狼藉…", sfx.alert); }
+    if (Math.random() < 0.5 * gh && S.mess < 3) { S.mess++; toastMsg("狼牙袭击！现场一片狼藉…", sfx.alert); }
     if (Math.random() < 0.12 * gh) { S.poisoned = true; S.poisonedH = 0; toastMsg("中毒了！快用「用药」解毒！", sfx.alert); }
     if (Math.random() < 0.10 * gh) {
       const gains = [8, 12, 20];
