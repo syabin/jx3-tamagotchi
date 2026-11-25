@@ -613,37 +613,81 @@ function render() {
   renderMain();
 }
 
-/* ================= 今日日常（jx3api） ================= */
-let dailyData = null, dailyErr = null, dailyLoading = false;
+/* ================= 今日日常（jx3api /active/calendar） ================= */
+let dailyData = null, dailyErr = null, dailyLoading = false, dailySel = 0;
 (function loadDailyCache() {
   try {
     const c = JSON.parse(localStorage.getItem("jx3daily") || "null");
-    if (c && c.d) dailyData = c.d;
+    if (c && c.d && c.day === new Date().toDateString()) dailyData = c.d;   // 只用当天的缓存
   } catch (e) {}
 })();
-function dailyLines() {
-  if (!dailyData) return null;
-  const first = Array.isArray(dailyData) ? dailyData[0] : dailyData;
-  if (!first || typeof first !== "object") return null;
-  const skip = ["date", "week", "day", "time", "server"];
-  return Object.entries(first)
-    .filter(([k, v]) => typeof v === "string" && v.length > 1 && !skip.includes(k))
-    .map(([k, v]) => k + "：" + v)
-    .slice(0, 6);
+// 字段中文映射（jx3api 日历接口）
+const DAILY_FIELDS = [
+  ["war",       "大战"],
+  ["battle",    "阵营战场"],
+  ["school",    "门派事件"],
+  ["rescue",    "救援"],
+  ["orecar",    "矿车"],
+  ["leader",    "世界首领", "arr"],
+  ["card",      "秘境日常", "arr"],
+  ["draw",      "挂件任务", "arr"],
+  ["lucky",     "幸运宠",   "arr"],
+  ["weekly.conn", "周常任务", "arr"],
+  ["weekly.raid", "团本周本", "arr"],
+];
+function pick(obj, path) { return path.split(".").reduce((o, k) => o && o[k], obj); }
+function buildDailyRows() {
+  if (!dailyData || typeof dailyData !== "object") return null;
+  const rows = [];
+  const head = dailyData.date ? (dailyData.date + (dailyData.week ? " · 周" + dailyData.week : "")) : null;
+  for (const [key, label] of DAILY_FIELDS) {
+    let v = pick(dailyData, key);
+    if (v == null) continue;
+    if (Array.isArray(v)) {
+      if (!v.length) continue;
+      v = v.join("、");
+    }
+    v = String(v).trim();
+    if (!v) continue;
+    rows.push(label + "：" + v);
+  }
+  if (head) rows.unshift(head);
+  return rows.length ? rows : null;
 }
 async function fetchDaily() {
   dailyLoading = true; dailyErr = null;
+  const url = "https://www.jx3api.com/active/calendar?mode=day";
+  let d = null, netFail = false;
+  // 直连 → r.jina.ai（CORS 开放）→ allorigins，逐级回退（jx3api 不开 CORS 头，浏览器直连会被拦）
   try {
-    const r = await fetch("https://www.jx3api.com/data/daily?server=" + encodeURIComponent(DAILY_SERVER));
+    const r = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined });
     const j = await r.json();
-    if (j && (j.code === 0 || j.code === 200) && j.data) {
-      dailyData = j.data;
-      localStorage.setItem("jx3daily", JSON.stringify({ t: Date.now(), d: j.data }));
-    } else {
-      dailyErr = (j && j.msg) ? String(j.msg).slice(0, 20) : "接口返回异常";
-    }
-  } catch (e) {
-    dailyErr = "请求失败（跨域/断网）";
+    if (j && (j.code === 200 || j.status === 200) && (j.detail || j.data)) d = j.detail || j.data;
+  } catch (e) { netFail = true; }
+  if (!d) {
+    try {
+      const r = await fetch("https://r.jina.ai/" + encodeURIComponent(url), { signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined });
+      const t = await r.text();
+      const i = t.indexOf('{"status"');
+      if (i >= 0) {
+        const j = JSON.parse(t.slice(i));
+        if (j && j.detail) d = j.detail;
+      }
+    } catch (e) {}
+  }
+  if (!d) {
+    try {
+      const r = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url), { signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined });
+      const j = await r.json();
+      if (j && (j.code === 200 || j.status === 200) && (j.detail || j.data)) d = j.detail || j.data;
+    } catch (e) {}
+  }
+  if (d) {
+    dailyData = d;
+    localStorage.setItem("jx3daily", JSON.stringify({ t: Date.now(), day: new Date().toDateString(), d }));
+    dailyErr = null;
+  } else {
+    dailyErr = netFail ? "跨域/代理均失败" : "接口返回异常";
   }
   dailyLoading = false;
 }
@@ -652,16 +696,35 @@ function renderDaily() {
   textC("— 今日日常 · " + DAILY_SERVER + " —", 80, 8, "#d8c68a", 9);
   if (dailyLoading) {
     textC("拉取中…", 80, 50, "#8a92ad", 10);
-  } else if (dailyErr && !dailyData) {
-    textC(dailyErr, 80, 44, "#e8a08a", 9);
-    textC("需能访问 jx3api.com", 80, 58, "#8a92ad", 8);
   } else {
-    const ls = dailyLines();
-    if (ls) ls.forEach((l, i) => text(l.length > 18 ? l.slice(0, 18) : l, 12, 24 + i * 12, "#cfd4e8", 9));
-    else textC("暂无数据", 80, 50, "#8a92ad", 9);
-    if (dailyErr) textC("(显示缓存 · " + dailyErr + ")", 80, 104, "#8a8fa5", 7);
+    const rows = buildDailyRows();
+    if (rows) {
+      if (dailySel >= rows.length) dailySel = rows.length - 1;
+      if (dailySel < 0) dailySel = 0;
+      const visible = 8;
+      let start = Math.max(0, Math.min(dailySel - Math.floor(visible / 2), rows.length - visible));
+      rows.slice(start, start + visible).forEach((l, i) => {
+        const idx = start + i;
+        const y = 22 + i * 11;
+        const cur = idx === dailySel;
+        if (cur) px(4, y - 1, W - 8, 10, "#26314a");
+        text(cur ? "▶" : " ", 6, y, cur ? "#f5e9b8" : "#cfd4e8", 8);
+        text(l.length > 25 ? l.slice(0, 25) : l, 13, y, cur ? "#f5e9b8" : "#cfd4e8", 8);
+      });
+      if (rows.length > visible) {
+        textC((dailySel + 1) + "/" + rows.length, 80, 110, "#8a8fa5", 7);
+        if (start > 0) text("▲", 8, 20, "#8a8fa5", 8);
+        if (start + visible < rows.length) text("▼", 148, 104, "#8a8fa5", 8);
+      }
+    } else if (dailyErr) {
+      textC(dailyErr, 80, 44, "#e8a08a", 9);
+      textC("需能访问 jx3api.com", 80, 58, "#8a92ad", 8);
+    } else {
+      textC("暂无数据 · A 刷新", 80, 50, "#8a92ad", 9);
+    }
+    if (dailyErr && rows) textC("(显示缓存 · " + dailyErr + ")", 80, 104, "#8a8fa5", 7);
   }
-  textC("A 刷新 · B 返回", 80, 116, "#8a92ad", 8);
+  textC("A 刷新 · B 返回", 80, 118, "#8a92ad", 8);
 }
 
 function renderSect() {
@@ -804,8 +867,14 @@ function renderStatus() {
 
 /* ================= 输入 ================= */
 function moveSel(d) {
-  // 按当前页面分发：伙房子菜单用 feedIdx，主菜单用 menuIdx
+  // 按当前页面分发：伙房子菜单用 feedIdx，日常页滚动列表，主菜单用 menuIdx
   if (page === "feed") { feedIdx = (feedIdx + d + FEEDS.length * 10) % FEEDS.length; beep(600, .03, "square", .06); return; }
+  if (page === "daily") {
+    const rows = buildDailyRows();
+    if (!rows) return;
+    dailySel = Math.max(0, Math.min(rows.length - 1, dailySel + d));
+    beep(600, .03, "square", .06); return;
+  }
   if (page !== "main") return;
   menuIdx = (menuIdx + d + MENU.length * 10) % MENU.length; beep(600, .03, "square", .06);
 }
