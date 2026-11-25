@@ -130,7 +130,8 @@
 <div class="panel">
   <h2>江湖生存指南</h2>
   <div>你的侠士需要<b>体力</b>与<b>心情</b>维持，<b>打木桩</b>涨修为但耗体力，<b>打坐</b>回心情。</div>
-  <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤卧床</b>，记得用药！</div>
+  <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤卧床</b>，记得用玉露丸！</div>
+  <div>🛒 吃东西要花金币：进<b>商城</b>买食材药品入行囊，再从<b>背包</b>使用——正版拓麻歌子的层级界面。</div>
   <div>✨ 偶尔触发<b>奇遇</b>，白捡修为。修为攒够就晋见称号。</div>
   <div>🕹️ <b>▲▼</b> 选单 · <b>A</b> 确认 · <b>B</b> 返回（键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选，日常页选"本"字条目按 A 进副本）</div>
   <div class="row">
@@ -169,20 +170,23 @@ const TITLES = [
   { exp: 350, t: "威震八方" },
   { exp: 700, t: "天下无双" },
 ];
-const FEEDS = [
-  { id: "baozi", name: "包子",   gain: 15, cd: 12 },
-  { id: "fish",  name: "蒸鱼",   gain: 30, cd: 25 },
-  { id: "feast", name: "烧尾宴", gain: 50, cd: 60 },
-];
+/* 物品目录：food 吃（体力+），med 药（解毒/治重伤），shop 价 = 商城售价 */
+const GOODS = {
+  baozi: { name: "包子",   type: "food", gain: 15, cd: 12, price: 8 },
+  fish:  { name: "蒸鱼",   type: "food", gain: 30, cd: 25, price: 15 },
+  feast: { name: "烧尾宴", type: "food", gain: 50, cd: 60, price: 30 },
+  pill:  { name: "玉露丸", type: "med",  price: 20, desc: "解毒/治重伤" },
+};
+const BAG_ORDER = ["baozi", "fish", "feast", "pill"];
 const HOME_NAMES = ["荒地", "草庐", "木屋", "庭院", "山庄"];
 const SPEEDS = { 60: 60, 600: 600, 1: 1 };
 
 /* ================= 状态 ================= */
 let S = null;
 let speedF = 60;
-let page = "sect";            // sect | main | feed | status
+let page = "sect";            // sect | main | bag | shop | home | daily | status
 let menuIdx = 0;
-let feedIdx = 0;
+let subIdx = 0;               // 子界面（背包/商城）选中项
 let frame = 0;
 let toast = null;             // {text, until}
 let sparkles = [];
@@ -196,6 +200,7 @@ function newState() {
     poisoned: false, down: false, mess: 0, dungeonUntil: 0,
     bornTs: Date.now(), lastTs: Date.now(),
     cool: {}, poisonedH: 0,
+    bag: { baozi: 2, fish: 0, feast: 0, pill: 1 },   // 初始行囊：两个包子一瓶药
   };
 }
 function save() { S.lastTs = Date.now(); localStorage.setItem("jx3tama", JSON.stringify(S)); }
@@ -210,6 +215,8 @@ function load() {
     ["hunger", "mood", "exp", "coins", "homeLv"].forEach(k => S[k] = +S[k] || 0);
     S.dungeonUntil = +S.dungeonUntil || 0;
     S.cool = S.cool || {}; S.poisonedH = +S.poisonedH || 0;
+    S.bag = Object.assign({ baozi: 0, fish: 0, feast: 0, pill: 0 }, S.bag);   // 旧档补背包
+    BAG_ORDER.forEach(k => S.bag[k] = Math.max(0, Math.floor(+S.bag[k] || 0)));
     // 离线结算：最多按 2 游戏小时衰减
     const elapsed = Math.min((Date.now() - (S.lastTs || Date.now())) / 1000, 7200);
     applyTime(elapsed, 60, true);
@@ -276,7 +283,7 @@ function applyTime(dtSec, f, silent) {
 
   if (!S.down && !S.poisoned && !silent) {
     if (Math.random() < 0.5 * gh && S.mess < 3) { S.mess++; toastMsg("狼牙袭击！现场一片狼藉…", sfx.alert); }
-    if (Math.random() < 0.12 * gh) { S.poisoned = true; S.poisonedH = 0; toastMsg("中毒了！快用「用药」解毒！", sfx.alert); }
+    if (Math.random() < 0.12 * gh) { S.poisoned = true; S.poisonedH = 0; toastMsg("中毒了！快用玉露丸解毒！", sfx.alert); }
     if (Math.random() < 0.10 * gh) {
       const gains = [8, 12, 20];
       const g = gains[Math.floor(Math.random() * gains.length)];
@@ -288,7 +295,7 @@ function applyTime(dtSec, f, silent) {
     S.poisonedH += gh;
     if (S.poisonedH >= 3) {
       S.down = true; S.poisoned = false;
-      toastMsg("中毒过深，侠士重伤卧床！快「用药」救治！", sfx.alert);
+      toastMsg("中毒过深，侠士重伤卧床！玉露丸救治！", sfx.alert);
     }
   }
   checkDown("饿");
@@ -301,7 +308,7 @@ function checkDown(kind) {
     if (!S._lowH) S._lowH = 0; else S._lowH += 1;
     if (S._lowH > 60) { // 约 1 游戏小时维持 0
       S.down = true; S._lowH = 0;
-      toastMsg("侠士" + (kind === "饿" ? "饿到" : "郁到") + "重伤卧床！用药并好好照料！", sfx.alert);
+      toastMsg("侠士" + (kind === "饿" ? "饿到" : "郁到") + "重伤卧床！玉露丸并好好照料！", sfx.alert);
     }
   } else if (low > 10) S._lowH = 0;
 }
@@ -319,12 +326,12 @@ function toastMsg(text, sfxFn) { toast = { text, until: Date.now() + 2800 }; if 
 const MENU = [
   { id: "status",  label: "状态", desc: "侠士手札" },
   { id: "daily",   label: "日常", desc: "今日剑网三日常" },
-  { id: "feed",    label: "喂食", desc: "挑一份菜" },
+  { id: "bag",     label: "背包", desc: "查看行囊物品" },
+  { id: "shop",    label: "商城", desc: "购买食材和药品" },
   { id: "sit",     label: "打坐", desc: "心情+20 修为+3" },
   { id: "train",   label: "木桩", desc: "修为+12 耗体力" },
   { id: "dig",     label: "挖宝", desc: "挖宝得金币" },
   { id: "clean",   label: "打扫", desc: "清理狼藉" },
-  { id: "cure",    label: "用药", desc: "解毒/治重伤" },
   { id: "home",    label: "家园", desc: "升级宅子" },
 ];
 const DAILY_SERVER = "梦江南";   // jx3api 查询的区服，可改
@@ -336,17 +343,29 @@ function canAct() {
 }
 function doAct(id, sub) {
   const block = canAct();
-  if (block && id !== "cure" && id !== "status") { toastMsg(block, sfx.err); return; }
+  if (block && id !== "status") { toastMsg(block, sfx.err); return; }
   const now = Date.now();
   switch (id) {
-    case "feed": {
-      const f = FEEDS[sub];
+    case "eat": {   // 从背包吃食物（sub = 物品 id）
+      const f = GOODS[sub];
+      if (!f || f.type !== "food") return;
+      if ((S.bag[sub] || 0) <= 0) { toastMsg("行囊里没有" + f.name + "了，去商城买点吧", sfx.err); return; }
       if (cooling("feed_" + f.id)) { toastMsg(f.name + "还没凉透，稍后再吃", sfx.err); return; }
+      S.bag[sub]--;
       S.hunger = Math.min(100, S.hunger + f.gain);
       S.mood = Math.min(100, S.mood + 5);
       S.cool["feed_" + f.id] = now + f.cd * 1000;
       if (Math.random() < 0.25 && S.mess < 3) { S.mess++; toastMsg("吃剩的骨头丢了一地…记得打扫", null); }
       else toastMsg("侠士吃下" + f.name + "，气力恢复！", sfx.eat);
+      break;
+    }
+    case "useMed": {   // 从背包用药
+      if (!S.down && !S.poisoned) { toastMsg("侠士好得很，不用吃药", sfx.err); return; }
+      if ((S.bag.pill || 0) <= 0) { toastMsg("没有玉露丸了，去商城买一瓶", sfx.err); return; }
+      S.bag.pill--;
+      S.poisoned = false; S.down = false; S.poisonedH = 0; S._lowH = 0;
+      S.hunger = Math.max(S.hunger, 30); S.mood = Math.min(100, S.mood + 10);
+      toastMsg("九花玉露丸下肚，满血复活！", sfx.up);
       break;
     }
     case "sit":
@@ -369,14 +388,6 @@ function doAct(id, sub) {
       S.mess = 0; S.mood = Math.min(100, S.mood + 5); S.exp += 1;
       toastMsg("打扫完毕，窗明几净（修为+1）", sfx.ok);
       break;
-    case "cure":
-      if (!S.down && !S.poisoned) { toastMsg("侠士好得很，不用吃药", sfx.err); return; }
-      if (cooling("cure")) { toastMsg("药效未过，稍等片刻", sfx.err); return; }
-      S.poisoned = false; S.down = false; S.poisonedH = 0; S._lowH = 0;
-      S.hunger = Math.max(S.hunger, 30); S.mood = Math.min(100, S.mood + 10);
-      S.cool.cure = now + 10000;
-      toastMsg("九花玉露丸下肚，满血复活！", sfx.up);
-      break;
     case "dig": {
       if (cooling("dig")) { toastMsg("铁锹都挖冒烟了，歇会儿再挖", sfx.err); return; }
       if (S.hunger < 10) { toastMsg("饿得举不起锹，先吃点东西", sfx.err); return; }
@@ -390,6 +401,10 @@ function doAct(id, sub) {
       else { toastMsg("挖到一块碎瓦，正好补屋顶", sfx.ok); }
       break;
     }
+    case "bag":
+      page = "bag"; subIdx = 0; sfx.ok(); return;
+    case "shop":
+      page = "shop"; subIdx = 0; sfx.ok(); return;
     case "home":
       page = "home"; sfx.ok(); return;
     case "daily":
@@ -601,6 +616,8 @@ function icon(id, x, y, sel) {
   if (id === "dig")   { px(x + 7, y + 2, 2, 8, c1); px(x + 5, y + 9, 6, 2, c1); px(x + 4, y + 11, 8, 3, "#b8c0d0"); }
   if (id === "dungeon"){ px(x + 2, y + 10, 12, 4, c1); px(x + 4, y + 4, 8, 6, "#e88a8a"); px(x + 5, y + 6, 2, 2, "#262a38"); px(x + 9, y + 6, 2, 2, "#262a38"); }
   if (id === "home")  { px(x + 3, y + 8, 10, 6, c1); px(x + 6, y + 10, 4, 4, "#262a38"); px(x + 2, y + 3, 12, 2, c1); px(x + 4, y + 5, 8, 2, c1); px(x + 7, y + 1, 2, 2, "#e8c860"); }
+  if (id === "bag")   { px(x + 3, y + 6, 10, 8, c1); px(x + 5, y + 3, 6, 3, c1); px(x + 7, y + 4, 2, 2, "#262a38"); px(x + 4, y + 9, 2, 2, "#262a38"); px(x + 10, y + 9, 2, 2, "#262a38"); }
+  if (id === "shop")  { px(x + 2, y + 4, 12, 2, c1); px(x + 3, y + 6, 10, 8, c1); px(x + 6, y + 9, 4, 5, "#262a38"); px(x + 2, y + 1, 3, 3, "#e8c860"); px(x + 11, y + 1, 3, 3, "#e8c860"); }
   if (id === "daily") { px(x + 3, y + 2, 10, 3, c1); px(x + 3, y + 5, 10, 9, c1); px(x + 5, y + 7, 2, 2, "#262a38"); px(x + 8, y + 9, 2, 2, "#262a38"); px(x + 7, y + 4, 2, 2, "#e8c860"); }
 }
 
@@ -640,7 +657,8 @@ function render() {
   frame++;
   if (page === "sect") return renderSect();
   if (page === "status") return renderStatus();
-  if (page === "feed") return renderFeed();
+  if (page === "bag") return renderGoodsPage("bag");
+  if (page === "shop") return renderGoodsPage("shop");
   if (page === "home") return renderHome();
   if (page === "daily") return renderDaily();
   renderMain();
@@ -812,7 +830,7 @@ function renderMain() {
   }
   // ===== 图标网格（上5下4）=====
   const sel = menuIdx % MENU.length;
-  const cdMap = { feed: "feed_baozi", sit: "sit", train: "train", dig: "dig", clean: null, cure: "cure", home: null, status: null, daily: null };
+  const cdMap = { sit: "sit", train: "train", dig: "dig", clean: null, home: null, status: null, daily: null, bag: null, shop: null };
   MENU.forEach((m, i) => {
     const row = i < 5 ? 0 : 1;
     const bx = (row === 0 ? 2 : 14) + (i % 5) * 25, by = row === 0 ? 2 : 78;
@@ -849,18 +867,52 @@ function drawHouse(x0 = 8, y0 = 100) {
   if (lv >= 3) { px(x0 + w - 3, y0 - h - 7, 1, 4, "#5a4a32"); px(x0 + w - 2, y0 - h - 7, 4, 2, "#e8c860"); } // 金旗
 }
 
-function renderFeed() {
-  renderMain();
-  px(12, 30, 104, 68, "#1a1e2c");
-  px(12, 30, 104, 1, "#d8c68a"); px(12, 97, 104, 1, "#d8c68a");
-  textC("· 伙房 ·", 64, 34, "#d8c68a", 9);
-  FEEDS.forEach((f, i) => {
-    const y = 46 + i * 14;
-    const on = i === feedIdx % FEEDS.length;
-    if (on) px(18, y - 2, 92, 12, "#3a3f54");
-    text(f.name + " 体力+" + f.gain + (cooling("feed_" + f.id) ? " 烹饪中" : ""), 22, y, on ? "#f5e9b8" : "#8a92ad", 8);
+/* --- 物品像素小图（背包/商城子界面用） --- */
+function itemIcon(id, x, y) {
+  if (id === "baozi") {  // 包子：白色圆包 + 褶
+    px(x + 2, y + 5, 10, 7, "#e8ddc8"); px(x + 3, y + 4, 8, 1, "#e8ddc8");
+    px(x + 6, y + 2, 2, 2, "#e8ddc8"); px(x + 4, y + 6, 1, 3, "#c8b898"); px(x + 7, y + 5, 1, 4, "#c8b898"); px(x + 10, y + 6, 1, 3, "#c8b898");
+  } else if (id === "fish") {  // 蒸鱼：盘子 + 鱼身
+    px(x + 1, y + 11, 12, 2, "#b8c8d8");
+    px(x + 3, y + 7, 9, 4, "#e8a86a"); px(x + 11, y + 6, 3, 3, "#e8a86a");
+    px(x + 5, y + 8, 1, 1, "#262a38"); px(x + 4, y + 8, 3, 1, "#c88848");
+  } else if (id === "feast") {  // 烧尾宴：多层食盒
+    px(x + 2, y + 6, 10, 3, "#a04830"); px(x + 3, y + 3, 8, 3, "#b85838");
+    px(x + 6, y + 1, 2, 2, "#d8c68a"); px(x + 1, y + 9, 12, 1, "#6a3828");
+  } else if (id === "pill") {  // 玉露丸：药瓶
+    px(x + 5, y + 1, 4, 2, "#8a5a2a"); px(x + 4, y + 3, 6, 8, "#68b8a0");
+    px(x + 5, y + 5, 4, 3, "#e8f5f0"); px(x + 4, y + 11, 6, 1, "#488878");
+  }
+}
+
+/* --- 背包 / 商城 子界面（正版层级风：图标格 + 数量/价签 + 信息栏） --- */
+function renderGoodsPage(kind) {
+  const isShop = kind === "shop";
+  px(0, 0, W, H, "#141824");
+  textC(isShop ? "— 商城 · 长安集市 —" : "— 背包 · 随身行囊 —", 64, 5, "#d8c68a", 9);
+  text("金" + S.coins, 100, 6, "#e8c860", 8);
+  // 2×2 物品格
+  BAG_ORDER.forEach((gid, i) => {
+    const g = GOODS[gid];
+    const col = i % 2, row = Math.floor(i / 2);
+    const bx = 12 + col * 56, by = 20 + row * 42;
+    const on = i === subIdx;
+    px(bx - 4, by - 4, 46, 38, on ? "#d8c68a" : "#2e3345");
+    px(bx - 3, by - 3, 44, 36, on ? "#3a3f54" : "#22263a");
+    itemIcon(gid, bx + 4, by + 6);
+    // 右上角：背包显示数量，商城显示价格
+    const tag = isShop ? g.price + "金" : "×" + (S.bag[gid] || 0);
+    text(tag, bx + 19, by + 1, isShop ? "#e8c860" : (S.bag[gid] ? "#cfd4e8" : "#5a6078"), 8);
+    // 名字
+    textC(g.name, bx + 18, by + 26, on ? "#f5e9b8" : "#8a92ad", 8);
   });
-  textC("A 吃！ · B 返回", 64, 88, "#8a92ad", 8);
+  // 底部信息栏
+  px(6, 104, 116, 22, "#1a1e2c");
+  px(6, 104, 116, 1, "#d8c68a"); px(6, 125, 116, 1, "#d8c68a");
+  const g = GOODS[BAG_ORDER[subIdx]];
+  const gdesc = g.type === "food" ? "体力+" + g.gain : g.desc;
+  textC(g.name + " · " + gdesc, 64, 107, "#cfd4e8", 8);
+  textC(isShop ? "A 购买 · B 返回" : (g.type === "med" ? "A 服用 · B 返回" : "A 吃掉 · B 返回"), 64, 117, "#8a92ad", 7);
 }
 
 function renderHome() {
@@ -905,8 +957,8 @@ function renderStatus() {
 
 /* ================= 输入 ================= */
 function moveSel(d) {
-  // 按当前页面分发：伙房子菜单用 feedIdx，日常页滚动列表，主菜单用 menuIdx
-  if (page === "feed") { feedIdx = (feedIdx + d + FEEDS.length * 10) % FEEDS.length; beep(600, .03, "square", .06); return; }
+  // 按当前页面分发：背包/商城用 subIdx，日常页滚动列表，主菜单用 menuIdx
+  if (page === "bag" || page === "shop") { subIdx = (subIdx + d + BAG_ORDER.length * 10) % BAG_ORDER.length; beep(600, .03, "square", .06); return; }
   if (page === "daily") {
     const rows = buildDailyRows();
     if (!rows) return;
@@ -931,10 +983,18 @@ function confirmA() {
     save();
   } else if (page === "main") {
     const id = MENU[menuIdx % MENU.length].id;
-    if (id === "feed") { page = "feed"; feedIdx = 0; sfx.ok(); }
-    else doAct(id);
-  } else if (page === "feed") {
-    doAct("feed", feedIdx % FEEDS.length);
+    doAct(id);
+  } else if (page === "bag") {
+    const gid = BAG_ORDER[subIdx];
+    if (GOODS[gid].type === "med") doAct("useMed");
+    else doAct("eat", gid);
+  } else if (page === "shop") {
+    const gid = BAG_ORDER[subIdx];
+    const g = GOODS[gid];
+    if (S.coins < g.price) { toastMsg("金币不足，还差 " + (g.price - S.coins) + " 金", sfx.err); return; }
+    S.coins -= g.price; S.bag[gid] = (S.bag[gid] || 0) + 1;
+    toastMsg("购得「" + g.name + "」！已放入行囊", sfx.ok);
+    save();
   } else if (page === "home") {
     const cost = (S.homeLv + 1) * 50;
     if (S.homeLv >= 4) { toastMsg("家园已至「山庄」，此乃极致", sfx.err); return; }
@@ -959,7 +1019,7 @@ function confirmA() {
   }
 }
 function pressB() {
-  if (page === "feed" || page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
+  if (page === "bag" || page === "shop" || page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
 
