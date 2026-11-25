@@ -137,7 +137,7 @@
 <div class="panel">
   <h2>江湖生存指南</h2>
   <div>你的侠士需要<b>体力</b>与<b>心情</b>维持，<b>打木桩</b>涨修为但耗体力，<b>打坐</b>回心情。</div>
-  <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤卧床</b>，记得用玉露丸！</div>
+  <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤</b>。注意：<b>中毒/重伤不再封锁行动</b>，只是收益分别打 8 折 / 6 折，仍然能干活攒钱买玉露丸。</div>
   <div>🛒 吃东西要花金币：进<b>商城</b>买食材药品入行囊，再从<b>背包</b>使用——正版拓麻歌子的层级界面。</div>
   <div>✨ 偶尔触发<b>奇遇</b>，白捡修为。修为攒够就晋见称号。</div>
   <div>🕹️ <b>▲▼</b> 选单 · <b>A</b> 确认 · <b>B</b> 返回（键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选，日常页选"本"字条目按 A 进副本）</div>
@@ -300,7 +300,7 @@ function applyTime(dtSec, f, silent) {
   let hMul = 1, mMul = 1;
   if (S.poisoned) hMul *= 2;
   if (S.mess > 0) mMul *= 2;
-  if (S.down) { hMul *= 0.4; mMul *= 0.4; }
+  // 重伤不再卧床（0.4 倍消耗等于变相省粮），改为收益打 6 折，见 actPenalty()
   mMul *= 1 - 0.15 * (S.homeLv || 0);        // 家园等级降低心情流失
   S.hunger = Math.max(0, S.hunger - 9 * gh * hMul);
   S.mood   = Math.max(0, S.mood  - 7 * gh * mMul);
@@ -314,7 +314,7 @@ function applyTime(dtSec, f, silent) {
 
   if (!S.down && !S.poisoned && !silent) {
     if (Math.random() < 0.5 * gh && S.mess < 3) { S.mess++; toastMsg("狼牙袭击！现场一片狼藉…", sfx.alert); }
-    if (Math.random() < 0.12 * gh) { S.poisoned = true; S.poisonedH = 0; toastMsg("中毒了！快用玉露丸解毒！", sfx.alert); }
+    if (Math.random() < 0.12 * gh) { S.poisoned = true; S.poisonedH = 0; toastMsg("中毒了！收益 -20%，玉露丸可解", sfx.alert); }
     if (Math.random() < 0.10 * gh) {
       const gains = [8, 12, 20];
       const g = gains[Math.floor(Math.random() * gains.length)];
@@ -326,11 +326,22 @@ function applyTime(dtSec, f, silent) {
     S.poisonedH += gh;
     if (S.poisonedH >= 3) {
       S.down = true; S.poisoned = false;
-      toastMsg("中毒过深，侠士重伤卧床！玉露丸救治！", sfx.alert);
+      toastMsg("毒气攻心，侠士重伤！收益 -40%，玉露丸可解", sfx.alert);
     }
   }
   checkDown("饿", gh);
   checkDown("郁", gh);
+  /* 重伤自愈：没有玉露丸也不至于永久 -40%。
+     只要把体力与心情都养到 60 以上并维持 2 游戏小时，伤势自然痊愈。 */
+  if (S.down) {
+    if (S.hunger >= 60 && S.mood >= 60) {
+      S.recoverH = (S.recoverH || 0) + gh;
+      if (S.recoverH >= 2) {
+        S.down = false; S.recoverH = 0; S.poisonedH = 0;
+        if (!silent) toastMsg("将养得当，侠士伤势痊愈！", sfx.up);
+      }
+    } else S.recoverH = 0;
+  } else S.recoverH = 0;
   checkTitle();
 }
 /* 体力 / 心情见底累计 1 游戏小时后重伤（两者分别计数，互不干扰） */
@@ -341,30 +352,32 @@ function checkDown(kind, gh) {
     S[key] = (S[key] || 0) + gh;
     if (S[key] >= 1) {
       S.down = true; S[key] = 0;
-      toastMsg("侠士" + (kind === "饿" ? "饿到" : "郁到") + "重伤卧床！喂食并好好照料", sfx.alert);
+      toastMsg("侠士" + (kind === "饿" ? "饿到" : "郁到") + "重伤！收益 -40%，先喂点吃的", sfx.alert);
     }
   } else if (low > 10) S[key] = 0;
 }
 /* ================= 副本结算 ================= */
 function resolveDungeon(key) {
   const d = DUNGEONS[key] || DUNGEONS.war;
+  const pen = actPenalty();                              // 中毒/重伤：收益与掉落率一起打折
   const win = Math.random() < Math.min(0.9, 0.4 + S.exp / 500 + S.hunger / 300);
   if (!win) {
-    S.mood = Math.max(0, S.mood - 10); S.exp += 5;
-    toastMsg("【" + d.name + "】团灭了…侠士灰头土脸（修为+5）", sfx.err);
+    const ge = Math.max(1, Math.round(5 * pen));
+    S.mood = Math.max(0, S.mood - 10); S.exp += ge;
+    toastMsg("【" + d.name + "】团灭了…侠士灰头土脸（修为+" + ge + "）", sfx.err);
     return;
   }
   const rnd = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
-  const coin = rnd(d.coin), exp = rnd(d.exp);
+  const coin = Math.round(rnd(d.coin) * pen), exp = Math.max(1, Math.round(rnd(d.exp) * pen));
   S.coins += coin; S.exp += exp;
   const got = [];
-  d.extra.forEach(([gid, p]) => {
-    if (Math.random() >= p) return;                       // 每件独立掷骰，互不影响
-    if (gid === "gold100") { S.coins += 100; got.push("金币+100"); return; }
+  d.extra.forEach(([gid, pr]) => {
+    if (Math.random() >= pr * pen) return;                // 每件独立掷骰，互不影响；异常状态掉率同样打折
+    if (gid === "gold100") { const g = Math.round(100 * pen); S.coins += g; got.push("金币+" + g); return; }
     S.bag[gid] = (S.bag[gid] || 0) + 1;
     got.push(GOODS[gid] ? GOODS[gid].name : gid);
   });
-  toastMsg("【" + d.name + "】通关！金+" + coin + " 修为+" + exp + (got.length ? " · 另得 " + got.join("、") : ""), sfx.up);
+  toastMsg("【" + d.name + "】通关！金+" + coin + " 修为+" + exp + (got.length ? " · 另得 " + got.join("、") : "") + (pen < 1 ? " · " + penaltyText() : ""), sfx.up);
   for (let i = 0; i < 10; i++) sparkles.push({ x: 50 + Math.random() * 60, y: 35 + Math.random() * 40, life: 30 + Math.random() * 15 });
   checkTitle();
   save();
@@ -402,9 +415,22 @@ const SERVERS = ["梦江南", "蝶恋花", "剑胆琴心", "龙争虎斗", "斗�
                  "青梅煮酒", "飞龙在天", "金蛇漫舞", "侠客行", "纵月", "无界"];
 const DEFAULT_SERVER = "梦江南";
 let srvIdx = 0;
+/* 异常状态不再封锁行动。
+   原先中毒/重伤会禁止除吃药外的一切操作，而解毒只能靠玉露丸（商城 200 金）；
+   一旦金币不足又没药，就再也赚不到钱买药 —— 状态永远清不掉，等于坏档。
+   现在改为「能干活，但效率打折」：中毒收益 -20%，重伤收益 -40%。
+   属性恢复（吃饭回体力/打坐回心情）不打折，否则同样会陷入恢复不动的死循环。 */
+function actPenalty() {
+  if (S.down) return 0.6;        // 重伤：收益 -40%
+  if (S.poisoned) return 0.8;    // 中毒：收益 -20%
+  return 1;
+}
+function penaltyText() {
+  if (S.down) return "重伤·收益-40%";
+  if (S.poisoned) return "中毒·收益-20%";
+  return "";
+}
 function canAct() {
-  if (S.down)  return "重伤卧床，只能用药救治！";
-  if (S.poisoned) return "中毒中，先用药解毒！";
   if (S.dungeonUntil > Date.now()) return "副本进行中，侠士正在拼命！";
   return null;
 }
@@ -457,34 +483,44 @@ function doAct(id, sub) {
       save();
       return;
     }
-    case "sit":
+    case "sit": {
       if (cooling("sit")) { toastMsg("气息未定，稍后再打坐", sfx.err); return; }
+      const p = actPenalty();
+      const ge = Math.max(1, Math.round(3 * p));       // 心情恢复不打折，修为打折
       S.mood = Math.min(100, S.mood + 20);
       S.hunger = Math.max(0, S.hunger - 3);
-      S.exp += 3;
+      S.exp += ge;
       S.cool.sit = now + 15000;
-      toastMsg("打坐吐纳，心境澄明（修为+3）", sfx.ok);
+      toastMsg("打坐吐纳，心境澄明（修为+" + ge + "）" + (p < 1 ? " · " + penaltyText() : ""), sfx.ok);
       break;
-    case "train":
+    }
+    case "train": {
       if (S.hunger < 20) { toastMsg("饿得握不动剑了，先吃点东西", sfx.err); return; }
       if (cooling("train")) { toastMsg("木桩刚打完，歇口气", sfx.err); return; }
-      S.exp += 12; S.hunger = Math.max(0, S.hunger - 8); S.mood = Math.max(0, S.mood - 5);
+      const p = actPenalty();
+      const ge = Math.max(1, Math.round(12 * p));
+      S.exp += ge; S.hunger = Math.max(0, S.hunger - 8); S.mood = Math.max(0, S.mood - 5);
       S.cool.train = now + 25000;
-      toastMsg("打木桩一百式，修为 +12！", sfx.train);
+      toastMsg("打木桩一百式，修为 +" + ge + (p < 1 ? "（" + penaltyText() + "）" : "！"), sfx.train);
       break;
-    case "clean":
+    }
+    case "clean": {
       if (S.mess <= 0) { toastMsg("屋里挺干净的，无需打扫", sfx.err); return; }
-      S.mess = 0; S.mood = Math.min(100, S.mood + 5); S.exp += 1;
+      const p = actPenalty();
+      S.mess = 0; S.mood = Math.min(100, S.mood + 5); S.exp += Math.max(1, Math.round(1 * p));
       toastMsg("打扫完毕，窗明几净（修为+1）", sfx.ok);
       break;
+    }
     case "dig": {
       if (cooling("dig")) { toastMsg("铁锹都挖冒烟了，歇会儿再挖", sfx.err); return; }
       if (S.hunger < 10) { toastMsg("饿得举不起锹，先吃点东西", sfx.err); return; }
+      const p = actPenalty();
       S.hunger = Math.max(0, S.hunger - 6);
       S.cool.dig = now + 30000;
       const r = Math.random();
-      if (r < 0.55) { const g = 50 + Math.floor(Math.random() * 110); S.coins += g; toastMsg("挖到 " + g + " 金币！", sfx.ok); }
-      else if (r < 0.80) { S.coins += 100; S.exp += 3; toastMsg("挖出一本《剑意残页》，修为 +3！", sfx.up); }
+      const tail = p < 1 ? "（" + penaltyText() + "）" : "";
+      if (r < 0.55) { const g = Math.round((50 + Math.floor(Math.random() * 110)) * p); S.coins += g; toastMsg("挖到 " + g + " 金币！" + tail, sfx.ok); }
+      else if (r < 0.80) { const ge = Math.max(1, Math.round(3 * p)); S.coins += Math.round(100 * p); S.exp += ge; toastMsg("挖出一本《剑意残页》，修为 +" + ge + "！" + tail, sfx.up); }
       else if (r < 0.93) { toastMsg("挖了半天，只有一块石头…", sfx.err); }
       else if (S.mess < 3) { S.mess++; toastMsg("挖塌了土堆，弄得到处是泥…记得打扫", sfx.err); }
       else { toastMsg("挖到一块碎瓦，正好补屋顶", sfx.ok); }
@@ -505,7 +541,8 @@ function doAct(id, sub) {
       page = "home"; sfx.ok(); return;
     case "daily":
       page = "daily"; sfx.ok();
-      if (!dailyData && !dailyErr) fetchDaily();
+      // 没数据就拉；有数据但本地缓存超过 1 小时也重新拉一次（Actions 每小时更新 data/daily.json）
+      if (!dailyLoading && (!dailyData || Date.now() - dailyCacheTs > DAILY_REFRESH_MS)) fetchDaily();
       return;
     case "status":
       page = "status"; sfx.ok(); return;
@@ -513,7 +550,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "7.0";
+const APP_VERSION = "7.1";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -654,16 +691,15 @@ function drawPet(pose, pox = 52, poy = 32) {
   const P = (x, y, w, h, c) => px(ox + x * u, oy + y * u, w * u, h * u, c);
   const hair = "#26262e", skin = "#f2c9a0", dark = "#1a1a22";
 
-  if (pose === "down") { // 重伤卧床
-    P(1, 10, 12, 3, C.robe);            // 躺倒的身体
-    P(11, 8, 5, 4, skin);               // 头
-    P(12, 8, 5, 2, hair);
-    P(12, 10, 1, 1, dark); P(14, 10, 1, 1, dark); // X眼用点
-    P(12, 10, 1, 1, "#803030");
-    P(6, 8, 4, 2, "#e8e0d0");           // 被子
+  if (pose === "down") { // 重伤：勉强站着（不再躺倒——重伤也能行动，只是收益打 6 折）
+    P(3, 6, 7, 7, C.robe);              // 佝偻的身体
+    P(4, 1, 7, 6, skin);                // 低垂的头
+    P(3, 0, 9, 3, hair); P(6, 0, 3, 2, hair);
+    P(5, 4, 1, 1, dark); P(7, 4, 1, 1, dark); // 眯眼
+    P(5, 6, 3, 1, "#803030");           // 痛苦嘴
     // 头顶转圈星星
     const a = frame / 12;
-    const sx = 8 + Math.cos(a) * 5, sy = 5 + Math.sin(a) * 2;
+    const sx = 8 + Math.cos(a) * 5, sy = -2 + Math.sin(a) * 2;
     ctx.fillStyle = "#f5e9b8"; ctx.fillRect(ox + sx * u, oy + sy * u, 3, 3);
     return;
   }
@@ -866,12 +902,14 @@ function render() {
 /* ================= 今日日常（jx3api /active/calendar） ================= */
 let dailyData = null, dailyErr = null, dailyLoading = false, dailySel = 0;
 let dailyStale = false, dailyStaleCache = null;   // 离线兜底：上次成功拉取的旧缓存
+let dailyFetchedAt = null;                        // data/daily.json 里记录的服务端抓取时间
+let dailyCacheTs = 0;                             // 本地缓存时间戳，用于判断要不要重新拉
 (function loadDailyCache() {
   try {
     const c = JSON.parse(localStorage.getItem("jx3daily") || "null");
     if (c && c.d) {
-      if (c.day === new Date().toDateString()) dailyData = c.d;   // 当天缓存直接可用
-      else dailyStaleCache = c.d;                                 // 旧日期缓存留作断网兜底
+      if (c.day === new Date().toDateString()) { dailyData = c.d; dailyCacheTs = +c.t || 0; }   // 当天缓存直接可用
+      else dailyStaleCache = c.d;                                                              // 旧日期缓存留作断网兜底
     }
   } catch (e) {}
 })();
@@ -910,50 +948,31 @@ function buildDailyRows() {
   }
   return rows.length ? rows : null;
 }
-/* 日常接口：jx3api 不开 CORS 头，浏览器必须走代理。
-   把自己部署的 Cloudflare Worker 填进 DAILY_PROXY 最稳（代码见仓库 worker.js），留空则只走公共代理。 */
-const DAILY_URL = "https://www.jx3api.com/active/calendar?mode=day";
-const DAILY_PROXY = "";   // 例：https://jx3-daily.你的账号.workers.dev/?url=
-const DAILY_FALLBACKS = [
-  u => "https://r.jina.ai/" + u,
-  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
-  u => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
-];
-function parseDaily(j) {
-  if (!j) return null;
-  if (j.code === 200 || j.status === 200) return j.detail || j.data || null;
-  if (j.detail) return j.detail;
-  return null;
-}
+/* 日常数据来源：同源静态 JSON，由 .github/workflows/fetch-daily.yml 定时预取并提交。
+   历史包袱说明（别再往回改）：
+   - jx3api 的响应里没有任何 Access-Control-Allow-Origin，浏览器直连必被同源策略拦；
+   - 也不支持 JSONP（callback 参数被忽略，返回仍是纯 JSON）；
+   - 曾经依赖的公共代理已全部失效：r.jina.ai 连不上、allorigins/codetabs 整站 522。
+   所以现在走「构建时预取」：Actions 抓接口 → 写 data/daily.json → 页面读本地文件。
+   零代理、零服务器，也不需要部署 Worker。 */
+const DAILY_SRC = "data/daily.json";
+const DAILY_REFRESH_MS = 3600e3;   // 本地缓存超过 1 小时就重新拉一次（Actions 每小时更新）
 async function fetchDaily() {
   dailyLoading = true; dailyErr = null;
-  const tries = [];
-  const url = DAILY_URL + "&server=" + encodeURIComponent((S && S.server) || DEFAULT_SERVER);
-  if (DAILY_PROXY) tries.push(DAILY_PROXY + encodeURIComponent(url));
-  tries.push(url);                                         // 直连：本地调试或将来接口开了 CORS 就能走通
-  DAILY_FALLBACKS.forEach(f => tries.push(f(url)));
-  let d = null;
-  for (const u of tries) {
-    try {
-      const r = await fetch(u, { signal: AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined });
-      if (!r.ok) continue;
-      const t = await r.text();
-      const i = t.indexOf('{"status"');                    // r.jina.ai 会包一层 markdown
-      let j = null;
-      try { j = JSON.parse(i >= 0 ? t.slice(i) : t); } catch (e) { continue; }
-      d = parseDaily(j);
-      if (d) break;
-    } catch (e) {}
-  }
-  if (d) {
+  try {
+    const r = await fetch(DAILY_SRC + "?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const d = j.detail || j;
+    if (!d || !d.date) throw new Error("payload 异常");
     dailyData = d;
+    dailyFetchedAt = j.fetchedAt || null;
     dailyStale = false;
+    dailyCacheTs = Date.now();
     localStorage.setItem("jx3daily", JSON.stringify({ t: Date.now(), day: new Date().toDateString(), d }));
-    dailyErr = null;
-  } else if (dailyStaleCache) {
-    dailyData = dailyStaleCache; dailyStale = true;   // 断网兜底：沿用上次拉取的日常，不报错
-  } else {
-    dailyErr = "接口代理均不可用";
+  } catch (e) {
+    if (dailyStaleCache) { dailyData = dailyStaleCache; dailyStale = true; }   // 拿不到新数据就用旧缓存顶着
+    else { dailyErr = "日常数据未加载"; }
   }
   dailyLoading = false;
 }
@@ -986,8 +1005,8 @@ function renderDaily() {
         if (start + visible < rows.length) text("▼", 113, 88, "#8a8fa5", 9);
       }
     } else if (dailyErr) {
-      textC("连不上网", 64, 44, "#e8a08a", 10);
-      textC("暂无缓存 · 连网后自动拉取", 64, 60, "#8a92ad", 8);
+      textC("日常数据未加载", 64, 44, "#e8a08a", 10);
+      textC("按 A 重试 · 稍后自动刷新", 64, 60, "#8a92ad", 8);
     } else {
       textC("暂无数据 · A 刷新", 64, 50, "#8a92ad", 9);
     }
@@ -1336,8 +1355,9 @@ function gameRollTick() {   // 摇骰动画与结算（render 帧驱动）
     st.baozi = st.dice[0] === st.dice[1] && st.dice[1] === st.dice[2];
     st.win = !st.baozi && ((st.sum >= 11) === (st.side === 1));
     const bet = BETS[st.betIdx];
-    st.pay = bet;
-    if (st.win) { S.coins += bet; S.exp += 2; checkTitle(); }
+    const pen = actPenalty();                 // 中毒/重伤照样能赌，但赢来的钱也打折，避免绕开惩罚
+    st.pay = Math.max(1, Math.round(bet * pen));
+    if (st.win) { S.coins += st.pay; S.exp += Math.max(1, Math.round(2 * pen)); checkTitle(); }
     else {
       S.coins = Math.max(0, S.coins - bet);
       if (S.coins < 50) { st.phase = "result"; save(); toastMsg("输光了…赌坊老板把你请了出去", sfx.err); page = "main"; return; }
@@ -1515,7 +1535,7 @@ function renderStatus() {
     "晋升进度：" + prog + "%",
     "金币：" + S.coins,
     "家园：" + HOME_NAMES[S.homeLv] + "（" + S.homeLv + "级）",
-    "状态：" + (S.down ? "重伤卧床" : S.poisoned ? "中毒" : "康健"),
+    "状态：" + (S.down ? "重伤·收益-40%" : S.poisoned ? "中毒·收益-20%" : "康健"),
     "狼藉：" + S.mess + " 处",
     "江湖岁月：" + days + " 日",
   ];
