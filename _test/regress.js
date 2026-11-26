@@ -69,6 +69,7 @@ assert(true, "主界面渲染无异常（中毒/重伤/副本中/狼藉）");
 g("menuIdx = 0; moveSel(-1);");
 assert(g("menuIdx % MENU.length") === 9, "▲ 从第 0 项回绕到最后一项（状态面板）");
 assert(g("!!selHint && Date.now() < selHint.until"), "切换选中时出现短暂 selHint");
+assert(g("selHint.until - Date.now()") > 1900 && g("selHint.until - Date.now()") <= 2000, "selHint 时长为 2 秒");
 
 /* ---- 家园页：打扫并入 + 升级 + 保姆（v7.6 起保姆常驻选项）---- */
 g("doAct('home')");
