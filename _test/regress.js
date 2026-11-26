@@ -78,7 +78,12 @@ assert(true, "主界面渲染无异常（中毒/重伤/副本中/狼藉）");
 
 /* ---- 导航与非常驻提示 ---- */
 g("menuIdx = 0; moveSel(-1);");
-assert(g("menuIdx % MENU.length") === 9, "▲ 从第 0 项回绕到最后一项（状态面板）");
+assert(g("menuIdx") === 8, "▲ 从第 0 项回绕到设置项（状态面板不参与选中）");
+g("moveSel(1);");
+assert(g("menuIdx") === 0, "▼ 从设置项回到第 0 项（不进状态面板）");
+g("menuIdx = 8; moveSel(1);");
+assert(g("menuIdx") === 0, "设置项 ▼ 回绕到第 0 项而非状态面板");
+g("menuIdx = 0; moveSel(-1);");
 assert(g("!!selHint && Date.now() < selHint.until"), "切换选中时出现短暂 selHint");
 assert(g("selHint.until - Date.now()") > 1900 && g("selHint.until - Date.now()") <= 2000, "selHint 时长为 2 秒");
 
@@ -159,23 +164,29 @@ assert(g("filteredOrder('bag').join(',')") === "baozi,fish,feast", "背包食品
 assert(g("bagCat = 'med'; filteredOrder('bag').join(',')") === "pill,page", "丹药分类含药品与参悟页");
 assert(g("shopCat = 'mat'; filteredOrder('shop').length") === 0, "商城材料分类为空（商城无材料出售）");
 g("bagCat = 'all'; shopCat = 'all';");
-/* 分类导航：▲▼ 换分类，A/B 退出 */
-g("doAct('bag'); bagSel = 0; catMode = false; moveSel(-1);");
-assert(g("catMode") === true, "▲ 顶格上抬进入分类标签行");
+/* 分类导航 v8.1：进入先选分类栏 → A 进列表 → B 退回分类栏 → B 回主页 */
+g("doAct('bag');");
+assert(g("page") === "bag" && g("catMode") === true, "进背包先选中分类栏");
 g("moveSel(1);");
-assert(g("bagCat") === "food", "分类行 ▼ 换到「食品」");
+assert(g("bagCat") === "food", "分类栏 ▼ 换到「食品」");
 assert(g("bagSel") === 0, "换分类后列表选中重置");
 g("confirmA();");
-assert(g("catMode") === false, "A 键确认退出分类行");
-g("moveSel(-1); pressB();");
-assert(g("catMode") === false && g("page") === "bag", "分类行 B 退回列表而非主页");
+assert(g("catMode") === false, "分类栏 A 进入列表");
+g("moveSel(1);");
+assert(g("bagSel") === 1, "列表 ▲▼ 选物品");
 g("pressB();");
-assert(g("page") === "main", "列表页 B 回主页");
+assert(g("catMode") === true && g("page") === "bag", "列表 B 退回分类栏（反向操作）");
+g("pressB();");
+assert(g("page") === "main", "分类栏 B 才回主页");
+g("doAct('shop');");
+assert(g("catMode") === true, "进商城也先选中分类栏");
+g("pressB();");
+assert(g("page") === "main", "商城分类栏 B 回主页");
 /* 详情页用过滤后的列表翻页 */
-g("doAct('shop'); shopCat = 'deco'; shopSel = 0; confirmA(); render();");
+g("doAct('shop'); shopCat = 'deco'; shopSel = 0; confirmA(); confirmA(); render();");   // 第一次 A 进列表，第二次 A 进详情
 assert(g("page === 'item' && itemFrom === 'shop'"), "商城家具分类可进详情");
 g("pressB();");
-g("doAct('shop'); shopCat = 'all'; shopSel = SHOP_ORDER.length - 1; confirmA(); render(); pressB();");
+g("doAct('shop'); shopCat = 'all'; shopSel = SHOP_ORDER.length - 1; confirmA(); confirmA(); render(); pressB();");
 assert(g("shopCat") === "all", "详情页翻页不串分类");
 
 /* ---- v7.7 玄晶（团本 0.1% 橙色品级，本赛季铸天玄晶） ---- */

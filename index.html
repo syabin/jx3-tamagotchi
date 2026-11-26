@@ -679,14 +679,14 @@ function doAct(id, sub) {
       break;
     }
     case "bag":
-      page = "bag"; bagSel = 0; catMode = false; sfx.ok(); return;   // 进列表重置分类（v7.7）
+      page = "bag"; bagSel = 0; catMode = true; sfx.ok(); return;    // v8.1：先进分类栏，选中分类再 A 进列表
     case "game":   // 黑市赌坊·押大小
       if (S.coins < 50) { toastMsg("赌坊最低押 50 金币，先去赚点本钱", sfx.err); return; }
       page = "game";
       gameSt = { phase: "side", side: 1, betIdx: 1, dice: [1, 1, 1], t: 0, sum: 0, win: false, baozi: false, pay: 0 };
       sfx.ok(); return;
     case "shop":
-      page = "shop"; shopSel = 0; catMode = false; sfx.ok(); return;   // 进列表重置分类（v7.7）
+      page = "shop"; shopSel = 0; catMode = true; sfx.ok(); return;    // v8.1：先进分类栏
     case "settings":
       openSettings(); return;
     case "home":
@@ -702,7 +702,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "8.0";
+const APP_VERSION = "8.1";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -1238,7 +1238,7 @@ function renderSect() {
 function renderMain() {
   const hour = drawScene();
   const day = hour > 6 && hour < 18;
-  const sel = menuIdx % MENU.length;
+  const sel = menuIdx % (MENU.length - 1);   // v8.1：状态面板不参与 ▲▼ 选中
   // ===== 顶部 4 个功能模块（日常/背包/商城/打坐）——v7.8 起去掉图标下文字，选中信息见提示长条 =====
   const topCx = [19, 49, 79, 109];
   topCx.forEach((cx, i) => {
@@ -1283,7 +1283,7 @@ function renderMain() {
     text("！", 118, 21, "#e86a5a", 12);                           // 注意图标（场景右上，就寝时不闪）
   }
   // ===== 左侧「人物状态」常驻面板 =====
-  const stOn = sel === MENU.length - 1;
+  const stOn = false;   // v8.1：左侧状态面板常驻展示，但不参与选中（进手札仍可按 B）
   const pt = titleOf(S.exp);
   px(6, 20, 34, 50, stOn ? "#3a3f54" : "#1a1e2c");
   if (stOn) selFrame(6, 20, 34, 50); else { px(6, 20, 34, 1, "#39415e"); px(6, 69, 34, 1, "#39415e"); }
@@ -1464,10 +1464,11 @@ function renderListPage(kind) {
   CATS.forEach((c, i) => {
     const cx = 5 + i * 20, cy = 15;
     const on = i === catIdx;
+    // v8.1：选中哪个亮哪个（常亮不闪）；选分类栏时高亮，选列表时弱化但仍标出当前分类
     if (on) px(cx - 2, cy - 1, 19, 12, catMode ? "#3a3f54" : "#2e3345");
-    textC(c.label, cx + 8, cy, catMode ? (on ? "#f5e9b8" : "#5a6078") : (on ? "#e8c860" : "#5a6078"), 8);
+    textC(c.label, cx + 8, cy, on ? (catMode ? "#f5e9b8" : "#d8c68a") : "#5a6078", 8);
   });
-  if (catMode && frame % 40 < 28) selFrame(3, 13, 122, 14);   // 分类行激活时闪金角标
+  if (catMode) selFrame(3, 13, 122, 14);   // 分类行激活：常亮金框（不闪）
   px(4, 29, 120, 1, "#2e3345");
   if (!order.length) {
     textC(isShop ? "此类暂无商品" : "行囊里没有这类东西", 64, 55, "#6b7488", 9);
@@ -1477,7 +1478,7 @@ function renderListPage(kind) {
       const idx = start + i;
       if (idx >= order.length) break;
       const gid = order[idx], g = GOODS[gid];
-      const y = 31 + i * 19, on = idx === sel;
+      const y = 31 + i * 19, on = idx === sel && !catMode;   // v8.1：选分类栏时列表不高亮
       if (on) selFrame(3, y - 1, 122, 18);
       const owned = g.type === "deco" ? !!S.decos[gid] : (S.bag[gid] || 0) > 0;
       ctx.globalAlpha = owned ? 1 : 0.32;        // 没有的用剪影，不隐藏（引导去商城）
@@ -1500,10 +1501,12 @@ function renderListPage(kind) {
       const top = 31 + Math.round((74 - h) * start / Math.max(1, order.length - LIST_ROWS));
       px(125, top, 2, h, "#8a92ad");
     }
-    const cur = GOODS[order[Math.max(0, Math.min(sel, order.length - 1))]];
-    marquee(cur.name + " · " + itemEffect(cur), 8, 108, 112, "#cfd4e8", 8, 0.45);
+    if (!catMode) {   // v8.1：选分类栏时底部不显示列表物品说明
+      const cur = GOODS[order[Math.max(0, Math.min(sel, order.length - 1))]];
+      marquee(cur.name + " · " + itemEffect(cur), 8, 108, 112, "#cfd4e8", 8, 0.45);
+    }
   }
-  textC(catMode ? "▲▼ 换分类 · A/B 返回列表" : "▲▼ 选择 · A 查看 · ▲顶格进分类", 64, 119, "#8a92ad", 7);
+  textC(catMode ? "▲▼ 选分类 · A 进入列表 · B 返回" : "▲▼ 选物品 · A 查看 · B 返回分类", 64, 119, "#8a92ad", 7);
 }
 
 /* --- 物品详情页（一页一件，大图 + 短标签，▲▼ 连续翻页） --- */
@@ -1812,7 +1815,7 @@ function renderHome() {
 
 function renderStatus() {
   px(0, 0, W, H, "#141824");
-  textC("— 侠士手札 —", 64, 6, "#d8c68a", 10);
+  textC("— 侠士手札 —", 64, 5, "#d8c68a", 11);
   const C = SECTS[S.sect] || SECTS.cy;   // 旧档 / 异常门派 id 兜底，避免整页崩
   const days = (((Date.now() - S.bornTs) / 1000 * speedF / 3600 + 8) / 24).toFixed(1);   // 与 gameHour 的 +8 时区一致
   const t = titleOf(S.exp);
@@ -1831,8 +1834,9 @@ function renderStatus() {
     "狼藉：" + S.mess + " 处 · 岁月：" + days + " 日",
     "连续登录：" + (S.loginStreak || 0) + " 天",
   ];
-  lines.forEach((l, i) => text(l, 8, 18 + i * 9, i === 6 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 8));
-  textC("B 返回", 64, 118, "#8a92ad", 8);
+  // v8.1：字号 8→10、行距 9→11，手札更易读（9 行从 y=17 排到 y=105）
+  lines.forEach((l, i) => text(l, 6, 17 + i * 11, i === 6 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 10));
+  textC("B 返回 · 主页 B 也可看手札", 64, 118, "#8a92ad", 8);
 }
 
 /* ================= 输入 ================= */
@@ -1848,14 +1852,13 @@ function moveSel(d) {
     const isShop = page === "shop";
     const order = filteredOrder(page);
     let sel = isShop ? shopSel : bagSel;
-    if (catMode) {   // 分类标签行：▲▼ 换分类，▼ 也可退出回列表
+    if (catMode) {   // 分类标签行：▲▼ 只换分类（v8.1：不再顶格进出）
       const idx = Math.max(0, CATS.findIndex(c => c.id === (isShop ? shopCat : bagCat)));
       const n = ((idx + d) % CATS.length + CATS.length) % CATS.length;
       if (isShop) { shopCat = CATS[n].id; shopSel = 0; } else { bagCat = CATS[n].id; bagSel = 0; }
       beep(700, .03, "square", .06);
       return;
     }
-    if (d === -1 && sel === 0) { catMode = true; beep(520, .04, "square", .06); return; }   // 顶格上抬 → 进分类行
     sel = (sel + d + order.length) % order.length;
     if (isShop) shopSel = sel; else bagSel = sel;
     beep(600, .03, "square", .06); return;
@@ -1892,8 +1895,11 @@ function moveSel(d) {
     return;
   }
   if (page !== "main") return;
-  menuIdx = (menuIdx + d + MENU.length * 10) % MENU.length;
-  const m = MENU[menuIdx % MENU.length];
+  // v8.1：主页 ▲▼ 只在 8 个模块 + 设置（0~8）间循环，不选中左侧状态面板（index 9）
+  const NAV_N = MENU.length - 1;
+  if (menuIdx >= NAV_N) menuIdx = 0;
+  menuIdx = (menuIdx + d + NAV_N * 10) % NAV_N;
+  const m = MENU[menuIdx];
   selHint = { text: m.label + " · " + m.desc, until: Date.now() + 2000 };   // 切换后显示 2 秒再消失（v7.9）
   beep(600, .03, "square", .06);
 }
@@ -2044,8 +2050,9 @@ function pressB() {
   }
   if (page === "item") { page = itemFrom; catMode = false; beep(440, .05); return; }   // 详情 → 列表
   if (page === "bag" || page === "shop") {
-    if (catMode) { catMode = false; beep(440, .05); return; }   // 分类行 → 列表
-    page = "main"; beep(440, .05);
+    // v8.1：列表 B 退回分类栏（反向操作），分类栏 B 才回主页
+    if (!catMode) { catMode = true; beep(440, .05); return; }
+    page = "main"; catMode = false; beep(440, .05);
   }
   else if (page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
