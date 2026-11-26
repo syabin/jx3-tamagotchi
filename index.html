@@ -550,7 +550,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "7.2";
+const APP_VERSION = "7.3";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -947,31 +947,34 @@ function buildDailyRows() {
   }
   return rows.length ? rows : null;
 }
-/* 日常数据来源：运行时直连 jx3api（网页原型与未来 ESP32 固件同一取数方式，主机端无跨域限制）。
-   已知限制（别踩坑）：
-   - jx3api 的响应里没有任何 Access-Control-Allow-Origin，浏览器里跨域页面直连会被同源策略拦
-     （GitHub Pages / 本地 file:// 都读不到响应，只能靠 localStorage 缓存兜底）；
-   - 也不支持 JSONP（callback 参数被忽略，返回仍是纯 JSON）；
-   - ESP32 固件阶段用原生 HTTP 客户端拉接口，没有浏览器跨域问题，直连即可用。 */
-const DAILY_SRC = "https://www.jx3api.com/active/calendar?mode=day";
+/* 日常数据来源（v7.3 双通道，按顺序尝试）：
+   1) 同源 data/daily.json —— GitHub Actions 每小时预取（见 .github/workflows/fetch-daily.yml），
+      网页端（GitHub Pages / 本地静态服务）走这条：同源请求零跨域、零代理，走的客户端自己的网络；
+   2) 直连 jx3api —— 主机端（ESP32 固件）没有浏览器跨域限制，data/daily.json 不存在时自然落到这条。
+   注意（别踩坑）：jx3api 不返回 Access-Control-Allow-Origin、不支持 JSONP，浏览器里直连通道
+   基本必被同源策略拦——这是留给固件和有代理部署用的，网页端别指望它。
+   公共 CORS 代理一律不用：r.jina.ai（海外）不稳定且用户明确不用，allorigins/codetabs 等 2026-11-26 实测全灭。 */
+const DAILY_SOURCES = ["data/daily.json", "https://www.jx3api.com/active/calendar?mode=day"];
 const DAILY_REFRESH_MS = 3600e3;   // 本地缓存超过 1 小时就重新拉一次
 async function fetchDaily() {
   dailyLoading = true; dailyErr = null;
-  try {
-    const r = await fetch(DAILY_SRC, { cache: "no-store" });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = await r.json();
-    if (j.status !== 200 || !j.detail) throw new Error("payload 异常");
-    const d = j.detail;
-    if (!d.date) throw new Error("payload 缺日期");
-    dailyData = d;
-    dailyStale = false;
-    dailyCacheTs = Date.now();
-    localStorage.setItem("jx3daily", JSON.stringify({ t: Date.now(), day: new Date().toDateString(), d }));
-  } catch (e) {
-    if (dailyStaleCache) { dailyData = dailyStaleCache; dailyStale = true; }   // 拿不到新数据就用旧缓存顶着
-    else { dailyErr = "日常数据未加载"; }
+  for (const src of DAILY_SOURCES) {
+    try {
+      const r = await fetch(src + (src.indexOf("?") >= 0 ? "&" : "?") + "t=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      const d = j.detail || j;   // 兼容两种形态：预取 json 有 fetchedAt/detail，jx3api 直连是 {status,detail}
+      if (!d || !d.date) throw new Error("payload 异常");
+      dailyData = d;
+      dailyStale = false;
+      dailyCacheTs = Date.now();
+      localStorage.setItem("jx3daily", JSON.stringify({ t: Date.now(), day: new Date().toDateString(), d }));
+      dailyLoading = false;
+      return;
+    } catch (e) { /* 本通道失败，试下一个 */ }
   }
+  if (dailyStaleCache) { dailyData = dailyStaleCache; dailyStale = true; }   // 全部通道失败，用旧缓存顶着
+  else { dailyErr = "日常数据未加载"; }
   dailyLoading = false;
 }
 function renderDaily() {
