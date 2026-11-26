@@ -541,7 +541,7 @@ function doAct(id, sub) {
       page = "home"; sfx.ok(); return;
     case "daily":
       page = "daily"; sfx.ok();
-      // 没数据就拉；有数据但本地缓存超过 1 小时也重新拉一次（Actions 每小时更新 data/daily.json）
+      // 没数据就拉；有数据但本地缓存超过 1 小时也重新拉一次
       if (!dailyLoading && (!dailyData || Date.now() - dailyCacheTs > DAILY_REFRESH_MS)) fetchDaily();
       return;
     case "status":
@@ -550,7 +550,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "7.1";
+const APP_VERSION = "7.2";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -902,7 +902,6 @@ function render() {
 /* ================= 今日日常（jx3api /active/calendar） ================= */
 let dailyData = null, dailyErr = null, dailyLoading = false, dailySel = 0;
 let dailyStale = false, dailyStaleCache = null;   // 离线兜底：上次成功拉取的旧缓存
-let dailyFetchedAt = null;                        // data/daily.json 里记录的服务端抓取时间
 let dailyCacheTs = 0;                             // 本地缓存时间戳，用于判断要不要重新拉
 (function loadDailyCache() {
   try {
@@ -948,25 +947,24 @@ function buildDailyRows() {
   }
   return rows.length ? rows : null;
 }
-/* 日常数据来源：同源静态 JSON，由 .github/workflows/fetch-daily.yml 定时预取并提交。
-   历史包袱说明（别再往回改）：
-   - jx3api 的响应里没有任何 Access-Control-Allow-Origin，浏览器直连必被同源策略拦；
+/* 日常数据来源：运行时直连 jx3api（网页原型与未来 ESP32 固件同一取数方式，主机端无跨域限制）。
+   已知限制（别踩坑）：
+   - jx3api 的响应里没有任何 Access-Control-Allow-Origin，浏览器里跨域页面直连会被同源策略拦
+     （GitHub Pages / 本地 file:// 都读不到响应，只能靠 localStorage 缓存兜底）；
    - 也不支持 JSONP（callback 参数被忽略，返回仍是纯 JSON）；
-   - 曾经依赖的公共代理已全部失效：r.jina.ai 连不上、allorigins/codetabs 整站 522。
-   所以现在走「构建时预取」：Actions 抓接口 → 写 data/daily.json → 页面读本地文件。
-   零代理、零服务器，也不需要部署 Worker。 */
-const DAILY_SRC = "data/daily.json";
-const DAILY_REFRESH_MS = 3600e3;   // 本地缓存超过 1 小时就重新拉一次（Actions 每小时更新）
+   - ESP32 固件阶段用原生 HTTP 客户端拉接口，没有浏览器跨域问题，直连即可用。 */
+const DAILY_SRC = "https://www.jx3api.com/active/calendar?mode=day";
+const DAILY_REFRESH_MS = 3600e3;   // 本地缓存超过 1 小时就重新拉一次
 async function fetchDaily() {
   dailyLoading = true; dailyErr = null;
   try {
-    const r = await fetch(DAILY_SRC + "?t=" + Date.now(), { cache: "no-store" });
+    const r = await fetch(DAILY_SRC, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const j = await r.json();
-    const d = j.detail || j;
-    if (!d || !d.date) throw new Error("payload 异常");
+    if (j.status !== 200 || !j.detail) throw new Error("payload 异常");
+    const d = j.detail;
+    if (!d.date) throw new Error("payload 缺日期");
     dailyData = d;
-    dailyFetchedAt = j.fetchedAt || null;
     dailyStale = false;
     dailyCacheTs = Date.now();
     localStorage.setItem("jx3daily", JSON.stringify({ t: Date.now(), day: new Date().toDateString(), d }));
