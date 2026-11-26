@@ -46,9 +46,12 @@
     cursor: pointer;
     touch-action: none;              /* 屏幕横滑选单时不要触发页面滚动 */
   }
-  /* ---------- 真机预览：LCD 单色滤镜 + 30fps 节拍 ---------- */
+  /* ---------- 真机预览：暖屏色域映射 + 30fps 节拍 ----------
+     颜色不再用 CSS 滤镜糊一层（单色/sepia 已经和实体不符了），
+     改成把每帧像素过一遍固件同款调色板的逐通道映射，
+     见脚本里的 QLUT / applyPanelLook()。 */
   body.qmode canvas#screen {
-    filter: grayscale(1) sepia(.45) hue-rotate(52deg) saturate(1.45) contrast(1.12) brightness(1.03);
+    box-shadow: inset 0 0 14px rgba(0,0,0,.35);
   }
   body.qmode .screen-frame { border-color: #8a8478; }
   body.qmode .ctl { background: radial-gradient(circle at 35% 30%, #d8d4c8, #a8a498 65%, #8a8680); border-color: #6a675e; }
@@ -152,7 +155,7 @@
   </div>
   <div class="row">
     <label><input type="checkbox" id="mute"> 静音</label>
-    <label><input type="checkbox" id="qmode"> 真机预览（30fps · 单色）</label>
+    <label><input type="checkbox" id="qmode"> 真机预览（30fps · 暖屏）</label>
   </div>
   <div class="row">
     <button id="reset">重新开号（清档）</button>
@@ -283,7 +286,7 @@ let toast = null;             // {text, until} 非常驻提示（主界面下方
 let selHint = null;           // {text, until} 切换选中项时的短暂说明
 let sparkles = [];
 let selectLock = 0;           // 键盘重复节流
-let qmode = false;            // 真机预览：30fps + LCD 单色
+let qmode = false;            // 真机预览：30fps + 暖屏色域映射
 let lastFrameTs = 0;
 let downGraceH = 0;           // 中毒累计游戏小时
 
@@ -708,7 +711,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "8.3";
+const APP_VERSION = "8.4";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -2147,6 +2150,58 @@ function applyQmode(on) {
 }
 if (qEl) qEl.onchange = e => applyQmode(e.target.checked);
 try { applyQmode(localStorage.getItem("jx3qmode") === "1"); } catch (e) {}
+
+/* ================= 实机屏幕模拟（暖屏） =================
+   固件那套调色板已经按 1.44" TN 屏做过暖化（firmware/config.h）：
+   去掉蓝灰底、压掉蓝溢、金色提饱和、背光降到 78%。
+   这里用一条逐通道曲线把网页版的冷调映射过去，控制点全部取自
+   网页版 hex → 固件 hex 的实测对应值，段内线性插值：
+     底 #141824 → #121110    金 #d8c68a → #e3c078
+     字 #cfd4e8 → #e6e2d8    次 #8a92ad → #8f8d88
+   只在「真机预览」开启时逐帧执行，128×128 = 16k 像素，耗时可以忽略。 */
+function buildLut(pts) {
+  const lut = new Uint8ClampedArray(256);
+  for (let v = 0; v < 256; v++) {
+    let i = 1;
+    while (i < pts.length - 1 && v > pts[i][0]) i++;
+    const x0 = pts[i - 1][0], y0 = pts[i - 1][1];
+    const x1 = pts[i][0], y1 = pts[i][1];
+    const t = x1 === x0 ? 0 : (v - x0) / (x1 - x0);
+    lut[v] = Math.round(y0 + (y1 - y0) * Math.max(0, Math.min(1, t)));
+  }
+  return lut;
+}
+const QLUT = {
+  //  输入 → 输出（0~255）
+  r: buildLut([[0,0],[20,18],[38,32],[58,52],[90,92],[150,156],[207,226],[216,229],[255,252]]),
+  g: buildLut([[0,0],[24,17],[42,30],[63,50],[90,88],[150,150],[198,194],[212,220],[233,234],[255,250]]),
+  b: buildLut([[0,0],[36,16],[56,26],[84,42],[120,110],[150,146],[173,158],[208,196],[232,214],[255,248]]),
+};
+function applyPanelLook() {
+  const img = ctx.getImageData(0, 0, W, H);
+  const d = img.data, R = QLUT.r, G = QLUT.g, B = QLUT.b;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    let nr = R[r], ng = G[g], nb = B[b];
+    /* 逐通道曲线会把「饱和色」也一起压蓝（红变橙、紫变粉），
+       所以按饱和度做混合：低饱和（底/面板/文字/金）走完整曲线，
+       高饱和（门派衣色、物品图）只做轻微压暗，保住色相。 */
+    const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    if (mx > 24) {
+      const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      let t = ((mx - mn) / mx - 0.40) / 0.25;
+      if (t > 0) {
+        if (t > 1) t = 1;
+        const u = 1 - t;
+        nr = nr * u + r * 0.94 * t;
+        ng = ng * u + g * 0.94 * t;
+        nb = nb * u + b * 0.94 * t;
+      }
+    }
+    d[i] = nr; d[i + 1] = ng; d[i + 2] = nb;
+  }
+  ctx.putImageData(img, 0, 0);
+}
 document.getElementById("reset").onclick = () => {
   if (confirm("确定清档重开？侠士的江湖岁月将归零。")) {
     localStorage.removeItem("jx3tama");
@@ -2184,6 +2239,7 @@ setInterval(() => {
     lastFrameTs = ts;
   }
   render();
+  if (qmode) applyPanelLook();                    // 真机预览：套暖屏色域映射
 })();
 </script>
 </body>
