@@ -18,7 +18,7 @@ function el(extra) {
   return Object.assign({
     addEventListener() {}, onclick: null, onchange: null,
     classList: { toggle() {}, contains: () => false, add() {}, remove() {} },
-    textContent: "", checked: false, value: "60", style: {},
+    textContent: "", checked: false, value: "1", style: {},
   }, extra || {});
 }
 const store = {};
@@ -64,10 +64,11 @@ g("page = 'game'; gameSt = { phase: 'roll' }; openSettings(); pressB();");
 assert(g("page") === "game" && g("gameSt.phase") === "roll", "摇骰中呼出设置再返回不丢状态");
 g("page = 'main'; gameSt = null;");   // 恢复：直接回主界面，避免 confirmA 误入其它页
 
-/* ---- v7.4 新菜单布局 ---- */
-assert(g("MENU.length") === 10, "菜单共 10 项（8 模块 + 设置 + 状态）");
-assert(g("MENU.map(m=>m.id).join(',')") === "daily,bag,shop,sit,train,dig,game,home,settings,status",
-  "菜单顺序 = 上4(daily,bag,shop,sit) + 下4(train,dig,game,home) + settings + status");
+/* ---- v7.4 新菜单布局 / v8.2 去设置按钮 ---- */
+assert(g("MENU.length") === 9, "菜单共 9 项（8 模块 + 状态面板）");
+assert(g("MENU.map(m=>m.id).join(',')") === "daily,bag,shop,sit,train,dig,game,home,status",
+  "菜单顺序 = 上4(daily,bag,shop,sit) + 下4(train,dig,game,home) + status");
+assert(g("MENU.some(m => m.id === 'settings')") === false, "主界面无设置按钮（长按 B 呼出）");
 assert(g("MENU.some(m => m.id === 'clean')") === false, "打扫不再作为独立菜单项");
 
 /* ---- 渲染不抛异常（含异常状态/副本/狼藉）---- */
@@ -78,11 +79,11 @@ assert(true, "主界面渲染无异常（中毒/重伤/副本中/狼藉）");
 
 /* ---- 导航与非常驻提示 ---- */
 g("menuIdx = 0; moveSel(-1);");
-assert(g("menuIdx") === 8, "▲ 从第 0 项回绕到设置项（状态面板不参与选中）");
+assert(g("menuIdx") === 7, "▲ 从第 0 项回绕到最后一个模块 home（状态面板不参与选中）");
 g("moveSel(1);");
-assert(g("menuIdx") === 0, "▼ 从设置项回到第 0 项（不进状态面板）");
-g("menuIdx = 8; moveSel(1);");
-assert(g("menuIdx") === 0, "设置项 ▼ 回绕到第 0 项而非状态面板");
+assert(g("menuIdx") === 0, "▼ 从 home 回到第 0 项（不进状态面板）");
+g("menuIdx = 7; moveSel(1);");
+assert(g("menuIdx") === 0, "home ▼ 回绕到第 0 项而非状态面板");
 g("menuIdx = 0; moveSel(-1);");
 assert(g("!!selHint && Date.now() < selHint.until"), "切换选中时出现短暂 selHint");
 assert(g("selHint.until - Date.now()") > 1900 && g("selHint.until - Date.now()") <= 2000, "selHint 时长为 2 秒");
@@ -136,14 +137,14 @@ assert(g("S.loginStreak") === 1 && g("S.coins") === c0 + 50, "首日登录奖励
 g("checkDailyLogin();");
 assert(g("S.coins") === c0 + 50, "同日不重复发奖");
 
-/* ---- v7.6 昼夜作息：22~6 时就寝封锁行动 ---- */
-g("S.bornTs = Date.now() - 15 * 3600 * 1000 / 60;");   // 游戏时刻 = (15+8)%24 = 23 点
+/* ---- v7.6 昼夜作息：22~6 时就寝封锁行动（v8.2 默认 ×1，按真实毫秒算）---- */
+g("S.bornTs = Date.now() - 15 * 3600 * 1000;");   // 游戏时刻 = (15+8)%24 = 23 点
 assert(g("isSleeping()") === true, "23 点判定为就寝时段");
 g("S.cool = {}; doAct('dig');");
 assert(g("!S.cool.dig"), "就寝时挖宝被封锁");
 assert(String(g("canAct()")).indexOf("睡") >= 0, "canAct 提示就寝中");
 g("render(); render();");   // 睡姿渲染不抛异常
-g("S.bornTs = Date.now() - 5 * 3600 * 1000 / 60;");    // 回到 13 点
+g("S.bornTs = Date.now() - 5 * 3600 * 1000;");    // 回到 13 点
 assert(g("isSleeping()") === false, "白天不就寝");
 
 /* ---- v7.7 装备品级（三品级，商城同池） ---- */
@@ -212,10 +213,28 @@ assert(g("typeof SERVERS") === "undefined", "SERVERS 常量已移除");
 assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区服项");
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
+/* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
+assert(g("APP_VERSION") === "8.2", "版本号为 8.2");
+assert(g("speedF") === 1, "默认时间流速 = 真实 ×1");
+g("page = 'main'; pressB();");
+assert(g("page") === "status", "主页 B 进手札");
+g("confirmA();");
+assert(g("page") === "status", "手札页 A 不再退出");
+g("pressB();");
+assert(g("page") === "main", "手札页 B 返回主页");
+assert(g("SET_MENU.some(m => m.id === 'sound')") === true, "设置菜单含音效开关");
+g("muted = false; page = 'settings'; setPage = 'sound'; confirmA();");
+assert(g("muted") === true, "音效开关 A 切换为静音");
+assert(g("localStorage.getItem('jx3mute')") === "1", "静音偏好已持久化");
+g("confirmA();");
+assert(g("muted") === false && g("localStorage.getItem('jx3mute')") === "0", "再按 A 恢复音效并持久化");
+g("page = 'main'; setPage = null;");
+
 /* ---- 各子页渲染无异常 ---- */
-["status", "bag", "shop", "daily", "settings"].forEach(p => {
+["status", "bag", "shop", "daily"].forEach(p => {
   g("doAct('" + p + "'); render(); pressB();");
 });
+g("openSettings(); render(); pressB();");
 assert(g("page") === "main", "状态/背包/商城/日常/设置页进出正常");
 
 /* ---- 存档 ---- */

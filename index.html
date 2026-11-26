@@ -131,7 +131,7 @@
   <div class="ctl act" id="btnA">A</div>
   <div class="ctl act" id="btnB">B</div>
 </div>
-<div class="ctl-cap">▲▼ 选单 · A 确认 · B 返回（主页 B = 状态手札 · 日常页选"本"字条目按 A 进副本）</div>
+<div class="ctl-cap">▲▼ 选单 · A 确认 · B 返回（主页 B = 手札 · 长按 B = 系统设置）</div>
 <button class="size-toggle" id="sizeToggle">切换：真实尺寸 128×128</button>
 
 <div class="panel">
@@ -140,14 +140,14 @@
   <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤</b>。注意：<b>中毒/重伤不再封锁行动</b>，只是收益分别打 8 折 / 6 折，仍然能干活攒钱买玉露丸。</div>
   <div>🛒 吃东西要花金币：进<b>商城</b>买食材药品入行囊，再从<b>背包</b>使用——正版拓麻歌子的层级界面。</div>
   <div>✨ 偶尔触发<b>奇遇</b>，白捡修为。修为攒够就晋见称号。</div>
-  <div>🕹️ <b>▲▼</b> 选单 · <b>A</b> 确认 · <b>B</b> 返回（键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选，日常页选"本"字条目按 A 进副本）</div>
+  <div>🕹️ <b>▲▼</b> 选单 · <b>A</b> 确认 · <b>B</b> 返回（主页 B 看手札，<b>长按 B 半秒</b>随时开系统设置；键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选）</div>
   <div class="row">
     时间流速
     <select id="speed">
-      <option value="60">体验 ×60（推荐）</option>
+      <option value="1" selected>真实 ×1（默认）</option>
+      <option value="60">体验 ×60</option>
       <option value="10">真机档 ×10（约 1 小时饿空）</option>
       <option value="600">快进 ×600</option>
-      <option value="1">真实 ×1</option>
     </select>
   </div>
   <div class="row">
@@ -268,7 +268,7 @@ const LIST_ROWS = 4;        // 背包 / 商城列表每屏可见行数
 
 /* ================= 状态 ================= */
 let S = null;
-let speedF = 60;
+let speedF = 1;                 // v8.2：默认真实 ×1（原 ×60）；面板下拉可改
 let page = "sect";            // sect | main | bag | shop | item | home | daily | status | settings
 let settingsFrom = "main";    // v8.0：进入设置前的页面，B 返回时回到原处（随时可开设置）
 let menuIdx = 0;
@@ -381,6 +381,14 @@ function checkDailyLogin() {
 
 /* ================= 音效 ================= */
 let muted = false;
+try { muted = localStorage.getItem("jx3mute") === "1"; } catch (e) {}
+/* 音效开关：设置页与面板「静音」共用同一状态，切换即持久化 */
+function setMuted(on) {
+  muted = !!on;
+  const box = document.getElementById("mute");
+  if (box) box.checked = muted;
+  try { localStorage.setItem("jx3mute", muted ? "1" : "0"); } catch (e) {}
+}
 let AC = null;
 function beep(freq, dur = 0.08, type = "square", vol = 0.15) {
   if (muted) return;
@@ -531,9 +539,10 @@ function checkTitle() {
 function toastMsg(text, sfxFn) { toast = { text, until: Date.now() + 2800 }; if (sfxFn) sfxFn(); }
 
 /* ================= 行为 =================
-   主界面布局（v7.4 按草图重排，v7.8 精简）：
-   上排 4 个功能模块 + 下排 4 个功能模块 + 右下角「设置」小按钮，图标下不带文字；
-   场景区加高（y19~82），左侧常驻「人物状态」面板（选中可进侠士手札），中间人物，背景铺满场景；
+   主界面布局（v7.4 按草图重排，v7.8 精简，v8.2 去设置按钮）：
+   上排 4 个功能模块 + 下排 4 个功能模块，图标下不带文字；设置不占图标位，
+   改为「长按 B 500ms」全局呼出（真机只有 4 键，不留专门设置键）；
+   场景区加高（y19~82），左侧常驻「人物状态」面板（按 B 进侠士手札），中间人物，背景铺满场景；
    当前选中模块的名称/说明常驻显示在提示长条（toast 优先覆盖）。
    「打扫」并入家园页（家园有狼藉时 ▲▼ 切到打扫再按 A）。 */
 const MENU = [
@@ -545,8 +554,7 @@ const MENU = [
   { id: "dig",     label: "挖宝",   desc: "挖宝得金币" },
   { id: "game",    label: "小游戏", desc: "黑市赌坊·押大小" },
   { id: "home",    label: "家园",   desc: "升级宅子·打扫" },
-  { id: "settings",label: "设置",   desc: "升级/WiFi/热点" },      // 右下角小按钮
-  { id: "status",  label: "状态",   desc: "侠士手札" },            // 场景左侧面板
+  { id: "status",  label: "状态",   desc: "侠士手札" },            // 场景左侧面板（不参与 ▲▼ 选中）
 ];
 /* ================= 区服（v7.7 已移除） =================
    实测 jx3api 的 /active/calendar 加不加 server 参数返回完全一致（按全服返回），
@@ -687,8 +695,6 @@ function doAct(id, sub) {
       sfx.ok(); return;
     case "shop":
       page = "shop"; shopSel = 0; catMode = true; sfx.ok(); return;    // v8.1：先进分类栏
-    case "settings":
-      openSettings(); return;
     case "home":
       page = "home"; homeSel = 0; sfx.ok(); return;
     case "daily":
@@ -702,7 +708,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "8.1";
+const APP_VERSION = "8.2";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -713,6 +719,7 @@ const SET_MENU = [
   { id: "ota",    label: "系统升级", desc: "在线检查更新" },
   { id: "wifi",   label: "WiFi连接", desc: "连接无线网络" },
   { id: "ap",     label: "热点模式", desc: "手机传更新包" },
+  { id: "sound",  label: "音效",     desc: "按键提示音开关" },   // v8.2
   { id: "about",  label: "关于本机", desc: "版本与状态" },
 ];
 function otaCheck() {
@@ -1302,28 +1309,14 @@ function renderMain() {
   if (hintOn) marquee(toast.text, 8, 89, 112, "#f5ecd0", 9, 0.7);
   else if (selOn) marquee(selHint.text, 8, 89, 112, "#7a829c", 8, 0.5);
   // 平时：长条留空，不显示任何文字（贴近正版拓麻歌子：图标即状态，文字只在需要时出现）
-  // ===== 底部 4 个功能模块（木桩/挖宝/小游戏/家园）+ 右下角设置（无文字） =====
-  const botCx = [14, 38, 62, 86];
+  // ===== 底部 4 个功能模块（木桩/挖宝/小游戏/家园）——v8.2 去掉右下角设置按钮 =====
+  const botCx = [19, 49, 79, 109];   // 与顶部四宫格对齐（v8.2 去设置按钮后居中铺开）
   botCx.forEach((cx, i) => {
     const m = MENU[i + 4], on = sel === i + 4;
     icon(m.id, cx - 8, 103, on);
     const key = { train: "train", dig: "dig" }[m.id];
     if (key && cooling(key)) px(cx + 6, 102, 3, 3, "#e86a5a");
   });
-  const setOn = sel === 8;
-  (function setCoin(x, y) {   // 设置小按钮：同款暗色圆牌 + 金环 + 迷你齿轮
-    const RW = [2, 8, 10, 12, 12, 12, 12, 12, 12, 12, 10, 8, 2, 2, 2, 2];
-    const rim = setOn ? "#e8c860" : "#7a6a3e", disc = setOn ? "#332b1c" : "#1c2130";
-    const c1 = setOn ? "#f5e9b8" : "#c9b070";
-    RW.forEach((w, dy) => {
-      const x0 = x + 8 - Math.floor(w / 2);
-      px(x0, y + dy, w, 1, rim);
-      if (w >= 8) px(x0 + 1, y + dy, w - 2, 1, disc);
-    });
-    px(x + 4, y + 3, 4, 1, c1); px(x + 4, y + 8, 4, 1, c1);
-    px(x + 3, y + 4, 1, 4, c1); px(x + 8, y + 4, 1, 4, c1);
-    px(x + 4, y + 4, 4, 4, c1); px(x + 5, y + 5, 2, 2, "#10131c");
-  })(105, 103);
   // sparkles
   sparkles = sparkles.filter(s => s.life-- > 0);
   sparkles.forEach(s => { const tw = (frame + s.x) % 20 < 10; px(s.x, s.y, tw ? 3 : 1, tw ? 3 : 1, "#f5e9b8"); });
@@ -1737,6 +1730,15 @@ function renderSettings() {
     }
     return;
   }
+  /* ---- 音效开关（v8.2）---- */
+  if (setPage === "sound") {
+    textC("— 音效设置 —", 64, 6, "#d8c68a", 10);
+    textC("按键提示音", 64, 32, "#cfd4e8", 9);
+    px(36, 48, 56, 16, "#262a38");
+    textC(muted ? "关闭" : "开启", 64, 51, muted ? "#8a92ad" : "#b8e88a", 10);
+    textC("A 切换 · B 返回", 64, 112, "#8a92ad", 8);
+    return;
+  }
   /* ---- 关于本机 ---- */
   if (setPage === "about") {
     textC("— 关于本机 —", 64, 6, "#d8c68a", 10);
@@ -1964,6 +1966,9 @@ function confirmA() {
     } else if (setPage === "ap") {
       apOn = !apOn;
       toastMsg(apOn ? "热点已开启：JX3-Tama-9027" : "热点已关闭", apOn ? sfx.ok : null);
+    } else if (setPage === "sound") {
+      setMuted(!muted);
+      toastMsg(muted ? "音效已关闭" : "音效已开启", muted ? null : sfx.ok);
     }
   } else if (page === "game") {
     const st = gameSt;
@@ -2003,7 +2008,8 @@ function confirmA() {
     for (let i = 0; i < 12; i++) sparkles.push({ x: 20 + Math.random() * 88, y: 25 + Math.random() * 60, life: 30 + Math.random() * 20 });
     save();
   } else if (page === "status") {
-    page = "main"; sfx.ok();
+    // v8.2：手札只认 B 返回；A 不再退出（原来 A 也能退，和底部「B 返回」提示不一致）
+    beep(440, .05);
   } else if (page === "daily") {
     const rows = buildDailyRows();
     const row = rows && rows[dailySel];
@@ -2054,7 +2060,8 @@ function pressB() {
     if (!catMode) { catMode = true; beep(440, .05); return; }
     page = "main"; catMode = false; beep(440, .05);
   }
-  else if (page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
+  else if (page === "status") { page = "main"; beep(440, .05); }   // v8.2：手札 B 明确返回主页（A 不退出）
+  else if (page === "home" || page === "daily") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
 
@@ -2123,7 +2130,8 @@ window.addEventListener("keyup", e => {
 
 /* ================= 面板控件 ================= */
 document.getElementById("speed").onchange = e => speedF = +e.target.value;
-document.getElementById("mute").onchange = e => muted = e.target.checked;
+document.getElementById("mute").onchange = e => setMuted(e.target.checked);
+setMuted(muted);   // 初始化：载入本地静音偏好并同步面板复选框
 // 真机预览：LCD 单色滤镜 + 30fps 节拍（对齐 ST7735 实际刷新能力）
 const qEl = document.getElementById("qmode");
 function applyQmode(on) {
