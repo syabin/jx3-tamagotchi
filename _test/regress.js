@@ -16,7 +16,10 @@ const ctxStub = new Proxy({
 const canvasEl = { getContext: () => ctxStub, addEventListener() {}, width: 128, height: 128, style: {} };
 function el(extra) {
   return Object.assign({
-    addEventListener() {}, onclick: null, onchange: null,
+    _handlers: {},
+    addEventListener(ev, fn) { this._handlers[ev] = fn; },
+    fire(ev) { if (this._handlers[ev]) this._handlers[ev]({ preventDefault() {} }); },
+    onclick: null, onchange: null,
     classList: { toggle() {}, contains: () => false, add() {}, remove() {} },
     textContent: "", checked: false, value: "1", style: {},
   }, extra || {});
@@ -214,7 +217,8 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "8.2", "版本号为 8.2");
+assert(g("APP_VERSION") === "8.3", "版本号为 8.3");
+assert(g("B_HOLD_MS") === 1500, "长按 B 呼出设置阈值为 1.5 秒");
 assert(g("speedF") === 1, "默认时间流速 = 真实 ×1");
 g("page = 'main'; pressB();");
 assert(g("page") === "status", "主页 B 进手札");
@@ -222,6 +226,15 @@ g("confirmA();");
 assert(g("page") === "status", "手札页 A 不再退出");
 g("pressB();");
 assert(g("page") === "main", "手札页 B 返回主页");
+/* v8.3 二次触发 bug：实体 B 的 pointerup 才返回，pointerleave 不得再返回一次 */
+const btnB = sandbox._els["btnB"];
+g("page = 'main';");
+btnB.fire("pointerdown"); btnB.fire("pointerup");
+assert(g("page") === "status", "实体 B 单次点击：主页进手札");
+btnB.fire("pointerleave");
+assert(g("page") === "status", "pointerleave 不二次触发返回（手札不被立刻退回）");
+btnB.fire("pointerdown"); btnB.fire("pointerup"); btnB.fire("pointerleave");
+assert(g("page") === "main", "实体 B 再点一次：手札退主页且不被二次拉回");
 assert(g("SET_MENU.some(m => m.id === 'sound')") === true, "设置菜单含音效开关");
 g("muted = false; page = 'settings'; setPage = 'sound'; confirmA();");
 assert(g("muted") === true, "音效开关 A 切换为静音");
