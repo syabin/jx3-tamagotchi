@@ -22,7 +22,7 @@
 
 - 🎮 像素小人程序化动画、昼夜/家园场景、使用物品整页演出动画
 - 📅 日常页对接 [jx3api](https://www.jx3api.com) 活动日历（大战/阵营战场/秘境/团本等，带"本"标记可直接进副本）
-- 📡 **运行时直连获取**（v7.2）：页面/主机端运行时直接请求 jx3api 接口，不需要预取 JSON、不需要任何代理和服务器；浏览器跨域受限（jx3api 不返回 CORS 头）时自动沿用 localStorage 缓存，ESP32 主机端原生 HTTP 客户端无跨域问题
+- 📡 **双通道取数**（v7.3）：网页端读 GitHub Actions 每小时预取的同源 `data/daily.json`（零跨域、零代理、零服务器）；`data/daily.json` 不存在时（ESP32 主机端）自动直连 jx3api。不用任何公共 CORS 代理。
 - 💾 localStorage 存档（`jx3tama`）+ 离线结算，旧档自动补新字段默认值
 - 📶 设置页含 OTA 检查（读 `version.json` 比对版本号）、WiFi/热点（固件蓝图）、区服切换、真机预览（锁 30fps + LCD 单色滤镜）
 - ⌨️ 全游戏可只用 ▲▼ A B 四键操作（对应真机按键），手机支持屏幕滑动选单；支持长按连续滚动
@@ -33,16 +33,20 @@
 Tamagotchi/
 ├── index.html                     # 游戏主体（单文件，约 85KB，纯原生 JS + Canvas）
 ├── version.json                   # OTA 版本号（设置页检查更新用）
+├── data/
+│   └── daily.json                 # Actions 预取的剑网三每日数据（同源只读）
 ├── design/
 │   ├── 设定集.md                  # GDD 单一事实来源（数值/物品/掉落表/事件概率）
 │   └── icons/                     # 16×16 PNG 素材位（Piskel 制作，待补充）
-└── .workbuddy/memory/             # 项目开发日志
+├── .github/workflows/
+│   └── fetch-daily.yml            # 每小时抓取 jx3api → data/daily.json，内容有变化才提交
+└── .workbuddy/memory/             # 项目开发日志（仅本仓库，jx3-tamagotchi 发布副本不含）
 ```
 
 ## 运行与部署
 
-- **本地运行**：直接用浏览器打开 `index.html` 即可。日常数据由页面运行时直连 jx3api 获取；注意 jx3api 不返回 CORS 头，浏览器里跨域直连会被拦（GitHub Pages / 本地 file:// 均如此），此时日常页自动使用 localStorage 缓存兜底。ESP32 固件阶段无此限制，可直连。
-- **线上部署**：仓库推送 `main` 分支根目录，GitHub Pages 自动生效（当前线上版本 v7.2）。CDN 缓存 `max-age=600`，更新后可加 `?t=时间戳` 强刷。
+- **本地运行**：直接用浏览器打开 `index.html` 即可。日常数据走同源 `data/daily.json`（本地打开 file:// 时读不到，会退到 localStorage 缓存）；ESP32 主机端自动直连 jx3api。
+- **线上部署**：仓库推送 `main` 分支根目录，GitHub Pages 自动生效（当前线上版本 v7.3）。CDN 缓存 `max-age=600`，更新后可加 `?t=时间戳` 强刷。
 
 ## 版本历史（摘要）
 
@@ -54,6 +58,7 @@ Tamagotchi/
 | v7.0 | 物品两段式界面（列表+详情）、副本掉落表落地、`checkDown`/食物冷却等 P0 修复 |
 | v7.1 | 日常数据改 Actions 构建时预取、异常状态取消行动封锁改收益打折、重伤自愈 |
 | v7.2 | 日常数据改回运行时直连 jx3api（主机端获取），移除 Actions 预取与 data/daily.json |
+| v7.3 | 双通道取数定稿：网页端恢复同源 data/daily.json（Actions 预取），主机端/兜底直连 jx3api，不用公共代理 |
 
 ## 开发约定
 
