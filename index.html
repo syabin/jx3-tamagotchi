@@ -555,7 +555,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "7.4";
+const APP_VERSION = "7.5";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -829,26 +829,35 @@ function drawEmoji(kind) {
 
 /* --- 菜单图标 --- */
 function icon(id, x, y, sel) {
-  px(x - 1, y - 1, 18, 18, sel ? "#d8c68a" : "#2e3345");
-  px(x, y, 16, 16, sel ? "#3a3f54" : "#262a38");
-  const c1 = sel ? "#f5e9b8" : "#8a92ad";
+  /* 剑网3无界风图标（像素重绘，参考无界版游戏内图标的暗色圆牌+金环配色，未使用游戏素材）：
+     暗色圆形「令牌」底 + 金环描边 + 居中金色纹样 */
+  const ROWW = [2, 8, 10, 12, 14, 14, 16, 16, 16, 16, 14, 14, 12, 10, 8, 2];   // 16px 圆的每行宽
+  const rim = sel ? "#e8c860" : "#7a6a3e";
+  const disc = sel ? "#332b1c" : "#1c2130";
+  const cut = "#10131c";
+  const c1 = sel ? "#f5e9b8" : "#c9b070";
+  ROWW.forEach((w, dy) => {
+    const x0 = x + 8 - w / 2;
+    px(x0, y + dy, w, 1, rim);
+    if (w >= 8) px(x0 + 1, y + dy, w - 2, 1, disc);
+  });
   if (id === "feed") { px(x + 2, y + 7, 12, 5, c1); px(x + 3, y + 12, 10, 1, c1); px(x + 6, y + 4, 4, 2, "#c88a6a"); }
   if (id === "sit")  { px(x + 4, y + 2, 8, 2, c1); px(x + 6, y + 4, 4, 4, c1); px(x + 3, y + 9, 10, 3, c1); px(x + 7, y + 1, 2, 2, c1); }
   if (id === "train"){ px(x + 6, y + 2, 4, 10, c1); px(x + 3, y + 5, 10, 2, c1); px(x + 2, y + 12, 12, 2, c1); }
   if (id === "clean"){ px(x + 3, y + 10, 10, 3, c1); px(x + 7, y + 3, 2, 7, c1); px(x + 5, y + 2, 6, 2, c1); }
   if (id === "cure") { px(x + 6, y + 3, 4, 10, c1); px(x + 3, y + 6, 10, 4, "#e88a8a"); px(x + 7, y + 4, 2, 2, c1); }
-  if (id === "status"){px(x + 3, y + 2, 10, 12, c1); px(x + 5, y + 5, 6, 1, "#262a38"); px(x + 5, y + 8, 6, 1, "#262a38"); px(x + 5, y + 11, 4, 1, "#262a38"); }
+  if (id === "status"){px(x + 3, y + 2, 10, 12, c1); px(x + 5, y + 5, 6, 1, cut); px(x + 5, y + 8, 6, 1, cut); px(x + 5, y + 11, 4, 1, cut); }
   if (id === "dig")   { px(x + 7, y + 2, 2, 8, c1); px(x + 5, y + 9, 6, 2, c1); px(x + 4, y + 11, 8, 3, "#b8c0d0"); }
   if (id === "game")  { // 赌坊骰子
-    px(x + 2, y + 3, 7, 7, c1); px(x + 4, y + 5, 2, 2, "#262a38");
-    px(x + 8, y + 8, 7, 7, c1); px(x + 10, y + 10, 2, 2, "#262a38"); px(x + 12, y + 12, 2, 2, "#262a38");
+    px(x + 2, y + 3, 7, 7, c1); px(x + 4, y + 5, 2, 2, cut);
+    px(x + 8, y + 8, 7, 7, c1); px(x + 10, y + 10, 2, 2, cut); px(x + 12, y + 12, 2, 2, cut);
   }
-  if (id === "dungeon"){ px(x + 2, y + 10, 12, 4, c1); px(x + 4, y + 4, 8, 6, "#e88a8a"); px(x + 5, y + 6, 2, 2, "#262a38"); px(x + 9, y + 6, 2, 2, "#262a38"); }
-  if (id === "home")  { px(x + 3, y + 8, 10, 6, c1); px(x + 6, y + 10, 4, 4, "#262a38"); px(x + 2, y + 3, 12, 2, c1); px(x + 4, y + 5, 8, 2, c1); px(x + 7, y + 1, 2, 2, "#e8c860"); }
-  if (id === "bag")   { px(x + 3, y + 6, 10, 8, c1); px(x + 5, y + 3, 6, 3, c1); px(x + 7, y + 4, 2, 2, "#262a38"); px(x + 4, y + 9, 2, 2, "#262a38"); px(x + 10, y + 9, 2, 2, "#262a38"); }
-  if (id === "shop")  { px(x + 2, y + 4, 12, 2, c1); px(x + 3, y + 6, 10, 8, c1); px(x + 6, y + 9, 4, 5, "#262a38"); px(x + 2, y + 1, 3, 3, "#e8c860"); px(x + 11, y + 1, 3, 3, "#e8c860"); }
-  if (id === "daily") { px(x + 3, y + 2, 10, 3, c1); px(x + 3, y + 5, 10, 9, c1); px(x + 5, y + 7, 2, 2, "#262a38"); px(x + 8, y + 9, 2, 2, "#262a38"); px(x + 7, y + 4, 2, 2, "#e8c860"); }
-  if (id === "settings"){ px(x + 4, y + 1, 8, 2, c1); px(x + 4, y + 13, 8, 2, c1); px(x + 1, y + 4, 2, 8, c1); px(x + 13, y + 4, 2, 8, c1); px(x + 4, y + 4, 8, 8, c1); px(x + 6, y + 6, 4, 4, "#262a38"); }
+  if (id === "dungeon"){ px(x + 2, y + 10, 12, 4, c1); px(x + 4, y + 4, 8, 6, "#e88a8a"); px(x + 5, y + 6, 2, 2, cut); px(x + 9, y + 6, 2, 2, cut); }
+  if (id === "home")  { px(x + 3, y + 8, 10, 6, c1); px(x + 6, y + 10, 4, 4, cut); px(x + 2, y + 3, 12, 2, c1); px(x + 4, y + 5, 8, 2, c1); px(x + 7, y + 1, 2, 2, "#e8c860"); }
+  if (id === "bag")   { px(x + 3, y + 6, 10, 8, c1); px(x + 5, y + 3, 6, 3, c1); px(x + 7, y + 4, 2, 2, cut); px(x + 4, y + 9, 2, 2, cut); px(x + 10, y + 9, 2, 2, cut); }
+  if (id === "shop")  { px(x + 2, y + 4, 12, 2, c1); px(x + 3, y + 6, 10, 8, c1); px(x + 6, y + 9, 4, 5, cut); px(x + 2, y + 1, 3, 3, "#e8c860"); px(x + 11, y + 1, 3, 3, "#e8c860"); }
+  if (id === "daily") { px(x + 3, y + 2, 10, 3, c1); px(x + 3, y + 5, 10, 9, c1); px(x + 5, y + 7, 2, 2, cut); px(x + 8, y + 9, 2, 2, cut); px(x + 7, y + 4, 2, 2, "#e8c860"); }
+  if (id === "settings"){ px(x + 4, y + 1, 8, 2, c1); px(x + 4, y + 13, 8, 2, c1); px(x + 1, y + 4, 2, 8, c1); px(x + 13, y + 4, 2, 8, c1); px(x + 4, y + 4, 8, 8, c1); px(x + 6, y + 6, 4, 4, cut); }
 }
 
 /* --- 状态条 --- */
@@ -1033,21 +1042,21 @@ function renderBoot() {
   px(108, 22, 6, 1, "#d8c68a"); px(113, 22, 1, 5, "#d8c68a");
   px(14, 71, 6, 1, "#d8c68a"); px(14, 67, 1, 5, "#d8c68a");
   px(108, 71, 6, 1, "#d8c68a"); px(113, 67, 1, 5, "#d8c68a");
-  // 大 LOGO：剑网3（四向描边 + 悬浮微动）
-  const t = "剑网3";
-  ctx.font = "bold 36px 'Microsoft YaHei', sans-serif";
+  // 大 LOGO：剑网三（四向描边 + 悬浮微动）
+  const t = "剑网三";
+  ctx.font = "bold 32px 'Microsoft YaHei', sans-serif";
   ctx.textBaseline = "top";
   const tw = ctx.measureText(t).width;
   const bob = Math.floor(frame / 30) % 2;
-  const lx = Math.round(64 - tw / 2), ly = 32 + bob;
+  const lx = Math.round(64 - tw / 2), ly = 34 + bob;
   ctx.fillStyle = "#2a1e0a";
   [[2,0],[-2,0],[0,2],[0,-2],[2,2],[-2,-2]].forEach(([dx,dy]) => ctx.fillText(t, lx+dx, ly+dy));
   ctx.fillStyle = "#d8c68a";
   ctx.fillText(t, lx, ly);
   // LOGO 两侧小剑光闪烁
-  if (frame % 90 < 30) { text("✦", lx - 14, ly + 10, "#f5ecd0", 12); text("✦", lx + tw + 4, ly + 10, "#f5ecd0", 12); }
+  if (frame % 90 < 30) { text("✦", lx - 12, ly + 10, "#f5ecd0", 12); text("✦", lx + tw + 4, ly + 10, "#f5ecd0", 12); }
   // 副标题
-  textC("剑侠情缘 · 拓麻歌子", 64, 84 + bob, "#8a92ad", 8);
+  textC("剑侠情缘 · 单机版3", 64, 84 + bob, "#8a92ad", 8);
   // PRESS A START（呼吸闪烁）
   if (frame % 64 < 40) textC("PRESS A START", 64, 102, "#f5ecd0", 10);
   // 底部小字
@@ -1141,14 +1150,19 @@ function renderMain() {
     if (key && cooling(key)) px(cx + 6, 99, 3, 3, "#e86a5a");
   });
   const setOn = sel === 8;
-  px(104, 99, 16, 16, setOn ? "#d8c68a" : "#2e3345");
-  px(105, 100, 14, 14, setOn ? "#3a3f54" : "#262a38");
-  (function smallGear(x, y) {
-    const c1 = setOn ? "#f5e9b8" : "#8a92ad";
-    px(x + 3, y, 6, 2, c1); px(x + 3, y + 10, 6, 2, c1);
-    px(x, y + 3, 2, 6, c1); px(x + 10, y + 3, 2, 6, c1);
-    px(x + 3, y + 3, 6, 6, c1); px(x + 5, y + 5, 2, 2, "#262a38");
-  })(106, 101);
+  (function setCoin(x, y) {   // 设置小按钮：同款暗色圆牌 + 金环 + 迷你齿轮
+    const RW = [2, 8, 10, 12, 12, 12, 12, 12, 12, 12, 10, 8, 2, 2, 2, 2];
+    const rim = setOn ? "#e8c860" : "#7a6a3e", disc = setOn ? "#332b1c" : "#1c2130";
+    const c1 = setOn ? "#f5e9b8" : "#c9b070";
+    RW.forEach((w, dy) => {
+      const x0 = x + 8 - Math.floor(w / 2);
+      px(x0, y + dy, w, 1, rim);
+      if (w >= 8) px(x0 + 1, y + dy, w - 2, 1, disc);
+    });
+    px(x + 4, y + 3, 4, 1, c1); px(x + 4, y + 8, 4, 1, c1);
+    px(x + 3, y + 4, 1, 4, c1); px(x + 8, y + 4, 1, 4, c1);
+    px(x + 4, y + 4, 4, 4, c1); px(x + 5, y + 5, 2, 2, "#10131c");
+  })(105, 100);
   textC("设置", 112, 118, setOn ? "#f5e9b8" : "#8a92ad", 7);
   // sparkles
   sparkles = sparkles.filter(s => s.life-- > 0);
