@@ -70,12 +70,12 @@ g("menuIdx = 0; moveSel(-1);");
 assert(g("menuIdx % MENU.length") === 9, "▲ 从第 0 项回绕到最后一项（状态面板）");
 assert(g("!!selHint && Date.now() < selHint.until"), "切换选中时出现短暂 selHint");
 
-/* ---- 家园页：打扫并入 + 升级 ---- */
+/* ---- 家园页：打扫并入 + 升级 + 保姆（v7.6 起保姆常驻选项）---- */
 g("doAct('home')");
 assert(g("page") === "home", "A 进家园页");
-assert(g("homeOptions().join(',')") === "up", "无狼藉时只有升级选项");
+assert(g("homeOptions().join(',')") === "up,nanny", "无狼藉时 = 升级 + 保姆");
 g("S.mess = 2;");
-assert(g("homeOptions().join(',')") === "up,clean", "有狼藉时出现打扫选项");
+assert(g("homeOptions().join(',')") === "up,clean,nanny", "有狼藉时出现打扫选项");
 g("moveSel(1)");
 assert(g("homeSel") === 1, "▲▼ 切到打扫");
 g("confirmA()");
@@ -83,6 +83,51 @@ assert(g("S.mess") === 0 && g("page") === "home", "打扫生效且留在家园�
 g("S.coins = 1000; S.homeLv = 0; homeSel = 0; confirmA();");
 assert(g("S.homeLv") === 1 && g("S.coins") === 500, "升级扣款 500 并升到 1 级");
 g("page = 'main'; render();");
+
+/* ---- v7.6 装备系统（代替进化分支）---- */
+g("S.bag.w_sword = 1; itemFrom = 'bag'; bagSel = BAG_ORDER.indexOf('w_sword'); page = 'item'; confirmA();");
+assert(g("S.equip.weapon") === "w_sword", "背包可装备精铁剑到武器槽");
+g("confirmA();");
+assert(g("S.equip.weapon") === null, "再按 A 卸下装备");
+g("confirmA(); page = 'item'; render();");
+assert(g("hasEq('w_sword')") === true, "装备操作留在详情页且已生效");
+/* 加成生效：木桩修为 12×1.5 = 18 */
+g("S.exp = 0; S.cool = {}; S.hunger = 80; doAct('train');");
+assert(g("S.exp") === 18, "精铁剑木桩修为 +50%（12→18）");
+/* 槽位互斥：换武器应顶掉旧武器 */
+g("S.cool = {}; S.bag.w_pick = 1; itemFrom = 'bag'; bagSel = BAG_ORDER.indexOf('w_pick'); page = 'item'; confirmA();");
+assert(g("S.equip.weapon") === "w_pick", "同槽位换装顶掉旧装备");
+
+/* ---- v7.6 装饰（购入即布置）---- */
+g("S.coins = 1000; S.decos = {}; itemFrom = 'shop'; shopSel = SHOP_ORDER.indexOf('d_plant'); page = 'item'; confirmA();");
+assert(g("S.decos.d_plant") === true && g("S.coins") === 880, "购入盆栽即布置庭院（扣款 120）");
+assert(g("decoCount()") === 1, "装饰计数生效");
+assert(g("Math.abs(moodDecayCut() - 0.05) < 1e-9"), "装饰心情减免生效");
+
+/* ---- v7.6 保姆代管 ---- */
+g("page = 'home'; doAct('home'); homeSel = homeOptions().indexOf('nanny'); S.coins = 500; confirmA();");
+assert(g("S.nannyGH") === 8 && g("S.coins") === 400, "100 金雇佣保姆 8 时辰");
+g("applyTime(60, 60, true);");   // 60 真实秒 ×60 速 = 1 游戏小时（silent 免随机事件干扰）
+assert(g("S.nannyGH") === 7, "保姆合约随游戏时间倒扣");
+g("S.mess = 2; applyTime(60, 60, true);");
+assert(g("S.mess") === 0, "保姆自动洒扫");
+
+/* ---- v7.6 每日登录奖励 ---- */
+const c0 = g("S.coins");
+g("S.lastLogin = null; S.loginStreak = 0; checkDailyLogin();");
+assert(g("S.loginStreak") === 1 && g("S.coins") === c0 + 50, "首日登录奖励 50 金");
+g("checkDailyLogin();");
+assert(g("S.coins") === c0 + 50, "同日不重复发奖");
+
+/* ---- v7.6 昼夜作息：22~6 时就寝封锁行动 ---- */
+g("S.bornTs = Date.now() - 15 * 3600 * 1000 / 60;");   // 游戏时刻 = (15+8)%24 = 23 点
+assert(g("isSleeping()") === true, "23 点判定为就寝时段");
+g("S.cool = {}; doAct('dig');");
+assert(g("!S.cool.dig"), "就寝时挖宝被封锁");
+assert(String(g("canAct()")).indexOf("睡") >= 0, "canAct 提示就寝中");
+g("render(); render();");   // 睡姿渲染不抛异常
+g("S.bornTs = Date.now() - 5 * 3600 * 1000 / 60;");    // 回到 13 点
+assert(g("isSleeping()") === false, "白天不就寝");
 
 /* ---- 各子页渲染无异常 ---- */
 ["status", "bag", "shop", "daily", "settings"].forEach(p => {
