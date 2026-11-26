@@ -11,7 +11,7 @@
 ## 其他固定约定
 
 - 数值改动先改 `design/设定集.md` 再同步代码；版本号三处同步（`APP_VERSION` / `version.json` / 设定集头部）。
-- 日常数据（v7.2 起）：页面/主机运行时直连 jx3api，不用预取 json、不用代理；浏览器跨域受限时 localStorage 缓存兜底（`jx3daily`），ESP32 主机端直连无碍。
+- 日常数据（v7.3 双通道定稿）：①网页端读 Actions 预取的同源 `data/daily.json`（`.github/workflows/fetch-daily.yml` 每小时刷新，零跨域零代理零服务器，走客户端网络）；②`data/daily.json` 不存在时（ESP32 主机端）自动直连 jx3api；③全失败用 localStorage 缓存（`jx3daily`）兜底。**不用任何公共 CORS 代理**：r.jina.ai 是海外服务（用户明确不用，且 2026-11-26 实测成功率仅 1/4）、allorigins/codetabs 全灭、corsproxy.io 要 key、cors.lol 限流。
 
 ## 干净发布流程（v7.2 起生效，jx3-tamagotchi 不带 .workbuddy）
 
