@@ -195,23 +195,60 @@ const GOODS = {
   tassel: { id:"tassel", name:"剑穗",     type:"coll", sell:150, desc:"旧剑上的穗子，有人好这口。" },
   steel:  { id:"steel",  name:"精铁",     type:"mat",  sell:200, desc:"锻造良材，重而沉手。" },
   shard:  { id:"shard",  name:"神兵残片", type:"coll", sell:500, desc:"紫品残片，藏家千金求。" },
-  /* ---- 装备（v7.6：用「穿戴装备定义流派」代替拓麻歌子的进化分支——侠士不会变身，但装备决定强项） ---- */
-  w_sword:{ id:"w_sword",name:"精铁剑",   type:"equip", slot:"weapon", price:300, eff:"武器 · 木桩修为+50%", desc:"百炼成钢，练武事半功倍。" },
-  w_pick: { id:"w_pick", name:"镔铁镐",   type:"equip", slot:"weapon", price:260, eff:"武器 · 挖宝金币+50%", desc:"掘地如泥，寻宝事半功倍。" },
-  a_robe: { id:"a_robe", name:"云锦道袍", type:"equip", slot:"body",   price:280, eff:"护身 · 心情流失-20%", desc:"绣云御寒，心平气和。" },
-  a_charm:{ id:"a_charm",name:"平安符",   type:"equip", slot:"body",   price:200, eff:"护身 · 副本胜率+15%", desc:"出入平安，逢凶化吉。" },
-  t_jade: { id:"t_jade", name:"翡翠扳指", type:"equip", slot:"trea",   price:350, eff:"饰品 · 赌坊赢利+20%", desc:"运筹帷幄，手气更旺。" },
-  t_gourd:{ id:"t_gourd",name:"酒葫芦",   type:"equip", slot:"trea",   price:150, eff:"饰品 · 打坐修为+2", desc:"酒后吐真言，参悟更透。" },
+  /* ---- 装备（v7.6：用「穿戴装备定义流派」代替拓麻歌子的进化分支——侠士不会变身，但装备决定强项）
+          v7.7：装备分三品级（凡品/良品/珍品，tier 1/2/3），商城有售；
+                签到「鸿运当头」送的装备与商城同池（按品级加权随机），非专属 ---- */
+  w_sword:{ id:"w_sword",name:"精铁剑",   type:"equip", slot:"weapon", tier:1, price:300, eff:"武器 · 木桩修为+50%", desc:"百炼成钢，练武事半功倍。" },
+  w_pick: { id:"w_pick", name:"镔铁镐",   type:"equip", slot:"weapon", tier:1, price:260, eff:"武器 · 挖宝金币+50%", desc:"掘地如泥，寻宝事半功倍。" },
+  a_robe: { id:"a_robe", name:"云锦道袍", type:"equip", slot:"body",   tier:2, price:280, eff:"护身 · 心情流失-20%", desc:"绣云御寒，心平气和。" },
+  a_charm:{ id:"a_charm",name:"平安符",   type:"equip", slot:"body",   tier:2, price:200, eff:"护身 · 副本胜率+15%", desc:"出入平安，逢凶化吉。" },
+  t_jade: { id:"t_jade", name:"翡翠扳指", type:"equip", slot:"trea",   tier:2, price:350, eff:"饰品 · 赌坊赢利+20%", desc:"运筹帷幄，手气更旺。" },
+  t_gourd:{ id:"t_gourd",name:"酒葫芦",   type:"equip", slot:"trea",   tier:1, price:150, eff:"饰品 · 打坐修为+2", desc:"酒后吐真言，参悟更透。" },
+  /* ---- 玄晶（v7.7：团本 0.1% 掉落的橙色品级至宝，不同赛季不同玄晶，换赛季改这里） ---- */
+  xj_zt:  { id:"xj_zt",  name:"铸天玄晶", type:"xj", sell:2500, desc:"本赛季团本至宝，橙光灼灼，藏家梦寐。" },
   /* ---- 庭院装饰（v7.6：购入即布置在家园庭院，提供常驻减免，画在庭院场景里） ---- */
   d_plant:{ id:"d_plant",name:"幽兰盆栽", type:"deco",  price:120, eff:"装饰 · 心情流失-5%", desc:"清心雅趣，暗香浮动。" },
   d_screen:{id:"d_screen",name:"云纹屏风",type:"deco",  price:260, eff:"装饰 · 心情流失-8%", desc:"遮风挡煞，庭院生辉。" },
   d_lamp: { id:"d_lamp", name:"长明灯",   type:"deco",  price:200, eff:"装饰 · 心情-6% 体力-6%", desc:"彻夜长明，宅院安稳。" },
 };
-const BAG_ORDER  = ["baozi","fish","feast","pill","page","iron","tassel","steel","shard","w_sword","w_pick","a_robe","a_charm","t_jade","t_gourd","d_plant","d_screen","d_lamp"];   // 背包：全部物品
+const BAG_ORDER  = ["baozi","fish","feast","pill","page","iron","tassel","steel","shard","xj_zt","w_sword","w_pick","a_robe","a_charm","t_jade","t_gourd","d_plant","d_screen","d_lamp"];   // 背包：全部物品
 const SHOP_ORDER = ["baozi","fish","feast","pill","w_sword","w_pick","a_robe","a_charm","t_jade","t_gourd","d_plant","d_screen","d_lamp"];                                          // 商城：可购买
 /* 装备槽位与装饰效果表 */
 const EQUIP_SLOTS = ["weapon", "body", "trea"];
 const SLOT_NAMES  = { weapon: "武器", body: "护身", trea: "饰品" };
+/* 装备品级（v7.7）：1 凡品 · 2 良品 · 3 珍品；签到「鸿运当头」按品级加权从商城同池随机 */
+const EQ_TIERS = { 1: { name: "凡品", c: "#9aa3b8" }, 2: { name: "良品", c: "#7ec8f0" }, 3: { name: "珍品", c: "#c89af0" } };
+/* 签到「鸿运当头」装备池：商城全部装备，品级权重（凡品×5 / 良品×2 / 珍品×1），以后加新装备自动入池 */
+function giftEquipPool() {
+  const pool = [];
+  Object.values(GOODS).forEach(g => {
+    if (g.type !== "equip" || !g.tier) return;
+    const w = g.tier === 1 ? 5 : g.tier === 2 ? 2 : 1;
+    for (let i = 0; i < w; i++) pool.push(g.id);
+  });
+  return pool;
+}
+const XJ_COLOR = "#ff9a3c";   // 玄晶：橙色品级
+/* 商城/背包分类（v7.7） */
+const CATS = [
+  { id: "all",   label: "全部" },
+  { id: "food",  label: "食品" },
+  { id: "med",   label: "丹药" },
+  { id: "equip", label: "装备" },
+  { id: "deco",  label: "家具" },
+  { id: "mat",   label: "材料" },
+];
+const catOf = g => g.type === "food" ? "food"
+                 : (g.type === "med" || g.type === "use") ? "med"
+                 : g.type === "equip" ? "equip"
+                 : g.type === "deco" ? "deco"
+                 : "mat";   // mat / coll / xj 都归材料
+function filteredOrder(kind) {
+  const cat = kind === "shop" ? shopCat : bagCat;
+  const base = kind === "shop" ? SHOP_ORDER : BAG_ORDER;
+  if (cat === "all") return base;
+  return base.filter(gid => catOf(GOODS[gid]) === cat);
+}
 const DECO_LIST   = ["d_plant", "d_screen", "d_lamp"];
 const DECO_MOOD   = { d_plant: 0.05, d_screen: 0.08, d_lamp: 0.06 };
 const BETS = [50, 100, 200, 500, 1000];   // 赌坊押注档位
@@ -236,6 +273,8 @@ let page = "sect";            // sect | main | bag | shop | item | home | daily 
 let menuIdx = 0;
 let bagSel = 0;               // 背包列表选中索引
 let shopSel = 0;              // 商城列表选中索引
+let bagCat = "all", shopCat = "all";   // v7.7 分类过滤
+let catMode = false;          // 分类标签行激活（列表页 ▲ 顶格进入，▲▼ 换分类，A 确认回列表）
 let itemFrom = "bag";         // 详情页来源：bag | shop
 let fx = null;                // 使用演出 {gid, kind, t0, dur}
 let frame = 0;
@@ -256,7 +295,6 @@ function newState() {
     bornTs: Date.now(), lastTs: Date.now(),
     cool: {}, poisonedH: 0, hungerH: 0, moodH: 0,
     bag: Object.assign(emptyBag(), { baozi: 2, pill: 1 }),   // 初始行囊：两个包子一瓶药
-    server: "梦江南",                                        // 区服（设置页可改）
     equip: { weapon: null, body: null, trea: null },         // 装备槽位（v7.6，代替进化分支）
     decos: {},                                               // 庭院装饰（购入即布置）
     nannyGH: 0,                                              // 保姆代管剩余游戏时辰
@@ -313,7 +351,8 @@ function moodDecayCut() {                   // 装饰+装备的心情流失总�
 function hungerDecayCut() { return (S.decos && S.decos.d_lamp) ? 0.06 : 0; }
 function gameHour() { return (((Date.now() - S.bornTs) / 1000 * (speedF || 60) / 3600) + 8) % 24; }   // 游戏日从辰时(8点)起算：新档不会一出生就赶上下半夜就寝
 function isSleeping() { const h = gameHour(); return h >= 22 || h < 6; }
-/* 每日登录奖励：以现实自然日计，连续登录递增（断签重置），50 金起步、封顶 200，附赠包子 */
+/* 每日登录奖励：以现实自然日计，连续登录递增（断签重置），50 金起步、封顶 200，附赠包子；
+   v7.7：30% 概率「鸿运当头」额外赠送一件装备（与商城同池，按品级加权随机，凡品多见、珍品稀有） */
 function checkDailyLogin() {
   if (!S || !S.sect) return;
   const today = new Date().toDateString();
@@ -324,7 +363,18 @@ function checkDailyLogin() {
   const reward = Math.min(200, 50 + (S.loginStreak - 1) * 25);
   S.coins += reward;
   S.bag.baozi = (S.bag.baozi || 0) + 1;
-  toastMsg("每日登录第 " + S.loginStreak + " 天：金币+" + reward + " · 包子×1", sfx.up);
+  let msg = "每日登录第 " + S.loginStreak + " 天：金币+" + reward + " · 包子×1";
+  if (Math.random() < 0.30) {
+    const pool = giftEquipPool();
+    const gid = pool[Math.floor(Math.random() * pool.length)];
+    const g = GOODS[gid];
+    if (g) {
+      S.bag[gid] = (S.bag[gid] || 0) + 1;
+      const tn = (g.tier && EQ_TIERS[g.tier]) ? EQ_TIERS[g.tier].name : "";
+      msg = "鸿运当头！赠「" + g.name + "」" + (tn ? "（" + tn + "）" : "") + " · 金币+" + reward + " · 包子×1";
+    }
+  }
+  toastMsg(msg, sfx.up);
   save();
 }
 
@@ -454,8 +504,18 @@ function resolveDungeon(key) {
     S.bag[gid] = (S.bag[gid] || 0) + 1;
     got.push(GOODS[gid] ? GOODS[gid].name : gid);
   });
-  toastMsg("【" + d.name + "】通关！金+" + coin + " 修为+" + exp + (got.length ? " · 另得 " + got.join("、") : "") + (pen < 1 ? " · " + penaltyText() : ""), sfx.up);
-  for (let i = 0; i < 10; i++) sparkles.push({ x: 50 + Math.random() * 60, y: 35 + Math.random() * 40, life: 30 + Math.random() * 15 });
+  /* 玄晶（v7.7）：团本周本固定 0.1% 掉率（独立掷骰，不吃惩罚系数），橙色品级赛季至宝；
+     不同赛季不同玄晶——换赛季只需改 GOODS 里的 xj 条目（当前：铸天玄晶） */
+  const xj = Object.values(GOODS).find(g => g.type === "xj");
+  let xjDrop = false;
+  if (xj && key === "raid" && Math.random() < 0.001) {
+    S.bag[xj.id] = (S.bag[xj.id] || 0) + 1;
+    got.push(xj.name);
+    xjDrop = true;
+    for (let i = 0; i < 20; i++) sparkles.push({ x: 20 + Math.random() * 88, y: 25 + Math.random() * 70, life: 40 + Math.random() * 25 });
+  }
+  if (xjDrop) toastMsg("橙光乍现！！【" + xj.name + "】自穹顶坠落——天降鸿运！！", sfx.up);
+  else toastMsg("【" + d.name + "】通关！金+" + coin + " 修为+" + exp + (got.length ? " · 另得 " + got.join("、") : "") + (pen < 1 ? " · " + penaltyText() : ""), sfx.up);
   checkTitle();
   save();
 }
@@ -487,15 +547,10 @@ const MENU = [
   { id: "settings",label: "设置",   desc: "升级/WiFi/热点" },      // 右下角小按钮
   { id: "status",  label: "状态",   desc: "侠士手札" },            // 场景左侧面板
 ];
-/* ================= 区服 =================
+/* ================= 区服（v7.7 已移除） =================
    实测 jx3api 的 /active/calendar 加不加 server 参数返回完全一致（按全服返回），
-   这里保留区服设置是为了以后接 role / pvp 等按服区分的接口；请求仍会带上 server。
-   名单可自行增删。 */
-const SERVERS = ["梦江南", "蝶恋花", "剑胆琴心", "龙争虎斗", "斗转星移", "幽月轮",
-                 "乾坤一掷", "如梦令", "千岛湖", "白帝城", "天鹅坪", "破阵子",
-                 "青梅煮酒", "飞龙在天", "金蛇漫舞", "侠客行", "纵月", "无界"];
-const DEFAULT_SERVER = "梦江南";
-let srvIdx = 0;
+   区服设置没有实际作用，已整个移除；日常数据按全服返回。 */
+const DEFAULT_SERVER = "梦江南";   // 仅保留兜底值，供旧档字段清洗使用
 /* 异常状态不再封锁行动。
    原先中毒/重伤会禁止除吃药外的一切操作，而解毒只能靠玉露丸（商城 200 金）；
    一旦金币不足又没药，就再也赚不到钱买药 —— 状态永远清不掉，等于坏档。
@@ -623,14 +678,14 @@ function doAct(id, sub) {
       break;
     }
     case "bag":
-      page = "bag"; bagSel = 0; sfx.ok(); return;
+      page = "bag"; bagSel = 0; catMode = false; sfx.ok(); return;   // 进列表重置分类（v7.7）
     case "game":   // 黑市赌坊·押大小
       if (S.coins < 50) { toastMsg("赌坊最低押 50 金币，先去赚点本钱", sfx.err); return; }
       page = "game";
       gameSt = { phase: "side", side: 1, betIdx: 1, dice: [1, 1, 1], t: 0, sum: 0, win: false, baozi: false, pay: 0 };
       sfx.ok(); return;
     case "shop":
-      page = "shop"; shopSel = 0; sfx.ok(); return;
+      page = "shop"; shopSel = 0; catMode = false; sfx.ok(); return;   // 进列表重置分类（v7.7）
     case "settings":
       page = "settings"; setIdx = 0; setPage = null; sfx.ok(); return;
     case "home":
@@ -646,7 +701,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "7.6";
+const APP_VERSION = "7.7";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -657,7 +712,6 @@ const SET_MENU = [
   { id: "ota",    label: "系统升级", desc: "在线检查更新" },
   { id: "wifi",   label: "WiFi连接", desc: "连接无线网络" },
   { id: "ap",     label: "热点模式", desc: "手机传更新包" },
-  { id: "server", label: "区服设置", desc: "选择所在区服" },
   { id: "about",  label: "关于本机", desc: "版本与状态" },
 ];
 function otaCheck() {
@@ -1320,6 +1374,9 @@ function itemIcon(id, x, y, s) {
   } else if (id === "shard") {  // 神兵残片：紫晶碎片
     P(5,3,5,5,"#9a6ad8"); P(4,7,7,4,"#7a4ab8");
     P(6,4,2,2,"#c8a8f0"); P(10,6,2,3,"#8a5ac8");
+  } else if (id === "xj_zt") {  // 铸天玄晶：橙色棱晶（赛季至宝）
+    P(6,2,4,3,"#ffb25a"); P(4,5,8,5,"#ff9a3c"); P(3,10,10,3,"#e07820");
+    P(7,6,2,2,"#ffd9a0"); P(6,13,4,1,"#b85810");
   } else if (id === "w_sword") {  // 精铁剑：立剑
     P(7,1,2,9,"#c8d0dc"); P(8,2,1,7,"#eef2f8");
     P(5,10,6,1,"#8a6a3a"); P(7,11,2,2,"#6a4a2a"); P(7,13,2,2,"#4a3a22");
@@ -1374,8 +1431,15 @@ function itemEffect(g) {
   if (g.type === "use")  return "修为+" + g.exp;
   if (g.type === "equip") return g.eff;
   if (g.type === "deco")  return g.eff;
+  if (g.type === "xj")    return "赛季至宝 · 可卖 " + g.sell + " 金";
   if (g.sell)            return "可卖 " + g.sell + " 金";
   return "";
+}
+/* 品级配色：装备按 tier，玄晶固定橙色 */
+function itemColor(g) {
+  if (g.type === "xj") return XJ_COLOR;
+  if (g.type === "equip" && g.tier && EQ_TIERS[g.tier]) return EQ_TIERS[g.tier].c;
+  return null;
 }
 function itemAction(g, from) {
   if (from === "shop") return "A 购买 · B 返回";
@@ -1387,75 +1451,97 @@ function itemAction(g, from) {
   return g.sell ? "A 卖出 · B 返回" : "B 返回";
 }
 
-/* --- 背包 / 商城：列表页（一眼看全，按 A 进详情） --- */
+/* --- 背包 / 商城：列表页（v7.7 加分类标签行：▲ 顶格上抬进入分类，▲▼ 换分类，A/B 返回列表） --- */
 function renderListPage(kind) {
   const isShop = kind === "shop";
-  const order = isShop ? SHOP_ORDER : BAG_ORDER;
+  const order = filteredOrder(kind);
   const sel = isShop ? shopSel : bagSel;
+  const cat = isShop ? shopCat : bagCat;
   px(0, 0, W, H, "#141824");
-  textC(isShop ? "— 商城 · 长安集市 —" : "— 背包 · 随身行囊 —", 52, 5, "#d8c68a", 9);
-  textR("金" + S.coins, 124, 6, "#e8c860", 8);
-  px(4, 17, 120, 1, "#2e3345");
-  const start = Math.max(0, Math.min(sel - 1, order.length - LIST_ROWS));
-  for (let i = 0; i < LIST_ROWS; i++) {
-    const idx = start + i;
-    if (idx >= order.length) break;
-    const gid = order[idx], g = GOODS[gid];
-    const y = 19 + i * 20, on = idx === sel;
-    if (on) selFrame(3, y - 1, 122, 19);
-    const owned = g.type === "deco" ? !!S.decos[gid] : (S.bag[gid] || 0) > 0;
-    ctx.globalAlpha = owned ? 1 : 0.32;        // 没有的用剪影，不隐藏（引导去商城）
-    itemIcon(gid, 6, y + 1, 1);
-    ctx.globalAlpha = 1;
-    text(g.name, 26, y + 4, on ? "#f5e9b8" : (owned ? "#cfd4e8" : "#6b7488"), 10);
-    if (isShop) textR(g.price + "金", 123, y + 5, S.coins >= g.price ? "#e8c860" : "#7a5a5a", 9);
-    else if (g.type === "deco") textR(owned ? "已布置" : "无", 123, y + 5, owned ? "#b8e88a" : "#5a6078", 9);
-    else        textR("×" + (S.bag[gid] || 0), 123, y + 5, owned ? "#cfd4e8" : "#5a6078", 9);
+  textC(isShop ? "— 商城 · 长安集市 —" : "— 背包 · 随身行囊 —", 52, 4, "#d8c68a", 9);
+  textR("金" + S.coins, 124, 5, "#e8c860", 8);
+  // 分类标签行（全部/食品/丹药/装备/家具/材料）
+  const catIdx = Math.max(0, CATS.findIndex(c => c.id === cat));
+  CATS.forEach((c, i) => {
+    const cx = 5 + i * 20, cy = 15;
+    const on = i === catIdx;
+    if (on) px(cx - 2, cy - 1, 19, 12, catMode ? "#3a3f54" : "#2e3345");
+    textC(c.label, cx + 8, cy, catMode ? (on ? "#f5e9b8" : "#5a6078") : (on ? "#e8c860" : "#5a6078"), 8);
+  });
+  if (catMode && frame % 40 < 28) selFrame(3, 13, 122, 14);   // 分类行激活时闪金角标
+  px(4, 29, 120, 1, "#2e3345");
+  if (!order.length) {
+    textC(isShop ? "此类暂无商品" : "行囊里没有这类东西", 64, 55, "#6b7488", 9);
+  } else {
+    const start = Math.max(0, Math.min(sel - 1, order.length - LIST_ROWS));
+    for (let i = 0; i < LIST_ROWS; i++) {
+      const idx = start + i;
+      if (idx >= order.length) break;
+      const gid = order[idx], g = GOODS[gid];
+      const y = 31 + i * 19, on = idx === sel;
+      if (on) selFrame(3, y - 1, 122, 18);
+      const owned = g.type === "deco" ? !!S.decos[gid] : (S.bag[gid] || 0) > 0;
+      ctx.globalAlpha = owned ? 1 : 0.32;        // 没有的用剪影，不隐藏（引导去商城）
+      itemIcon(gid, 6, y + 1, 1);
+      ctx.globalAlpha = 1;
+      const tc = itemColor(g);                    // 装备品级 / 玄晶橙
+      text(g.name, 26, y + 3, on ? "#f5e9b8" : (tc || (owned ? "#cfd4e8" : "#6b7488")), 10);
+      if (g.type === "equip" && g.tier && !on) {
+        const tn = EQ_TIERS[g.tier];
+        text(tn.name, 26 + ctx.measureText(g.name).width + 3, y + 5, tn.c, 7);
+      }
+      if (isShop) textR(g.price + "金", 123, y + 4, S.coins >= g.price ? "#e8c860" : "#7a5a5a", 9);
+      else if (g.type === "deco") textR(owned ? "已布置" : "无", 123, y + 4, owned ? "#b8e88a" : "#5a6078", 9);
+      else        textR("×" + (S.bag[gid] || 0), 123, y + 4, owned ? "#cfd4e8" : "#5a6078", 9);
+    }
+    // 滚动条
+    if (order.length > LIST_ROWS) {
+      px(125, 31, 2, 74, "#20263a");
+      const h = Math.max(8, Math.round(74 * LIST_ROWS / order.length));
+      const top = 31 + Math.round((74 - h) * start / Math.max(1, order.length - LIST_ROWS));
+      px(125, top, 2, h, "#8a92ad");
+    }
+    const cur = GOODS[order[Math.max(0, Math.min(sel, order.length - 1))]];
+    marquee(cur.name + " · " + itemEffect(cur), 8, 108, 112, "#cfd4e8", 8, 0.45);
   }
-  // 滚动条
-  if (order.length > LIST_ROWS) {
-    px(125, 19, 2, 80, "#20263a");
-    const h = Math.max(8, Math.round(80 * LIST_ROWS / order.length));
-    const top = 19 + Math.round((80 - h) * start / Math.max(1, order.length - LIST_ROWS));
-    px(125, top, 2, h, "#8a92ad");
-  }
-  px(4, 99, 120, 1, "#2e3345");
-  const cur = GOODS[order[Math.max(0, Math.min(sel, order.length - 1))]];
-  marquee(cur.name + " · " + itemEffect(cur), 8, 103, 112, "#cfd4e8", 8, 0.45);
-  textC("▲▼ 选择 · A 查看 · B 返回", 64, 116, "#8a92ad", 8);
+  textC(catMode ? "▲▼ 换分类 · A/B 返回列表" : "▲▼ 选择 · A 查看 · ▲顶格进分类", 64, 119, "#8a92ad", 7);
 }
 
 /* --- 物品详情页（一页一件，大图 + 短标签，▲▼ 连续翻页） --- */
 function renderItem() {
-  const order = itemFrom === "shop" ? SHOP_ORDER : BAG_ORDER;
+  const order = filteredOrder(itemFrom);
   const sel = itemFrom === "shop" ? shopSel : bagSel;
   const gid = order[Math.max(0, Math.min(sel, order.length - 1))];
   const g = GOODS[gid];
   if (!g) { page = itemFrom; return; }
   px(0, 0, W, H, "#141824");
-  textC(g.name, 56, 4, "#d8c68a", 11);
+  textC(g.name, 56, 4, itemColor(g) || "#d8c68a", 11);
   textR((sel + 1) + "/" + order.length, 124, 7, "#8a92ad", 8);
+  // 装备品级角标（名称下方）
+  if (g.type === "equip" && g.tier && EQ_TIERS[g.tier]) textC("品级：" + EQ_TIERS[g.tier].name, 64, 14, EQ_TIERS[g.tier].c, 7);
   // 大图台座 56×56
-  const bx = 36, by = 19, bs = 56;
+  const bx = 36, by = 22, bs = 56;
   px(bx - 3, by - 3, bs + 6, bs + 6, "#20263a");
   px(bx - 3, by - 3, bs + 6, 1, "#39415e");
   px(bx + 14, by + bs - 1, 28, 3, "#161b28");
   itemIcon(gid, bx + 3, by + 3, 3.5);          // 16 × 3.5 = 56
-  textC(itemEffect(g), 64, 80, "#e8ddb8", 9);
+  textC(itemEffect(g), 64, 82, "#e8ddb8", 9);
   let sub;
   if (itemFrom === "shop") sub = "售价 " + g.price + " 金 · 持有 " + (g.type === "deco" ? (S.decos[gid] ? "已布置" : "无") : (S.bag[gid] || 0));
   else if (g.type === "equip") {
-    sub = "槽位：" + SLOT_NAMES[g.slot] + (hasEq(gid) ? " · 已装备" : " · 未装备");
+    const tn = g.tier && EQ_TIERS[g.tier] ? "品级：" + EQ_TIERS[g.tier].name + " · " : "";
+    sub = tn + "槽位：" + SLOT_NAMES[g.slot] + (hasEq(gid) ? " · 已装备" : " · 未装备");
   } else if (g.type === "deco") {
     sub = S.decos[gid] ? "已布置 · 效果生效中" : "尚未拥有";
   } else {
     sub = "持有 " + (S.bag[gid] || 0) + " 件";
     if (g.type === "food") sub += " · 冷却 " + g.cd + "s";
+    else if (g.type === "xj") sub += " · 本赛季玄晶";
     else if (g.sell) sub += " · 卖价 " + g.sell;
   }
-  textC(sub, 64, 92, "#8a92ad", 8);
-  px(4, 103, 120, 1, "#2e3345");
-  marquee(g.desc || "", 8, 106, 112, "#79839a", 8, 0.4);
+  textC(sub, 64, 94, "#8a92ad", 8);
+  px(4, 104, 120, 1, "#2e3345");
+  marquee(g.desc || "", 8, 107, 112, "#79839a", 8, 0.4);
   const canBuy = itemFrom !== "shop" || S.coins >= g.price;
   textC(itemAction(g, itemFrom), 64, 118, canBuy ? "#f5e9b8" : "#e8a08a", 8);
 }
@@ -1649,28 +1735,6 @@ function renderSettings() {
     }
     return;
   }
-  /* ---- 区服设置（当前仅记录，日历接口按全服返回） ---- */
-  if (setPage === "server") {
-    textC("— 区服设置 —", 64, 5, "#d8c68a", 10);
-    const cur = S.server || DEFAULT_SERVER;
-    const visible = 6;
-    const start = Math.max(0, Math.min(srvIdx - 3, SERVERS.length - visible));
-    SERVERS.slice(start, start + visible).forEach((s, i) => {
-      const idx = start + i, y = 21 + i * 14;
-      const on = idx === srvIdx;
-      if (on) selFrame(6, y - 2, 116, 13);
-      if (s === cur) text("●", 8, y, "#e8c860", 8);
-      text((on ? "▶" : " ") + s, 17, y, on ? "#f5e9b8" : "#cfd4e8", 9);
-    });
-    if (SERVERS.length > visible) {
-      px(125, 21, 2, 84, "#20263a");
-      const h = Math.max(8, Math.round(84 * visible / SERVERS.length));
-      const top = 21 + Math.round((84 - h) * start / Math.max(1, SERVERS.length - visible));
-      px(125, top, 2, h, "#8a92ad");
-    }
-    textC("A 设为当前 · B 返回", 64, 112, "#8a92ad", 8);
-    return;
-  }
   /* ---- 关于本机 ---- */
   if (setPage === "about") {
     textC("— 关于本机 —", 64, 6, "#d8c68a", 10);
@@ -1685,7 +1749,6 @@ function renderSettings() {
       "存档大小：" + saveKB + " KB",
       "WiFi：" + (wifiState.phase === "ok" ? "已连 " + wifiState.ssid : "未连接"),
       "热点：" + (apOn ? "已开启" : "关闭"),
-      "区服：" + (S.server || DEFAULT_SERVER),
     ];
     lines.forEach((l, i) => text(l, 10, 20 + i * 12, "#cfd4e8", 8));
     textC("B 返回", 64, 116, "#8a92ad", 8);
@@ -1777,25 +1840,31 @@ function renderStatus() {
 function moveSel(d) {
   // 按当前页面分发：背包/商城列表用各自索引，详情页连续翻物品，设置页按层级分发
   if (page === "item") {
-    const order = itemFrom === "shop" ? SHOP_ORDER : BAG_ORDER;
+    const order = filteredOrder(itemFrom);
     const i = ((itemFrom === "shop" ? shopSel : bagSel) + d + order.length) % order.length;
     if (itemFrom === "shop") shopSel = i; else bagSel = i;
     beep(620, .03, "square", .06); return;
   }
   if (page === "bag" || page === "shop") {
-    const order = page === "shop" ? SHOP_ORDER : BAG_ORDER;
-    if (page === "shop") shopSel = (shopSel + d + order.length) % order.length;
-    else bagSel = (bagSel + d + order.length) % order.length;
+    const isShop = page === "shop";
+    const order = filteredOrder(page);
+    let sel = isShop ? shopSel : bagSel;
+    if (catMode) {   // 分类标签行：▲▼ 换分类，▼ 也可退出回列表
+      const idx = Math.max(0, CATS.findIndex(c => c.id === (isShop ? shopCat : bagCat)));
+      const n = ((idx + d) % CATS.length + CATS.length) % CATS.length;
+      if (isShop) { shopCat = CATS[n].id; shopSel = 0; } else { bagCat = CATS[n].id; bagSel = 0; }
+      beep(700, .03, "square", .06);
+      return;
+    }
+    if (d === -1 && sel === 0) { catMode = true; beep(520, .04, "square", .06); return; }   // 顶格上抬 → 进分类行
+    sel = (sel + d + order.length) % order.length;
+    if (isShop) shopSel = sel; else bagSel = sel;
     beep(600, .03, "square", .06); return;
   }
   if (page === "settings") {
     if (!setPage) { setIdx = (setIdx + d + SET_MENU.length * 10) % SET_MENU.length; beep(600, .03, "square", .06); }
     else if (setPage === "wifi" && wifiState.phase === "list") {
       wifiState.sel = Math.max(0, Math.min(wifiState.list.length - 1, wifiState.sel + d));
-      beep(600, .03, "square", .06);
-    }
-    else if (setPage === "server") {
-      srvIdx = Math.max(0, Math.min(SERVERS.length - 1, srvIdx + d));
       beep(600, .03, "square", .06);
     }
     return;
@@ -1851,9 +1920,11 @@ function confirmA() {
     const id = MENU[menuIdx % MENU.length].id;
     doAct(id);
   } else if (page === "bag" || page === "shop") {
-    itemFrom = page; page = "item"; sfx.ok();          // 列表 → 详情
+    if (catMode) { catMode = false; sfx.ok(); return; }          // 分类行 A = 确认回列表
+    itemFrom = page; catMode = false; page = "item"; sfx.ok();   // 列表 → 详情
   } else if (page === "item") {
-    const gid = itemFrom === "shop" ? SHOP_ORDER[shopSel] : BAG_ORDER[bagSel];
+    const order = filteredOrder(itemFrom);
+    const gid = order[Math.max(0, Math.min(itemFrom === "shop" ? shopSel : bagSel, order.length - 1))];
     const g = GOODS[gid];
     if (!g) return;
     if (itemFrom === "shop") {
@@ -1877,7 +1948,6 @@ function confirmA() {
     if (!setPage) {
       setPage = SET_MENU[setIdx].id; sfx.ok();
       if (setPage === "wifi" && wifiState.phase === "idle" && !wifiState.ssid) wifiScan();
-      if (setPage === "server") srvIdx = Math.max(0, SERVERS.indexOf(S.server || DEFAULT_SERVER));
     } else if (setPage === "ota") {
       if (otaState.phase === "idle" || otaState.phase === "fail") otaCheck();
       else if (otaState.phase === "found") otaUpgrade();
@@ -1889,13 +1959,6 @@ function confirmA() {
     } else if (setPage === "ap") {
       apOn = !apOn;
       toastMsg(apOn ? "热点已开启：JX3-Tama-9027" : "热点已关闭", apOn ? sfx.ok : null);
-    } else if (setPage === "server") {
-      S.server = SERVERS[srvIdx];
-      // 切服后清掉日常缓存，下次进日常页强制重拉
-      localStorage.removeItem("jx3daily");
-      dailyData = null; dailyErr = null; dailyStaleCache = null; dailyStale = false;
-      toastMsg("区服已设为「" + S.server + "」", sfx.ok);
-      save();
     }
   } else if (page === "game") {
     const st = gameSt;
@@ -1960,8 +2023,12 @@ function pressB() {
     else if (st.phase !== "roll") { page = "main"; beep(440, .05); }      // 摇骰中不许退出
     return;
   }
-  if (page === "item") { page = itemFrom; beep(440, .05); return; }   // 详情 → 列表
-  if (page === "bag" || page === "shop" || page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
+  if (page === "item") { page = itemFrom; catMode = false; beep(440, .05); return; }   // 详情 → 列表
+  if (page === "bag" || page === "shop") {
+    if (catMode) { catMode = false; beep(440, .05); return; }   // 分类行 → 列表
+    page = "main"; beep(440, .05);
+  }
+  else if (page === "status" || page === "home" || page === "daily") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
 
