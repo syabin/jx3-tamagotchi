@@ -701,7 +701,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "7.8";
+const APP_VERSION = "7.9";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -1292,17 +1292,15 @@ function renderMain() {
   stLine("心 " + Math.round(S.mood), 41, S.mood < 25 ? "#e86a5a" : "#cfd4e8");
   stLine("修 " + S.exp, 50, "#cfd4e8");
   stLine("金 " + S.coins, 59, "#e8c860");
-  // ===== 提示文字长条（toast 优先；平时常驻显示当前选中模块名+说明，v7.8 起接管图标下文字）=====
+  // ===== 提示文字长条（v7.9：非常驻——toast 优先，其次切换选中后 2 秒短暂显示，平时空白）=====
   const hintOn = toast && Date.now() < toast.until;
+  const selOn = !hintOn && selHint && Date.now() < selHint.until;
   px(4, 86, 120, 12, "#161a28");
-  px(4, 86, 120, 1, hintOn ? "#d8c68a" : "#2e3345");
-  px(4, 97, 120, 1, hintOn ? "#d8c68a" : "#2e3345");
+  px(4, 86, 120, 1, (hintOn || selOn) ? "#d8c68a" : "#2e3345");
+  px(4, 97, 120, 1, (hintOn || selOn) ? "#d8c68a" : "#2e3345");
   if (hintOn) marquee(toast.text, 8, 89, 112, "#f5ecd0", 9, 0.7);
-  else {
-    const m = MENU[sel];
-    const info = (selHint && Date.now() < selHint.until) ? selHint.text : (m.label + " · " + m.desc);
-    marquee(info, 8, 89, 112, "#7a829c", 8, 0.5);
-  }
+  else if (selOn) marquee(selHint.text, 8, 89, 112, "#7a829c", 8, 0.5);
+  // 平时：长条留空，不显示任何文字（贴近正版拓麻歌子：图标即状态，文字只在需要时出现）
   // ===== 底部 4 个功能模块（木桩/挖宝/小游戏/家园）+ 右下角设置（无文字） =====
   const botCx = [14, 38, 62, 86];
   botCx.forEach((cx, i) => {
@@ -1895,7 +1893,7 @@ function moveSel(d) {
   if (page !== "main") return;
   menuIdx = (menuIdx + d + MENU.length * 10) % MENU.length;
   const m = MENU[menuIdx % MENU.length];
-  selHint = { text: m.label + " · " + m.desc, until: Date.now() + 1600 };   // 切换时短暂提示，非常驻
+  selHint = { text: m.label + " · " + m.desc, until: Date.now() + 2000 };   // 切换后显示 2 秒再消失（v7.9）
   beep(600, .03, "square", .06);
 }
 /* ---- 菜单自动收起（已弃用：多画面布局下图标常驻）---- */
