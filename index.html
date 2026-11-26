@@ -140,7 +140,7 @@
   <div>⚠️ <b>狼牙袭击</b>会丢下狼藉（心情翻倍下滑），<b>中毒</b>不治会转为<b>重伤</b>。注意：<b>中毒/重伤不再封锁行动</b>，只是收益分别打 8 折 / 6 折，仍然能干活攒钱买玉露丸。</div>
   <div>🛒 吃东西要花金币：进<b>商城</b>买食材药品入行囊，再从<b>背包</b>使用——正版拓麻歌子的层级界面。</div>
   <div>✨ 偶尔触发<b>奇遇</b>，白捡修为。修为攒够就晋见称号。</div>
-  <div>🕹️ <b>▲▼</b> 选单 · <b>A</b> 确认 · <b>B</b> 返回（主页 B 看手札，<b>长按 B 半秒</b>随时开系统设置；键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选）</div>
+  <div>🕹️ <b>▲▼</b> 选单 · <b>A</b> 确认 · <b>B</b> 返回（主页 B 看手札，<b>长按 B 1.5 秒</b>随时开系统设置；键盘 ←→/回车/Esc 同效，滚轮和屏幕滑动也能选）</div>
   <div class="row">
     时间流速
     <select id="speed">
@@ -541,7 +541,7 @@ function toastMsg(text, sfxFn) { toast = { text, until: Date.now() + 2800 }; if 
 /* ================= 行为 =================
    主界面布局（v7.4 按草图重排，v7.8 精简，v8.2 去设置按钮）：
    上排 4 个功能模块 + 下排 4 个功能模块，图标下不带文字；设置不占图标位，
-   改为「长按 B 500ms」全局呼出（真机只有 4 键，不留专门设置键）；
+   改为「长按 B 1.5 秒」全局呼出（真机只有 4 键，不留专门设置键）；
    场景区加高（y19~82），左侧常驻「人物状态」面板（按 B 进侠士手札），中间人物，背景铺满场景；
    当前选中模块的名称/说明常驻显示在提示长条（toast 优先覆盖）。
    「打扫」并入家园页（家园有狼藉时 ▲▼ 切到打扫再按 A）。 */
@@ -708,7 +708,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "8.2";
+const APP_VERSION = "8.3";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -2023,8 +2023,9 @@ function confirmA() {
   }
 }
 /* v8.0：随时打开系统设置——真机只有 4 键，没有独立设置键，
-   约定「长按 B（返回键）500ms」全局呼出设置，短按 B 仍是返回。
+   约定「长按 B（返回键）1.5 秒」全局呼出设置，短按 B 仍是返回（v8.3：500ms→1500ms，防误触）。
    记录来源页，B 返回时回到原页面（游戏摇骰/背包分类行等状态都不丢）。 */
+const B_HOLD_MS = 1500;                                 // v8.3：长按阈值 1.5 秒
 let bHoldTimer = 0, bHoldFired = false;
 function openSettings() {
   if (page === "settings") return;                     // 已在设置页不重复进入
@@ -2035,7 +2036,7 @@ function openSettings() {
 function bHoldStart() {
   bHoldFired = false;
   clearTimeout(bHoldTimer);
-  bHoldTimer = setTimeout(() => { bHoldFired = true; openSettings(); }, 500);
+  bHoldTimer = setTimeout(() => { bHoldFired = true; openSettings(); }, B_HOLD_MS);
 }
 function bHoldCancel() {
   clearTimeout(bHoldTimer); bHoldTimer = 0;
@@ -2080,12 +2081,16 @@ function bindHold(el, d) {
 bindHold(document.getElementById("btnUp"), -1);
 bindHold(document.getElementById("btnDown"), 1);
 document.getElementById("btnA").onclick = confirmA;
-/* 实体 B 键：短按返回，长按 500ms 呼出设置（与键盘 B/Esc 同一约定） */
+/* 实体 B 键：短按返回，长按 1.5 秒呼出设置（与键盘 B/Esc 同一约定）
+   v8.3 修复：pointerup 才是「一次点击」的唯一出口；pointerleave/pointercancel
+   只取消长按计时，绝不再调用 pressB —— 否则按一次会触发两次返回
+   （主页 B 进手札后立即被 pointerleave 又退回、手札 B 退出又被拉回）。 */
 (function bindBHold() {
   const el = document.getElementById("btnB");
   el.addEventListener("pointerdown", e => { e.preventDefault(); bHoldStart(); });
-  ["pointerup", "pointerleave", "pointercancel"].forEach(ev => el.addEventListener(ev, () => {
-    if (!bHoldCancel()) pressB();                      // 长按已触发时不重复返回
+  el.addEventListener("pointerup", () => { if (!bHoldCancel()) pressB(); });   // 唯一触发点
+  ["pointerleave", "pointercancel"].forEach(ev => el.addEventListener(ev, () => {
+    clearTimeout(bHoldTimer); bHoldTimer = 0;          // 仅取消长按，不返回
   }));
 })();
 // 真实尺寸切换（1 canvas 像素 = 1 CSS 像素，即真机 1.44 寸屏的显示密度）
@@ -2124,7 +2129,7 @@ window.addEventListener("keydown", e => {
 window.addEventListener("keyup", e => {
   if (e.key === "Escape" || e.key === "b" || e.key === "B") {
     e.preventDefault();
-    if (!bHoldCancel()) pressB();                      // 短按 = 返回；长按 500ms = 设置
+    if (!bHoldCancel()) pressB();                      // 短按 = 返回；长按 1.5 秒 = 设置
   }
 });
 
