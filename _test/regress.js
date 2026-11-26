@@ -53,6 +53,17 @@ assert(g("page") === "sect", "A 键进入门派选择");
 g("confirmA()");
 assert(g("page") === "main", "选门派后进入主界面");
 
+/* ---- v8.0 随时呼出设置（长按 B）---- */
+g("page = 'bag'; bagSel = 3; catMode = true; openSettings();");
+assert(g("page") === "settings" && g("settingsFrom") === "bag", "任意页可呼出设置并记录来源");
+g("setPage = 'about'; pressB();");
+assert(g("page") === "settings" && g("setPage") === null, "设置子页 B 回设置菜单");
+g("pressB();");
+assert(g("page") === "bag" && g("bagSel") === 3 && g("catMode") === true, "设置 B 返回原页且状态不丢");
+g("page = 'game'; gameSt = { phase: 'roll' }; openSettings(); pressB();");
+assert(g("page") === "game" && g("gameSt.phase") === "roll", "摇骰中呼出设置再返回不丢状态");
+g("page = 'main'; gameSt = null;");   // 恢复：直接回主界面，避免 confirmA 误入其它页
+
 /* ---- v7.4 新菜单布局 ---- */
 assert(g("MENU.length") === 10, "菜单共 10 项（8 模块 + 设置 + 状态）");
 assert(g("MENU.map(m=>m.id).join(',')") === "daily,bag,shop,sit,train,dig,game,home,settings,status",
