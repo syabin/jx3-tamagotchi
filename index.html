@@ -708,7 +708,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "8.7";
+const APP_VERSION = "0.1.87";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -1122,7 +1122,7 @@ function buildDailyRows() {
   }
   return rows.length ? rows : null;
 }
-/* 日常数据来源（v7.3 双通道，v8.7 目录重组后路径改为 web端设计/data/daily.json，按顺序尝试）：
+/* 日常数据来源（v7.3 双通道，v0.1.87 目录重组后路径改为 web端设计/data/daily.json，按顺序尝试）：
    1) 同源 web端设计/data/daily.json —— GitHub Actions 每小时预取（见 .github/workflows/fetch-daily.yml），
       网页端（GitHub Pages / 本地静态服务）走这条：同源请求零跨域、零代理，走的客户端自己的网络；
    2) 直连 jx3api —— 主机端（ESP32 固件）没有浏览器跨域限制，json 不存在时自然落到这条。
