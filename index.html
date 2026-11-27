@@ -169,10 +169,10 @@ const ctx = cv.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
 const SECTS = {
-  cy: { name: "纯阳", robe: "#4a8db8", trim: "#e8eef5", accent: "#bfe3ff" },
-  tc: { name: "天策", robe: "#a53a3a", trim: "#e8c860", accent: "#ffb0a0" },
-  qx: { name: "七秀", robe: "#d16a9a", trim: "#f5e5f2", accent: "#ffc0e0" },
-  sl: { name: "少林", robe: "#a08040", trim: "#e8d8b0", accent: "#e8c890" },
+  cy: { name: "纯阳", robe: "#4a8db8", trim: "#e8eef5", accent: "#bfe3ff", dark: "#3a6f94" },
+  tc: { name: "天策", robe: "#a53a3a", trim: "#e8c860", accent: "#ffb0a0", dark: "#7e2b2b" },
+  qx: { name: "七秀", robe: "#d16a9a", trim: "#f5e5f2", accent: "#ffc0e0", dark: "#a94f7c" },
+  sl: { name: "少林", robe: "#a08040", trim: "#e8d8b0", accent: "#e8c890", dark: "#7e6630" },
 };
 const TITLES = [
   { exp: 0,   t: "初入江湖" },
@@ -701,7 +701,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "0.2.0";
+const APP_VERSION = "0.2.1";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -842,66 +842,91 @@ function drawPet(pose, pox = 52, poy = 32, s = 2) {
   const P = (x, y, w, h, c) => px(ox + x * s, oy + y * s, w * s, h * s, c);
 
   const OL = "#2b2b3a", HA = "#e6e7f2", HS = "#c2c5da", HL = "#ffffff";
-  const SK = "#fce3d3", BL = "#f2a3ad";
+  const SK = "#fce3d3", SK2 = "#eec9b4", BL = "#f2a3ad";
   const E1 = "#24378f", E2 = "#4366cf", WH = "#ffffff";
   const BOW = "#7b8ad4", BOW2 = "#6675bf", GOLD = "#e8c860";
 
-  /* 画头：mood = star | happy | closed | hurt | sick | sleep */
+  /* 画头：mood = star | happy | closed | hurt | sick | sleep | eat
+     13×12 头部（含呆毛/下巴），发丝双高光带 + 碎发齿 + 两侧长发阴影 */
   function head(hx, hy, mood) {
     const Q = (x, y, w, h, c) => P(hx + x, hy + y, w, h, c);
-    // 呆毛
+    const sway = Math.floor(frame / 40) % 2;
+    // 呆毛（描边 + 尖端随风轻摆）
     Q(6, -2, 1, 2, OL); Q(6, -2, 1, 1, HA);
     Q(7, -2, 2, 1, OL); Q(7, -2, 1, 1, HA);
-    // 头发外轮廓 + 主体
+    if (sway) { Q(8, -3, 1, 1, OL); Q(8, -3, 1, 1, HA); }
+    // 头发外轮廓 + 发体（下巴圆角：底描边只在两角）
     Q(1, 0, 11, 1, OL); Q(0, 1, 13, 7, OL); Q(1, 8, 11, 1, OL);
     Q(1, 1, 11, 6, HA); Q(2, 7, 9, 1, HA);
-    Q(0, 2, 1, 5, HS); Q(12, 2, 1, 5, HS);       // 两侧阴影
-    // 脸
-    Q(2, 3, 9, 4, SK); Q(3, 7, 7, 1, SK);
-    // 刘海（斜分）+ 发丝高光
-    Q(2, 2, 9, 2, HA); Q(3, 4, 1, 2, HA); Q(6, 4, 1, 1, HA); Q(10, 3, 1, 2, HA);
-    Q(3, 2, 3, 1, HL);
-    // 蓝紫蝴蝶结 + 金扣（角色左耳侧）
+    Q(0, 2, 1, 6, HS); Q(12, 2, 1, 6, HS);           // 两侧长发阴影
+    // 发丝高光（弧形双带）
+    Q(2, 1, 5, 1, HL); Q(8, 1, 3, 1, HL); Q(3, 2, 3, 1, HL);
+    // 脸（5 行，含下颌行）
+    Q(2, 3, 9, 5, SK);
+    Q(2, 3, 1, 1, SK2); Q(10, 3, 1, 1, SK2);         // 脸缘微影
+    // 刘海碎齿（斜分，压在发际线上）
+    Q(2, 2, 9, 1, HA);
+    Q(3, 3, 1, 1, HA); Q(6, 3, 1, 1, HA); Q(9, 3, 1, 1, HA); Q(10, 4, 1, 1, HA);
+    // 蓝紫蝴蝶结 + 金扣 + 飘带（角色左耳侧）
     Q(0, 4, 2, 1, BOW); Q(-1, 5, 3, 2, BOW); Q(0, 7, 2, 1, BOW2);
-    Q(0, 5, 1, 1, GOLD);
+    Q(1, 4, 1, 1, "#a3b0e8"); Q(0, 5, 1, 1, GOLD); Q(-1, 7, 1, 2, BOW2);
     // 眼睛
-    if (mood === "closed" || mood === "sleep" || mood === "happy") {
+    if (mood === "closed" || mood === "sleep") {
       Q(3, 5, 3, 1, OL); Q(8, 5, 3, 1, OL);
-      if (mood === "happy") { Q(4, 4, 1, 1, OL); Q(9, 4, 1, 1, OL); }
+      Q(3, 4, 1, 1, OL); Q(5, 4, 1, 1, OL);           // 上挑眼角
+      Q(8, 4, 1, 1, OL); Q(10, 4, 1, 1, OL);
+    } else if (mood === "happy") {
+      Q(3, 5, 1, 1, OL); Q(4, 4, 1, 1, OL); Q(5, 5, 1, 1, OL);
+      Q(8, 5, 1, 1, OL); Q(9, 4, 1, 1, OL); Q(10, 5, 1, 1, OL);
     } else if (mood === "hurt" || mood === "sick") {
       Q(3, 4, 3, 2, E1); Q(8, 4, 3, 2, E1);
       Q(3, 4, 3, 1, mood === "sick" ? "#6a8a4a" : E2);
       Q(8, 4, 3, 1, mood === "sick" ? "#6a8a4a" : E2);
       Q(4, 5, 1, 1, WH); Q(9, 5, 1, 1, WH);
     } else {
-      Q(3, 4, 3, 2, E1); Q(8, 4, 3, 2, E1);
-      Q(3, 4, 2, 1, E2); Q(8, 4, 2, 1, E2);
-      Q(4, 4, 1, 2, WH); Q(9, 4, 1, 2, WH);      // 星星高光
-      Q(3, 6, 1, 1, "#bcd4ff"); Q(8, 6, 1, 1, "#bcd4ff");
+      // 星星眼：深蓝底 + 亮蓝上层 + 白色四芒星 + 下缘反光
+      Q(3, 4, 3, 3, E1); Q(8, 4, 3, 3, E1);
+      Q(3, 4, 3, 1, E2); Q(8, 4, 3, 1, E2);
+      Q(4, 4, 1, 1, WH); Q(4, 5, 1, 1, WH);
+      Q(9, 4, 1, 1, WH); Q(9, 5, 1, 1, WH);
+      Q(3, 6, 1, 1, "#9db8ff"); Q(5, 6, 1, 1, "#9db8ff");
+      Q(8, 6, 1, 1, "#9db8ff"); Q(10, 6, 1, 1, "#9db8ff");
     }
-    // 腮红
-    Q(2, 6, 1, 1, BL); Q(10, 6, 1, 1, BL);
+    // 腮红（双色纵点）
+    Q(2, 6, 1, 2, BL); Q(10, 6, 1, 2, BL);
+    Q(2, 7, 1, 1, "#f6c3cb"); Q(10, 7, 1, 1, "#f6c3cb");
     // 嘴
-    if (mood === "happy" || mood === "eat" || mood === "star") { Q(5, 6, 3, 1, "#8c3a48"); }
-    else if (mood === "hurt" || mood === "sick") { Q(6, 6, 1, 1, "#8c3a48"); }
-    else { Q(6, 6, 1, 1, "#c96b74"); }
+    if (mood === "happy") { Q(5, 7, 3, 1, "#8c3a48"); Q(6, 7, 1, 1, "#e88a94"); }
+    else if (mood === "eat") {
+      Q(5, 7, 3, 1, "#8c3a48");
+      if (Math.floor(frame / 8) % 2) Q(5, 8, 3, 1, "#8c3a48");
+    }
+    else if (mood === "hurt" || mood === "sick") { Q(6, 7, 1, 1, "#8c3a48"); }
+    else { Q(6, 7, 1, 1, "#c96b74"); }
   }
 
-  /* 身体：领口 + 衣身 + 衣扣 + 袖手 + 腰带 + 腿 */
+  /* 身体：交领右衽 + 广袖 + 腰带玉佩 + 腿靴（侧影收边，比旧版多一层衣料层次） */
   function body(by) {
-    P(4, by + 0, 6, 1, C.trim);                 // 领口
-    P(3, by + 1, 8, 5, C.robe);                 // 衣身
-    P(4, by + 1, 6, 1, C.trim);
-    P(6, by + 3, 1, 1, GOLD);                   // 衣扣
-    P(2, by + 1, 2, 3, C.robe); P(11, by + 1, 2, 3, C.robe);  // 袖
+    const DARK = C.dark || C.robe;
+    P(3, by, 8, 1, C.trim);                       // 肩线
+    P(6, by + 1, 2, 1, C.trim);                   // 交领口
+    P(5, by + 2, 1, 1, C.trim); P(8, by + 2, 1, 1, C.trim);   // V 领斜襟
+    P(3, by + 1, 8, 5, C.robe);                   // 衣身
+    P(3, by + 1, 1, 5, DARK); P(10, by + 1, 1, 5, DARK);      // 衣身侧影
+    P(6, by + 4, 1, 1, GOLD);                     // 衣扣
+    P(2, by + 1, 2, 3, C.robe); P(11, by + 1, 2, 3, C.robe);  // 广袖
+    P(2, by + 1, 2, 1, C.trim); P(11, by + 1, 2, 1, C.trim);  // 袖口沿
     P(2, by + 4, 1, 1, SK); P(12, by + 4, 1, 1, SK);          // 手
-    P(3, by + 5, 8, 1, C.trim);                 // 腰带
+    P(3, by + 5, 8, 1, C.trim);                   // 腰带
+    P(6, by + 6, 2, 1, GOLD);                     // 带扣
+    P(6, by + 7, 1, 2, C.accent);                 // 玉佩垂穗
     P(4, by + 6, 2, 2, "#3a3a52"); P(8, by + 6, 2, 2, "#3a3a52"); // 腿
+    P(4, by + 8, 2, 1, "#23232f"); P(8, by + 8, 2, 1, "#23232f"); // 靴
   }
 
-  if (pose === "sleep") {                       // 就寝：侧卧闭眼
-    head(1, 8, "sleep");
-    P(3, 15, 10, 2, C.robe); P(2, 16, 12, 1, C.trim);
+  if (pose === "sleep") {                       // 就寝：侧卧闭眼（贴地）
+    head(1, 6, "sleep");
+    P(3, 15, 10, 3, C.robe); P(2, 16, 12, 2, C.trim);
     return;
   }
   if (pose === "down") {                        // 重伤：佝偻痛苦
@@ -915,8 +940,8 @@ function drawPet(pose, pox = 52, poy = 32, s = 2) {
   }
   if (pose === "sick") {                        // 中毒：蜷坐绿眼圈
     head(2, 3, "sick");
-    P(3, 12, 8, 4, C.robe); P(4, 12, 6, 1, C.trim);
-    P(3, 16, 9, 1, "#3a3a52");
+    P(3, 12, 8, 5, C.robe); P(4, 12, 6, 1, C.trim);
+    P(3, 17, 9, 1, "#3a3a52");
     const a = frame / 10;
     for (let i = 0; i < 3; i++) {
       const sx = 7 + Math.cos(a + i * 2.1) * 4;
@@ -925,15 +950,15 @@ function drawPet(pose, pox = 52, poy = 32, s = 2) {
     }
     return;
   }
-  if (pose === "sit") {                         // 打坐：闭眼 + 气环
-    head(2, 4, "closed");
-    P(2, 13, 10, 2, C.robe); P(4, 12, 6, 2, C.robe);
-    P(4, 12, 6, 1, C.trim);
-    P(2, 13, 1, 2, C.trim); P(12, 13, 1, 2, C.trim);
+  if (pose === "sit") {                         // 打坐：闭眼 + 气环（贴地盘坐）
+    head(2, 6, "closed");
+    P(2, 15, 10, 3, C.robe); P(4, 14, 6, 2, C.robe);
+    P(4, 14, 6, 1, C.trim);
+    P(2, 15, 1, 3, C.trim); P(12, 15, 1, 3, C.trim);
     const r = 3 + Math.sin(frame / 15) * 1.5;
     ctx.strokeStyle = C.accent; ctx.globalAlpha = .8;
     ctx.beginPath();
-    ctx.ellipse(ox + 7 * s, oy + (1 - r) * s, r * s, r * s * .4, 0, 0, Math.PI * 2);
+    ctx.ellipse(ox + 7 * s, oy + (3 - r) * s, r * s, r * s * .4, 0, 0, Math.PI * 2);
     ctx.stroke(); ctx.globalAlpha = 1;
     return;
   }
@@ -1273,35 +1298,129 @@ function renderMain() {
   /* ===== 中央大场景（v0.2.0 扩到 y18~98）：远山/云/昼夜 + 人物放大 ===== */
   const sx = 4, sy = 18, sw = 120, sh = 80, groundY = sy + sh - 9;
   const sleeping = hour >= 22 || hour < 6;          // 昼夜作息（与 applyTime 同一判定）
-  px(sx - 2, sy - 2, sw + 4, sh + 4, "#20263a");                 // 视窗外框
-  for (let i = 0; i < 48; i++)                                    // 边框点纹
-    px(sx - 2 + (i * 7) % (sw + 4), sy - 2 + Math.floor((i * 7) / (sw + 4)) * 2, 1, 1, "#39415e");
-  px(sx, sy, sw, sh, day ? "#2a3a5e" : "#0d0f18");               // 天空
-  px(sx, sy + 14, sw, day ? 22 : 18, day ? "#31436c" : "#11131f"); // 天空下层
-  const mtn = day ? "#1f2c48" : "#0a0c14";                        // 远山剪影
-  px(sx + 4, 62, 34, 12, mtn); px(sx + 12, 54, 18, 20, mtn);
-  px(sx + 62, 64, 36, 10, mtn); px(sx + 72, 56, 18, 18, mtn);
+  /* --- 视窗外框（双线 + 四角铆钉） --- */
+  px(sx - 2, sy - 2, sw + 4, sh + 4, "#20263a");
+  px(sx - 1, sy - 1, sw + 2, sh + 2, "#39415e");
+  [[sx - 1, sy - 1], [sx + sw, sy - 1], [sx - 1, sy + sh], [sx + sw, sy + sh]]
+    .forEach(([cx2, cy2]) => px(cx2, cy2, 1, 1, "#5a6488"));
+  /* --- 天空：三段分层 + 像素抖动过渡 --- */
+  const sky0 = day ? "#25345a" : "#0a0c15", sky1 = day ? "#2a3a5e" : "#0d0f18",
+        sky2 = day ? "#31436c" : "#11131f";
+  px(sx, sy, sw, 12, sky0);
+  px(sx, sy + 12, sw, 14, sky1);
+  px(sx, sy + 26, sw, 10, sky2);
+  for (let i = 0; i < 30; i++) px(sx + (i * 9) % sw, sy + 12 + (i % 2), 1, 1, sky0);
+  for (let i = 0; i < 26; i++) px(sx + (i * 11 + 5) % sw, sy + 26 + (i % 2), 1, 1, sky1);
+  /* --- 云（多峰 + 顶高光 + 底阴影，三朵慢速漂移） --- */
+  const cloud = (cx2, cy2, big) => {
+    const w = big ? 20 : 14;
+    const cT = day ? "#5a6a92" : "#1e2438", cM = day ? "#4a5a80" : "#181d30", cB = day ? "#3e4d70" : "#131728";
+    px(cx2, cy2 + 2, w, 3, cM);
+    px(cx2 + 2, cy2, 6, 3, cM); px(cx2 + 8, cy2 + 1, 5, 2, cM);
+    px(cx2 + 3, cy2, 4, 1, cT); px(cx2 + 9, cy2 + 1, 3, 1, cT);
+    px(cx2, cy2 + 5, w - 2, 1, cB);
+  };
+  cloud(sx + 12 + (frame * 0.15) % (sw - 34), 26, 1);
+  cloud(sx + 6 + (frame * 0.09) % (sw - 24), 38, 0);
+  cloud(sx + 30 + (frame * 0.06) % (sw - 44), 33, 0);
   if (!day) {
-    const st = [[20, 24], [44, 22], [74, 24], [92, 30], [32, 30], [58, 34], [88, 22], [34, 40]];
-    st.forEach(([x, y], i) => { if ((frame + i * 13) % 90 < 70) px(x, y, 1, 1, "#cfd8ea"); });
-    px(102, 24, 8, 8, "#d8d8e8"); px(104, 26, 4, 4, "#0d0f18");   // 弯月
+    /* --- 星空：亮星十字闪烁 + 偶发流星 --- */
+    const st = [[18, 24], [30, 22], [44, 25], [58, 21], [70, 24], [84, 22], [94, 27], [26, 32], [50, 30], [78, 33], [100, 25], [38, 38], [64, 40], [88, 42], [108, 32]];
+    st.forEach(([x, y], i) => {
+      const tw = (frame + i * 17) % 120;
+      if (tw < 80) px(x, y, 1, 1, "#cfd8ea");
+      if (tw < 20) { px(x - 1, y, 1, 1, "#8a94b8"); px(x + 1, y, 1, 1, "#8a94b8"); px(x, y - 1, 1, 1, "#8a94b8"); px(x, y + 1, 1, 1, "#8a94b8"); }
+    });
+    if (frame % 400 > 380) {                          // 流星划过
+      const mp = frame % 400 - 380;
+      px(96 + mp, 22 + Math.floor(mp / 2), 1, 1, "#e8f0ff");
+      px(97 + mp, 21 + Math.floor(mp / 2), 1, 1, "#8a94b8");
+    }
+    /* --- 弯月 + 月晕 + 陨坑 --- */
+    px(100, 22, 12, 12, "#2a3350");
+    px(102, 24, 8, 8, "#d8d8e8"); px(104, 26, 4, 4, "#0d0f18");
+    px(103, 25, 2, 1, "#f0f0f8"); px(107, 30, 1, 1, "#b8b8cc");
   } else {
-    px(104, 22, 10, 10, "#f5e9b8"); px(106, 24, 5, 5, "#e8d890"); // 太阳
-    const c1 = sx + 20 + (frame * 0.15) % (sw - 40);              // 两朵慢云
-    px(c1, 26, 18, 4, "#4a5a80"); px(c1 + 4, 24, 10, 3, "#4a5a80");
-    const c2 = sx + 14 + (frame * 0.09) % (sw - 30);
-    px(c2, 38, 14, 3, "#3e4d70"); px(c2 + 3, 36, 8, 3, "#3e4d70");
+    /* --- 太阳 + 光晕 + 闪烁光芒 --- */
+    px(102, 22, 12, 12, "#4a5a84");
+    px(104, 24, 8, 8, "#f5e9b8"); px(106, 26, 4, 4, "#e8d890");
+    if (frame % 60 < 45) {
+      px(107, 20, 2, 2, "#f0e2a0"); px(107, 34, 2, 2, "#f0e2a0");
+      px(100, 27, 2, 2, "#f0e2a0"); px(114, 27, 2, 2, "#f0e2a0");
+    }
+    /* --- 飞鸟（扑翼"^"双鸟横穿天际） --- */
+    const bx = (frame * 0.35) % 170 - 25, by = 28 + Math.sin(frame / 24) * 3;
+    const wf = Math.floor(frame / 8) % 2;
+    px(Math.round(bx), Math.round(by), 1, 1, "#1c2438");
+    px(Math.round(bx) + 2, Math.round(by), 1, 1, "#1c2438");
+    px(Math.round(bx) + 1, Math.round(by) - wf, 1, 1, "#1c2438");
+    px(Math.round(bx + 14), Math.round(by + 4), 1, 1, "#1c2438");
+    px(Math.round(bx + 16), Math.round(by + 4), 1, 1, "#1c2438");
+    px(Math.round(bx + 15), Math.round(by + 4) - wf, 1, 1, "#1c2438");
   }
-  px(sx, groundY, sw, 4, "#2a3d2a");                              // 地面：草沿
-  px(sx, groundY + 4, sw, 5, "#3a2f22");                          // 泥土
-  for (let i = 0; i < 3; i++) px(sx + 96 + i * 8, groundY - 7, 2, 7, "#5a4632");  // 篱笆
-  px(sx + 94, groundY - 5, 26, 2, "#6a5438");
-  [[48, groundY - 3], [96, groundY - 2]].forEach(([gx2, gy2]) => { // 草丛点缀
-    px(gx2, gy2, 2, 3, "#3a5a34"); px(gx2 + 3, gy2 + 1, 2, 2, "#3a5a34");
+  /* --- 远山（雪顶 + 山脊抖动 + 宝塔剪影） --- */
+  const mtnF = day ? "#26365a" : "#0c0f1a", mtnN = day ? "#1f2c48" : "#0a0c14";
+  const snow = day ? "#cfd8ea" : "#3a4260";
+  px(sx + 38, 62, 14, groundY - 62, mtnF);            // 塔基小丘
+  px(sx + 2, 64, 38, groundY - 64, mtnF); px(sx + 10, 54, 20, groundY - 54, mtnF);
+  px(sx + 24, 60, 14, groundY - 60, mtnF);
+  px(sx + 58, 66, 62, groundY - 66, mtnF); px(sx + 68, 56, 18, groundY - 56, mtnF);
+  px(sx + 16, 54, 5, 2, snow); px(sx + 73, 56, 5, 2, snow);       // 雪顶
+  for (let i = 0; i < 10; i++) px(sx + 4 + i * 4, 64 + (i % 2), 2, 1, mtnN);  // 山脊抖动
+  // 山间古塔（五级飞檐剪影）
+  px(sx + 40, 60, 10, 2, mtnF); px(sx + 42, 58, 6, 2, mtnF);
+  px(sx + 43, 56, 4, 2, mtnF); px(sx + 44, 54, 2, 2, mtnF);
+  /* --- 近山（贴草沿的矮丘，压在远山前） --- */
+  px(sx - 2, 74, 34, groundY - 74, mtnN); px(sx + 6, 68, 16, groundY - 68, mtnN);
+  px(sx + 36, 78, 26, groundY - 78, mtnN); px(sx + 44, 72, 12, groundY - 72, mtnN);
+  px(sx + 62, 76, 46, groundY - 76, mtnN); px(sx + 72, 70, 16, groundY - 70, mtnN);
+  /* --- 地面：草沿三色 + 泥土碎石 --- */
+  px(sx, groundY, sw, 3, "#3a5a34");
+  px(sx, groundY + 3, sw, 1, "#2a3d2a");
+  px(sx, groundY + 4, sw, 5, "#3a2f22");
+  px(sx, groundY + 6, sw, 1, "#2e2418");
+  for (let i = 0; i < 14; i++)
+    px(sx + (i * 17 + 6) % sw, groundY + 5 + (i % 2), 2, 1, "#4a3c2a");   // 碎石
+  for (let i = 0; i < 26; i++) {                     // 摇曳草叶
+    const gx2 = sx + (i * 9 + 3) % sw;
+    const gw = Math.floor((frame + i * 7) / 30) % 2;
+    px(gx2, groundY - 1 - gw, 1, 1 + gw, i % 3 ? "#4a6e40" : "#5a7e4a");
+  }
+  /* --- 小花与石径 --- */
+  [[26, "#e86a6a"], [46, "#f5d858"], [90, "#e88ab8"], [110, "#e86a6a"]].forEach(([fx, fc]) => {
+    px(fx + 1, groundY - 3, 1, 3, "#3a5a34");
+    px(fx, groundY - 5, 3, 2, fc); px(fx + 1, groundY - 4, 1, 1, "#f5e9b8");
   });
-  drawHouse(14, groundY + 4);
+  [[24, groundY + 1], [32, groundY + 2], [42, groundY + 1]].forEach(([qx2, qy2]) => {
+    px(qx2, qy2, 4, 2, "#7a6a4c"); px(qx2, qy2, 4, 1, "#8a7a5a");   // 石径
+  });
+  /* --- 篱笆（柱头亮面 + 双横杆） --- */
+  for (let i = 0; i < 4; i++) {
+    const fx = sx + 94 + i * 8;
+    px(fx, groundY - 8, 2, 8, "#5a4632"); px(fx, groundY - 8, 2, 1, "#6e5838");
+  }
+  px(sx + 92, groundY - 6, 28, 1, "#6a5438"); px(sx + 92, groundY - 3, 28, 1, "#6a5438");
+  /* --- 草丛（受光面 + 浆果） --- */
+  [[48, groundY - 3], [88, groundY - 2]].forEach(([gx2, gy2]) => {
+    px(gx2, gy2, 5, 3, "#2e4a28"); px(gx2 + 1, gy2 - 1, 3, 1, "#2e4a28");
+    px(gx2 + 1, gy2, 1, 1, "#3f6a38"); px(gx2 + 3, gy2 + 1, 1, 1, "#c04858");
+  });
+  /* --- 左侧老树（树冠受光面 + 果点） --- */
+  px(9, 78, 3, groundY - 78, "#5a4632"); px(9, 78, 1, groundY - 78, "#6a5438");
+  px(4, 70, 13, 8, "#2e4a28"); px(6, 67, 9, 4, "#2e4a28"); px(3, 72, 15, 4, "#2e4a28");
+  px(6, 68, 4, 2, "#3f6a38"); px(11, 71, 3, 2, "#3f6a38");
+  px(5, 76, 2, 1, "#c04858"); px(12, 74, 2, 1, "#c04858");
+  /* --- 夜晚流萤（三只明灭游动） --- */
+  if (!day) {
+    for (let i = 0; i < 3; i++) {
+      const fx = sx + 24 + (Math.sin(frame / 40 + i * 2.1) * .5 + .5) * 72;
+      const fy = groundY - 16 + Math.sin(frame / 30 + i * 1.7) * 6;
+      if ((frame + i * 23) % 60 < 40) px(Math.round(fx), Math.round(fy), 1, 1, "#d8e88a");
+    }
+  }
+  drawHouse(14, groundY + 4, !day);
   drawMess();
-  drawPet(petPose(), 56, 38, 3);
+  drawPet(petPose(), 56, 36, 3);
   if (sleeping) {                                   // 就寝：头顶 ZZZ 漂浮
     if (frame % 240 < 180) drawEmoji("zzz");
   } else if (Date.now() < emojiUntil && emoji) drawEmoji(emoji);
@@ -1340,16 +1459,39 @@ function renderMain() {
   sparkles.forEach(sp => { const tw = (frame + sp.x) % 20 < 10; px(sp.x, sp.y, tw ? 3 : 1, tw ? 3 : 1, "#f5e9b8"); });
 }
 
-/* --- 家园小屋（随等级变大变漂亮，可指定落点） --- */
-function drawHouse(x0 = 8, y0 = 100) {
+/* --- 家园小屋（随等级变大变漂亮，可指定落点；night = 夜间点灯） --- */
+function drawHouse(x0 = 8, y0 = 100, night) {
   const lv = S.homeLv || 0;
   if (lv === 0) return; // 荒地，无房
   const w = 12 + lv * 5, h = 7 + lv * 3;
-  px(x0 + 1, y0 - h, w, h, lv >= 3 ? "#8a6a44" : "#6a5a3a");       // 墙
-  for (let i = 0; i < 3; i++)                                       // 屋顶
-    px(x0 - 2 + i, y0 - h - 3 + i, w + 4 - i * 2, 1, lv >= 4 ? "#d8c68a" : (lv >= 2 ? "#a04030" : "#4a3a26"));
-  px(x0 + Math.floor(w / 2) - 1, y0 - 5, 3, 5, "#2e2519");          // 门
+  const wall = lv >= 3 ? "#8a6a44" : "#6a5a3a";
+  const wallD = lv >= 3 ? "#6e5434" : "#544730";
+  const roofC = lv >= 4 ? "#d8c68a" : (lv >= 2 ? "#a04030" : "#4a3a26");
+  const roofD = lv >= 4 ? "#b8a468" : (lv >= 2 ? "#7e3026" : "#3a2e1e");
+  // 墙（竖木纹 + 底基暗线）
+  px(x0 + 1, y0 - h, w, h, wall);
+  for (let i = 2; i < w - 1; i += 3) px(x0 + 1 + i, y0 - h + 1, 1, h - 2, wallD);
+  px(x0 + 1, y0 - 1, w, 1, wallD);
+  // 屋顶（叠瓦两层 + 飞檐 + 脊饰）
+  for (let i = 0; i < 3; i++)
+    px(x0 - 2 + i, y0 - h - 3 + i, w + 4 - i * 2, 1, roofC);
+  px(x0 + 2, y0 - h - 1, w - 4, 1, roofD);
+  px(x0 - 3, y0 - h - 4, w + 6, 1, roofC);          // 飞檐
+  px(x0 + Math.floor(w / 2) - 2, y0 - h - 4, 2, 1, lv >= 4 ? "#f0e2a0" : "#e8c860");
+  // 门 + 门环
+  px(x0 + Math.floor(w / 2) - 1, y0 - 5, 3, 5, "#2e2519");
+  px(x0 + Math.floor(w / 2) + 1, y0 - 3, 1, 1, "#c9b070");
+  // 窗（夜间亮灯）
+  if (w >= 14) {
+    px(x0 + 2, y0 - h + 2, 3, 3, night ? "#f0d878" : "#3a3a52");
+    px(x0 + 2, y0 - h + 2, 3, 1, "#5a4632");
+  }
   if (lv >= 3) { px(x0 + w - 3, y0 - h - 7, 1, 4, "#5a4a32"); px(x0 + w - 2, y0 - h - 7, 4, 2, "#e8c860"); } // 金旗
+  // 夜间檐下灯笼
+  if (night && lv >= 2) {
+    px(x0 + w - 1, y0 - h + 1, 1, 2, "#5a4a32");
+    px(x0 + w, y0 - h + 3, 2, 3, "#d85a4a"); px(x0 + w, y0 - h + 4, 2, 1, "#f0a060");
+  }
 }
 
 /* --- 物品像素图（16×16 逻辑坐标，s = 放大倍数；列表缩略图与详情大图共用同一套画法） --- */
