@@ -217,7 +217,8 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "8.4", "版本号为 8.4");
+assert(g("APP_VERSION") === "8.5", "版本号为 8.5");
+assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
 assert(g("B_HOLD_MS") === 1500, "长按 B 呼出设置阈值为 1.5 秒");
 assert(g("speedF") === 1, "默认时间流速 = 真实 ×1");
 g("page = 'main'; pressB();");
