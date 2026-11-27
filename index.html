@@ -708,7 +708,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "0.1.87";
+const APP_VERSION = "0.1.90";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -839,43 +839,92 @@ function drawMess() {
   }
 }
 
-/* --- 侠士小人（程序化像素，单位 u=2） --- */
+/* --- 侠士小人（Q版像素角色，参照银发星星眼立绘重绘） ---
+   大头 Q 版：银白长发+呆毛+蓝紫蝴蝶结(金扣)+深蓝星星眼+腮红+门派色衣装；
+   所有姿态共用 head()，只换表情与身体动作。单位 u=2。 */
 function drawPet(pose, pox = 52, poy = 32) {
   const u = 2;
   const C = SECTS[S.sect] || SECTS.cy;
   const bob = pose === "idle" ? (Math.floor(frame / 30) % 2) : 0;
   const ox = pox, oy = poy + bob * 2;
   const P = (x, y, w, h, c) => px(ox + x * u, oy + y * u, w * u, h * u, c);
-  const hair = "#26262e", skin = "#f2c9a0", dark = "#1a1a22";
 
-  if (pose === "sleep") { // 就寝：侧卧闭眼（v7.6 昼夜作息）
-    P(2, 13, 12, 3, C.robe);            // 躺卧的身体
-    P(1, 10, 5, 4, skin);               // 枕地的头
-    P(1, 9, 5, 2, hair); P(4, 9, 2, 1, hair);
-    P(2, 11, 1, 1, dark); P(4, 11, 1, 1, dark);   // 闭眼线
-    P(11, 12, 2, 2, C.trim);            // 手
+  const OL = "#2b2b3a", HA = "#e6e7f2", HS = "#c2c5da", HL = "#ffffff";
+  const SK = "#fce3d3", BL = "#f2a3ad";
+  const E1 = "#24378f", E2 = "#4366cf", WH = "#ffffff";
+  const BOW = "#7b8ad4", BOW2 = "#6675bf", GOLD = "#e8c860";
+
+  /* 画头：mood = star | happy | closed | hurt | sick | sleep */
+  function head(hx, hy, mood) {
+    const Q = (x, y, w, h, c) => P(hx + x, hy + y, w, h, c);
+    // 呆毛
+    Q(6, -2, 1, 2, OL); Q(6, -2, 1, 1, HA);
+    Q(7, -2, 2, 1, OL); Q(7, -2, 1, 1, HA);
+    // 头发外轮廓 + 主体
+    Q(1, 0, 11, 1, OL); Q(0, 1, 13, 7, OL); Q(1, 8, 11, 1, OL);
+    Q(1, 1, 11, 6, HA); Q(2, 7, 9, 1, HA);
+    Q(0, 2, 1, 5, HS); Q(12, 2, 1, 5, HS);       // 两侧阴影
+    // 脸
+    Q(2, 3, 9, 4, SK); Q(3, 7, 7, 1, SK);
+    // 刘海（斜分）+ 发丝高光
+    Q(2, 2, 9, 2, HA); Q(3, 4, 1, 2, HA); Q(6, 4, 1, 1, HA); Q(10, 3, 1, 2, HA);
+    Q(3, 2, 3, 1, HL);
+    // 蓝紫蝴蝶结 + 金扣（角色左耳侧）
+    Q(0, 4, 2, 1, BOW); Q(-1, 5, 3, 2, BOW); Q(0, 7, 2, 1, BOW2);
+    Q(0, 5, 1, 1, GOLD);
+    // 眼睛
+    if (mood === "closed" || mood === "sleep" || mood === "happy") {
+      Q(3, 5, 3, 1, OL); Q(8, 5, 3, 1, OL);
+      if (mood === "happy") { Q(4, 4, 1, 1, OL); Q(9, 4, 1, 1, OL); }
+    } else if (mood === "hurt" || mood === "sick") {
+      Q(3, 4, 3, 2, E1); Q(8, 4, 3, 2, E1);
+      Q(3, 4, 3, 1, mood === "sick" ? "#6a8a4a" : E2);
+      Q(8, 4, 3, 1, mood === "sick" ? "#6a8a4a" : E2);
+      Q(4, 5, 1, 1, WH); Q(9, 5, 1, 1, WH);
+    } else {
+      Q(3, 4, 3, 2, E1); Q(8, 4, 3, 2, E1);
+      Q(3, 4, 2, 1, E2); Q(8, 4, 2, 1, E2);
+      Q(4, 4, 1, 2, WH); Q(9, 4, 1, 2, WH);      // 星星高光
+      Q(3, 6, 1, 1, "#bcd4ff"); Q(8, 6, 1, 1, "#bcd4ff");
+    }
+    // 腮红
+    Q(2, 6, 1, 1, BL); Q(10, 6, 1, 1, BL);
+    // 嘴
+    if (mood === "happy" || mood === "eat" || mood === "star") { Q(5, 6, 3, 1, "#8c3a48"); }
+    else if (mood === "hurt" || mood === "sick") { Q(6, 6, 1, 1, "#8c3a48"); }
+    else { Q(6, 6, 1, 1, "#c96b74"); }
+  }
+
+  /* 身体：领口 + 衣身 + 衣扣 + 袖手 + 腰带 + 腿 */
+  function body(by) {
+    P(4, by + 0, 6, 1, C.trim);                 // 领口
+    P(3, by + 1, 8, 5, C.robe);                 // 衣身
+    P(4, by + 1, 6, 1, C.trim);
+    P(6, by + 3, 1, 1, GOLD);                   // 衣扣
+    P(2, by + 1, 2, 3, C.robe); P(11, by + 1, 2, 3, C.robe);  // 袖
+    P(2, by + 4, 1, 1, SK); P(12, by + 4, 1, 1, SK);          // 手
+    P(3, by + 5, 8, 1, C.trim);                 // 腰带
+    P(4, by + 6, 2, 2, "#3a3a52"); P(8, by + 6, 2, 2, "#3a3a52"); // 腿
+  }
+
+  if (pose === "sleep") {                       // 就寝：侧卧闭眼
+    head(1, 8, "sleep");
+    P(3, 15, 10, 2, C.robe); P(2, 16, 12, 1, C.trim);
     return;
   }
-  if (pose === "down") { // 重伤：勉强站着（不再躺倒——重伤也能行动，只是收益打 6 折）
-    P(3, 6, 7, 7, C.robe);              // 佝偻的身体
-    P(4, 1, 7, 6, skin);                // 低垂的头
-    P(3, 0, 9, 3, hair); P(6, 0, 3, 2, hair);
-    P(5, 4, 1, 1, dark); P(7, 4, 1, 1, dark); // 眯眼
-    P(5, 6, 3, 1, "#803030");           // 痛苦嘴
-    // 头顶转圈星星
+  if (pose === "down") {                        // 重伤：佝偻痛苦
+    head(2, 1, "hurt");
+    P(3, 10, 8, 5, C.robe); P(4, 10, 6, 1, C.trim);
+    P(3, 15, 9, 2, "#3a3a52");
     const a = frame / 12;
     const sx = 8 + Math.cos(a) * 5, sy = -2 + Math.sin(a) * 2;
     ctx.fillStyle = "#f5e9b8"; ctx.fillRect(ox + sx * u, oy + sy * u, 3, 3);
     return;
   }
-  if (pose === "sick") { // 中毒
-    P(3, 8, 8, 6, C.robe);              // 蜷坐
-    P(4, 3, 7, 6, skin);                // 头
-    P(3, 2, 9, 3, hair); P(6, 1, 3, 2, hair);
-    P(5, 5, 1, 1, "#3a6a30"); P(8, 5, 1, 1, "#3a6a30"); // 绿眼圈
-    P(6, 7, 3, 1, "#6a8a4a");           // 苦脸嘴
-    P(3, 14, 9, 2, "#3a3a44");          // 腿
-    // 头顶眩晕螺旋
+  if (pose === "sick") {                        // 中毒：蜷坐绿眼圈
+    head(2, 3, "sick");
+    P(3, 12, 8, 4, C.robe); P(4, 12, 6, 1, C.trim);
+    P(3, 16, 9, 1, "#3a3a52");
     const a = frame / 10;
     for (let i = 0; i < 3; i++) {
       const sx = 7 + Math.cos(a + i * 2.1) * 4;
@@ -884,96 +933,63 @@ function drawPet(pose, pox = 52, poy = 32) {
     }
     return;
   }
-  if (pose === "sit") { // 打坐
-    P(2, 12, 12, 3, C.robe);            // 盘腿
-    P(4, 10, 8, 3, C.robe);             // 身
-    P(5, 4, 6, 6, skin);                // 头
-    P(4, 3, 8, 2, hair); P(7, 2, 2, 2, hair); // 发髻
-    P(6, 6, 4, 1, dark);                // 闭眼线
-    P(3, 11, 1, 2, C.trim); P(12, 11, 1, 2, C.trim); // 手结印
-    // 气环
+  if (pose === "sit") {                         // 打坐：闭眼 + 气环
+    head(2, 4, "closed");
+    P(2, 13, 10, 2, C.robe); P(4, 12, 6, 2, C.robe);
+    P(4, 12, 6, 1, C.trim);
+    P(2, 13, 1, 2, C.trim); P(12, 13, 1, 2, C.trim);
     const r = 3 + Math.sin(frame / 15) * 1.5;
     ctx.strokeStyle = C.accent; ctx.globalAlpha = .8;
     ctx.beginPath();
-    ctx.ellipse(ox + 8 * u, oy + (1 - r) * u, r * u, r * u * .4, 0, 0, Math.PI * 2);
+    ctx.ellipse(ox + 7 * u, oy + (1 - r) * u, r * u, r * u * .4, 0, 0, Math.PI * 2);
     ctx.stroke(); ctx.globalAlpha = 1;
     return;
   }
-  if (pose === "eat") { // 吃饭
-    P(3, 7, 9, 6, C.robe);
-    P(4, 2, 7, 6, skin);
-    P(3, 1, 9, 2, hair); P(6, 0, 3, 2, hair);
-    P(5, 4, 1, 1, dark); P(8, 4, 1, 1, dark);
-    P(6, 6, 3, 2, dark);                // 张嘴
-    P(3, 13, 9, 3, "#3a3a44");
-    // 饭碗
+  if (pose === "eat") {                         // 吃饭：张嘴 + 饭碗
+    head(2, 0, "eat");
+    body(9);
     const bo = Math.floor(frame / 8) % 2;
-    P(12, 12, 6, 2, "#d8d8e0"); P(13, 14, 4, 1, "#d8d8e0");
-    if (bo) { P(13, 10, 2, 2, "#e8d8a0"); P(15, 9, 1, 1, "#e8d8a0"); }
+    P(12, 13, 6, 2, "#d8d8e0"); P(13, 15, 4, 1, "#d8d8e0");
+    if (bo) { P(13, 11, 2, 2, "#e8d8a0"); P(15, 10, 1, 1, "#e8d8a0"); }
     return;
   }
-  if (pose === "train") { // 打木桩
-    // 木桩（视窗内）
+  if (pose === "train") {                       // 打木桩：冲拳 + 背剑 + 汗滴
     const x0 = 96;
     px(x0, 42, 12, 24, "#7a5a34"); px(x0 + 2, 38, 8, 5, "#8a6a40");
     px(x0 - 2, 46, 16, 3, "#6a4a2a"); px(x0 - 2, 56, 16, 3, "#6a4a2a");
     const punch = Math.floor(frame / 10) % 2;
-    P(3, 7, 9, 6, C.robe);
-    P(4, 2, 7, 6, skin);
-    P(3, 1, 9, 2, hair); P(6, 0, 3, 2, hair);
-    P(5, 4, 1, 1, dark); P(8, 4, 1, 1, dark);
-    P(3, 13, 9, 3, "#3a3a44");
-    // 冲拳
-    if (punch) { P(11, 8, 6, 2, skin); P(16, 8, 2, 2, C.trim); }
-    else { P(11, 10, 4, 2, skin); }
-    P(10, 5, 2, 4, C.robe);             // 背剑
-    // 汗滴
+    head(2, 0, "star"); body(9);
+    if (punch) { P(11, 10, 6, 2, SK); P(16, 10, 2, 2, C.trim); }
+    else { P(11, 12, 4, 2, SK); }
+    P(10, 6, 2, 4, C.robe);
     if (punch) { px(ox + 2 * u, oy + 1 * u, 2, 3, "#9ad0e8"); }
     return;
   }
-  if (pose === "dig") { // 挖宝
+  if (pose === "dig") {                         // 挖宝：举锹/插地
     const sw = Math.floor(frame / 8) % 2;
-    P(3, 8, 9, 6, C.robe);
-    P(4, 4, 7, 5, skin);
-    P(3, 3, 9, 2, hair); P(6, 2, 3, 2, hair);
-    P(5, 6, 1, 1, dark); P(8, 6, 1, 1, dark);
-    P(3, 14, 9, 2, "#3a3a44");
-    if (sw) { P(12, 5, 5, 2, "#8a6a40"); P(16, 4, 2, 4, "#b8c0d0"); }   // 举锹
-    else    { P(11, 10, 2, 6, "#8a6a40"); P(11, 15, 4, 2, "#b8c0d0"); } // 插地
-    if (!sw) { P(7, 15, 6, 2, "#5a4a30"); } // 土堆
+    head(2, 2, "star"); body(11);
+    if (sw) { P(12, 7, 5, 2, "#8a6a40"); P(16, 6, 2, 4, "#b8c0d0"); }
+    else { P(11, 12, 2, 6, "#8a6a40"); P(11, 17, 4, 2, "#b8c0d0"); }
+    if (!sw) { P(7, 17, 6, 2, "#5a4a30"); }
     return;
   }
-  if (pose === "dungeon") { // 副本战斗
+  if (pose === "dungeon") {                     // 副本：挥剑 + 小怪
     const mx = 92 + (Math.floor(frame / 14) % 2);
     px(mx, 44, 14, 12, "#4a7a3a"); px(mx + 2, 40, 10, 5, "#4a7a3a");
     px(mx + 3, 42, 2, 2, "#e8d840"); px(mx + 8, 42, 2, 2, "#e8d840");
     px(mx - 2, 38, 3, 4, "#2e4a24"); px(mx + 12, 38, 3, 4, "#2e4a24");
     const slash = Math.floor(frame / 6) % 2;
-    P(3, 7, 9, 6, C.robe);
-    P(4, 2, 7, 6, skin);
-    P(3, 1, 9, 2, hair); P(6, 0, 3, 2, hair);
-    P(5, 4, 1, 1, dark); P(8, 4, 1, 1, dark);
-    P(3, 13, 9, 3, "#3a3a44");
-    if (slash) { P(11, 5, 5, 2, C.trim); px(ox + 16 * u, oy + 5 * u, 8, 2, "#e8f0ff"); } // 挥剑+剑光
-    else { P(10, 8, 4, 2, skin); }
+    head(2, 0, "happy"); body(9);
+    if (slash) { P(11, 7, 5, 2, C.trim); px(ox + 16 * u, oy + 7 * u, 8, 2, "#e8f0ff"); }
+    else { P(11, 10, 4, 2, SK); }
     return;
   }
-  // idle
-  P(3, 7, 9, 6, C.robe);
-  P(5, 2, 7, 6, skin);
-  P(4, 1, 9, 2, hair); P(7, 0, 3, 2, hair);
+  // idle：站立呼吸 + 眨眼 + 身侧佩剑（不挡脸）
   const blink = frame % 160 < 8;
-  if (!blink) { P(6, 4, 1, 2, dark); P(9, 4, 1, 2, dark); }
-  else { P(6, 5, 1, 1, dark); P(9, 5, 1, 1, dark); }
-  P(7, 6, 2, 1, "#c88a6a");             // 嘴
-  P(3, 13, 4, 3, "#3a3a44"); P(8, 13, 4, 3, "#3a3a44"); // 腿
-  P(2, 8, 2, 4, C.robe); P(11, 8, 2, 4, C.robe);        // 手臂
-  // 背剑
-  ctx.strokeStyle = "#b8c0d0"; ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(ox + 2 * u, oy + 2 * u); ctx.lineTo(ox + 12 * u, oy + 9 * u);
-  ctx.stroke();
-  px(ox + 12 * u, oy + 9 * u, 4, 2, "#8a5a2a"); // 剑柄
+  head(2, 0, blink ? "closed" : "star");
+  body(9);
+  P(12, 10, 1, 6, "#b8c0d0");   // 剑鞘（身侧）
+  P(11, 9, 3, 2, "#8a5a2a");    // 剑柄
 }
 
 /* --- 气泡/表情 --- */
