@@ -217,7 +217,7 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "0.2.0", "版本号为语义化 0.2.0");
+assert(g("APP_VERSION") === "0.2.2", "版本号为语义化 0.2.2");
 assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
 const src86 = require("fs").readFileSync(require("path").join(__dirname, "../..", "index.html"), "utf8");
 assert(!/body\.qmode \.screen-frame \{ border-color: #8a8478/.test(src86), "v8.6 真机预览不再覆盖暖灰边框");
