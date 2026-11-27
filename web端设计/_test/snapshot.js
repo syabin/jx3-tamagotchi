@@ -9,7 +9,7 @@ const ctxStub = new Proxy(
       if (k in t) return t[k];
       return (x, y, w, h) => {
         if (k !== "fillRect") return;
-        const CH = { "#141824": " ", "#2a3a5e": ".", "#0d0f18": ",", "#3a2f22": "=", "#1a1e2c": "P", "#22263a": "i", "#262a38": "i", "#2e3345": "f", "#d8c68a": "G", "#3a3f54": "h", "#e8c860": "$", "#20263a": " ", "#161a28": "_" };
+        const CH = { "#141824": " ", "#2a3a5e": ".", "#0d0f18": ",", "#3a2f22": "=", "#1a1e2c": "P", "#22263a": "i", "#262a38": "i", "#2e3345": "f", "#d8c68a": "G", "#3a3f54": "h", "#e8c860": "$", "#20263a": " ", "#161a28": "_", "#31436c": "`", "#1f2c48": "m", "#0a0c14": "!", "#11131f": ",", "#2a3d2a": "g", "#5a4632": "|", "#6a5438": "|", "#3a5a34": "v", "#4a5a80": "c", "#3e4d70": "c", "#f5e9b8": "O", "#e8d890": "o", "#d8d8e8": "O", "#1d3a5e": "~" };
         const ch = CH[t.fillStyle] || "?";
         x = Math.max(0, Math.round(x)); y = Math.max(0, Math.round(y));
         for (let yy = y; yy < Math.min(128, y + h); yy++)
@@ -40,7 +40,7 @@ const sandbox = {
 };
 const ctx = vm.createContext(sandbox);
 vm.runInContext(script, ctx);
-vm.runInContext("confirmA(); confirmA(); S.mess = 2; S.coins = 888; S.mood = 80; render();", ctx);
+vm.runInContext("page = 'main'; S.mess = 2; S.coins = 888; S.mood = 80; frame = 100; render();", ctx);
 console.log("+" + "-".repeat(128) + "+");
 console.log(grid.map(r => "|" + r.join("") + "|").join("\n"));
 console.log("+" + "-".repeat(128) + "+");

@@ -67,12 +67,12 @@ g("page = 'game'; gameSt = { phase: 'roll' }; openSettings(); pressB();");
 assert(g("page") === "game" && g("gameSt.phase") === "roll", "摇骰中呼出设置再返回不丢状态");
 g("page = 'main'; gameSt = null;");   // 恢复：直接回主界面，避免 confirmA 误入其它页
 
-/* ---- v7.4 新菜单布局 / v8.2 去设置按钮 ---- */
-assert(g("MENU.length") === 9, "菜单共 9 项（8 模块 + 状态面板）");
-assert(g("MENU.map(m=>m.id).join(',')") === "daily,bag,shop,sit,train,dig,game,home,status",
-  "菜单顺序 = 上4(daily,bag,shop,sit) + 下4(train,dig,game,home) + status");
+/* ---- v0.2.0 主界面：底部一排 4 个按钮 ---- */
+assert(g("MENU.length") === 5, "菜单共 5 项（4 按钮 + 状态面板）");
+assert(g("MENU.map(m=>m.id).join(',')") === "activity,game,bag,shop,status",
+  "菜单顺序 = 活动/游戏/背包/商城 + status（不参与选中）");
 assert(g("MENU.some(m => m.id === 'settings')") === false, "主界面无设置按钮（长按 B 呼出）");
-assert(g("MENU.some(m => m.id === 'clean')") === false, "打扫不再作为独立菜单项");
+assert(g("MENU.some(m => m.id === 'sit') && MENU.some(m => m.id === 'dig')") === false, "打坐/挖宝等行动已移入活动页");
 
 /* ---- 渲染不抛异常（含异常状态/副本/狼藉）---- */
 g("S.mess=3; S.poisoned=true; S.dungeonUntil=Date.now()+5000; render(); render();");
@@ -82,11 +82,11 @@ assert(true, "主界面渲染无异常（中毒/重伤/副本中/狼藉）");
 
 /* ---- 导航与非常驻提示 ---- */
 g("menuIdx = 0; moveSel(-1);");
-assert(g("menuIdx") === 7, "▲ 从第 0 项回绕到最后一个模块 home（状态面板不参与选中）");
+assert(g("menuIdx") === 3, "▲ 从第 0 项左回绕到最后一个按钮 shop（状态面板不参与选中）");
 g("moveSel(1);");
-assert(g("menuIdx") === 0, "▼ 从 home 回到第 0 项（不进状态面板）");
-g("menuIdx = 7; moveSel(1);");
-assert(g("menuIdx") === 0, "home ▼ 回绕到第 0 项而非状态面板");
+assert(g("menuIdx") === 0, "▼ 从 shop 回到第 0 项（不进状态面板）");
+g("menuIdx = 3; moveSel(1);");
+assert(g("menuIdx") === 0, "shop 右移回绕到第 0 项而非状态面板");
 g("menuIdx = 0; moveSel(-1);");
 assert(g("!!selHint && Date.now() < selHint.until"), "切换选中时出现短暂 selHint");
 assert(g("selHint.until - Date.now()") > 1900 && g("selHint.until - Date.now()") <= 2000, "selHint 时长为 2 秒");
@@ -217,7 +217,7 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "0.1.90", "版本号为语义化 0.1.90");
+assert(g("APP_VERSION") === "0.2.0", "版本号为语义化 0.2.0");
 assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
 const src86 = require("fs").readFileSync(require("path").join(__dirname, "../..", "index.html"), "utf8");
 assert(!/body\.qmode \.screen-frame \{ border-color: #8a8478/.test(src86), "v8.6 真机预览不再覆盖暖灰边框");
@@ -248,11 +248,67 @@ assert(g("muted") === false && g("localStorage.getItem('jx3mute')") === "0", "�
 g("page = 'main'; setPage = null;");
 
 /* ---- 各子页渲染无异常 ---- */
-["status", "bag", "shop", "daily"].forEach(p => {
+["status", "bag", "shop", "activity"].forEach(p => {
   g("doAct('" + p + "'); render(); pressB();");
 });
 g("openSettings(); render(); pressB();");
-assert(g("page") === "main", "状态/背包/商城/日常/设置页进出正常");
+assert(g("page") === "main", "状态/背包/商城/活动/设置页进出正常");
+
+/* ---- v0.2.0 活动页：行动执行 + 冷却 ---- */
+g("doAct('activity'); render();");
+assert(g("page") === "activity", "A 进活动页");
+assert(g("activityRows()[0].id") === "sit", "活动页第一行 = 打坐");
+assert(g("activityRows().some(r => r.kind === 'daily' || r.kind === 'dailyEmpty')") === true, "活动页含今日日常（或离线占位）");
+g("actSel = 0; S.mood = 10; confirmA();");
+assert(g("S.mood") === 30, "活动页 A 执行打坐（心情+20）");
+assert(g("cooling('sit')") === true, "打坐进入冷却");
+g("page = 'activity'; actSel = 3; confirmA();");   // 打坐执行后 page 回了 main，需重进活动页
+assert(g("page") === "home", "活动页 A 进家园页");
+g("pressB();");
+assert(g("page") === "main", "家园 B 回主页");
+g("render();");
+
+/* ---- v0.2.0 游戏厅：大厅导航 + 进入所选 ---- */
+g("doAct('game'); render();");
+assert(g("page") === "game" && g("gameSt.game") === "hub", "A 进游戏厅（大厅态）");
+assert(g("GAMES.map(x=>x.id).join(',')") === "dice,whack,fish,memory", "游戏厅 4 个游戏");
+g("moveSel(1); moveSel(1);");
+assert(g("gameSt.sel") === 2, "大厅 ▶ 切到第 3 个游戏（钓鱼）");
+g("moveSel(-1);");
+assert(g("gameSt.sel") === 1, "大厅 ◀ 回到打地鼠");
+g("confirmA(); render(); render();");
+assert(g("gameSt.game") === "whack" && g("gameSt.phase") === "play", "A 进入所选游戏（打地鼠）");
+
+/* ---- 打地鼠：敲中/敲空/结算 ---- */
+g("gameSt.cur = gameSt.mole = 3; gameSt.hits = 9; gameSt.swings = 9; gameSt.pay = 0; confirmA();");
+assert(g("gameSt.hits") === 10 && g("gameSt.phase") === "over" && g("S.coins") > 0, "第 10 只敲中 → 结算发钱并冷却");
+assert(g("cooling('g_whack')") === true, "打地鼠进入冷却");
+g("confirmA();");
+assert(g("gameSt.game") === "hub", "结算后 A 回大厅");
+
+/* ---- 钓鱼：绿区收竿 ---- */
+g("gameSt = null; doAct('game'); gameSt.sel = 2; confirmA();");
+assert(g("gameSt.game") === "fish" && g("gameSt.cast") === 3, "进入钓鱼（3 杆）");
+g("gameSt.pos = gameSt.zoneL; confirmA();");       // 指针停在绿区起点
+assert(g("gameSt.good") === 1 && g("gameSt.cast") === 2, "绿区收竿命中（剩 2 杆）");
+g("gameSt.pos = 0; gameSt.zoneL = 10; confirmA(); confirmA();");   // 两杆落空 → 3 杆打完自动结算
+assert(g("gameSt.phase") === "over" && g("cooling('g_fish')") === true, "3 杆打完结算并冷却");
+
+/* ---- 翻牌配对：翻两张同面即配对 ---- */
+g("gameSt = null; doAct('game'); gameSt.sel = 3; confirmA();");
+assert(g("gameSt.game") === "memory", "进入翻牌配对");
+g("var fi = gameSt.faces.findIndex(f => f === gameSt.faces[gameSt.cur], gameSt.cur + 1); gameSt.cur = fi < 0 ? gameSt.cur : fi; gameSt.first = -1; gameSt.open = []; confirmA(); gameSt.cur = gameSt.faces.indexOf(gameSt.faces[gameSt.faces.length - 1]) === gameSt.cur ? 0 : 0;");
+// 简化：直接翻 cur 与它同面的另一张
+g("var c0 = gameSt.cur; var c1 = -1; for (var i2 = 0; i2 < 6; i2++) { if (i2 !== c0 && gameSt.faces[i2] === gameSt.faces[c0] && !gameSt.done[i2]) { c1 = i2; break; } }");
+g("gameSt.first = -1; gameSt.open = []; gameSt.cur = c0; confirmA(); gameSt.cur = c1; confirmA();");
+assert(g("gameSt.matched") === 1 && g("S.coins") > 0, "翻两张同面 → 配对成功发奖");
+assert(g("gameSt.done[c0]") === true && g("gameSt.done[c1]") === true, "配对的牌置为已消");
+
+/* ---- 押大小仍走老流程（大厅进入） ---- */
+g("gameSt = null; doAct('game'); gameSt.sel = 0; confirmA();");
+assert(g("gameSt.game") === "dice" && g("gameSt.phase") === "side", "进入押大小");
+g("moveSel(1);");
+assert(g("gameSt.side") === 0, "押大小 ▲▼ 切换押小");
 
 /* ---- 存档 ---- */
 g("save();");

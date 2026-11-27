@@ -538,23 +538,17 @@ function checkTitle() {
 }
 function toastMsg(text, sfxFn) { toast = { text, until: Date.now() + 2800 }; if (sfxFn) sfxFn(); }
 
-/* ================= 行为 =================
-   主界面布局（v7.4 按草图重排，v7.8 精简，v8.2 去设置按钮）：
-   上排 4 个功能模块 + 下排 4 个功能模块，图标下不带文字；设置不占图标位，
-   改为「长按 B 1.5 秒」全局呼出（真机只有 4 键，不留专门设置键）；
-   场景区加高（y19~82），左侧常驻「人物状态」面板（按 B 进侠士手札），中间人物，背景铺满场景；
-   当前选中模块的名称/说明常驻显示在提示长条（toast 优先覆盖）。
-   「打扫」并入家园页（家园有狼藉时 ▲▼ 切到打扫再按 A）。 */
+/* ================= 主界面（v0.2.0 重构） =================
+   底部仅一排 4 个功能按钮：活动 / 游戏 / 背包 / 商城（▲▼ 左右循环选中，A 进入）；
+   上方空间全部让给场景——顶部一条状态栏，中间大场景（人物放大 + 背景重绘）。
+   「打坐/木桩/挖宝/家园」并入「活动」页；「小游戏」升级为「游戏厅」（左右选游戏）。
+   设置不占图标位，仍为「长按 B 1.5 秒」全局呼出。 */
 const MENU = [
-  { id: "daily",   label: "日常",   desc: "今日剑网三日常" },      // 上排
-  { id: "bag",     label: "背包",   desc: "查看行囊物品" },
-  { id: "shop",    label: "商城",   desc: "购买食材和药品" },
-  { id: "sit",     label: "打坐",   desc: "心情+20 修为+3" },
-  { id: "train",   label: "木桩",   desc: "修为+12 耗体力" },      // 下排
-  { id: "dig",     label: "挖宝",   desc: "挖宝得金币" },
-  { id: "game",    label: "小游戏", desc: "黑市赌坊·押大小" },
-  { id: "home",    label: "家园",   desc: "升级宅子·打扫" },
-  { id: "status",  label: "状态",   desc: "侠士手札" },            // 场景左侧面板（不参与 ▲▼ 选中）
+  { id: "activity", label: "活动", desc: "日常·打坐·木桩·挖宝·家园" },
+  { id: "game",     label: "游戏", desc: "游戏厅 · 左右选小游戏" },
+  { id: "bag",      label: "背包", desc: "查看行囊物品" },
+  { id: "shop",     label: "商城", desc: "购买食材和药品" },
+  { id: "status",   label: "状态", desc: "侠士手札" },            // 不参与 ▲▼ 选中（B 进手札）
 ];
 /* ================= 区服（v7.7 已移除） =================
    实测 jx3api 的 /active/calendar 加不加 server 参数返回完全一致（按全服返回），
@@ -688,17 +682,16 @@ function doAct(id, sub) {
     }
     case "bag":
       page = "bag"; bagSel = 0; catMode = true; sfx.ok(); return;    // v8.1：先进分类栏，选中分类再 A 进列表
-    case "game":   // 黑市赌坊·押大小
-      if (S.coins < 50) { toastMsg("赌坊最低押 50 金币，先去赚点本钱", sfx.err); return; }
+    case "game":   // v0.2.0：游戏厅（左右选游戏，A 进入所选）
       page = "game";
-      gameSt = { phase: "side", side: 1, betIdx: 1, dice: [1, 1, 1], t: 0, sum: 0, win: false, baozi: false, pay: 0 };
+      gameSt = { game: "hub", sel: 0 };
       sfx.ok(); return;
     case "shop":
       page = "shop"; shopSel = 0; catMode = true; sfx.ok(); return;    // v8.1：先进分类栏
     case "home":
       page = "home"; homeSel = 0; sfx.ok(); return;
-    case "daily":
-      page = "daily"; sfx.ok();
+    case "activity":
+      page = "activity"; actSel = 0; sfx.ok();
       // 没数据就拉；有数据但本地缓存超过 1 小时也重新拉一次
       if (!dailyLoading && (!dailyData || Date.now() - dailyCacheTs > DAILY_REFRESH_MS)) fetchDaily();
       return;
@@ -708,7 +701,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "0.1.90";
+const APP_VERSION = "0.2.0";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -833,21 +826,20 @@ function drawScene(t) {
 /* --- 狼藉（画在主界面场景地面） --- */
 function drawMess() {
   for (let i = 0; i < S.mess; i++) {
-    const x = 46 + i * 16;
-    px(x, 71, 8, 4, "#6a5a3a"); px(x + 1, 69, 6, 2, "#8a7a52");
-    px(x + 2, 67, 3, 2, "#8a7a52");
+    const x = 50 + i * 15;
+    px(x, 91, 8, 4, "#6a5a3a"); px(x + 1, 89, 6, 2, "#8a7a52");
+    px(x + 2, 87, 3, 2, "#8a7a52");
   }
 }
 
 /* --- 侠士小人（Q版像素角色，参照银发星星眼立绘重绘） ---
    大头 Q 版：银白长发+呆毛+蓝紫蝴蝶结(金扣)+深蓝星星眼+腮红+门派色衣装；
    所有姿态共用 head()，只换表情与身体动作。单位 u=2。 */
-function drawPet(pose, pox = 52, poy = 32) {
-  const u = 2;
-  const C = SECTS[S.sect] || SECTS.cy;
+function drawPet(pose, pox = 52, poy = 32, s = 2) {
+    const C = SECTS[S.sect] || SECTS.cy;
   const bob = pose === "idle" ? (Math.floor(frame / 30) % 2) : 0;
   const ox = pox, oy = poy + bob * 2;
-  const P = (x, y, w, h, c) => px(ox + x * u, oy + y * u, w * u, h * u, c);
+  const P = (x, y, w, h, c) => px(ox + x * s, oy + y * s, w * s, h * s, c);
 
   const OL = "#2b2b3a", HA = "#e6e7f2", HS = "#c2c5da", HL = "#ffffff";
   const SK = "#fce3d3", BL = "#f2a3ad";
@@ -918,7 +910,7 @@ function drawPet(pose, pox = 52, poy = 32) {
     P(3, 15, 9, 2, "#3a3a52");
     const a = frame / 12;
     const sx = 8 + Math.cos(a) * 5, sy = -2 + Math.sin(a) * 2;
-    ctx.fillStyle = "#f5e9b8"; ctx.fillRect(ox + sx * u, oy + sy * u, 3, 3);
+    ctx.fillStyle = "#f5e9b8"; ctx.fillRect(ox + sx * s, oy + sy * s, 3, 3);
     return;
   }
   if (pose === "sick") {                        // 中毒：蜷坐绿眼圈
@@ -929,7 +921,7 @@ function drawPet(pose, pox = 52, poy = 32) {
     for (let i = 0; i < 3; i++) {
       const sx = 7 + Math.cos(a + i * 2.1) * 4;
       const sy = 0 - Math.abs(Math.sin(a + i * 2.1)) * 3;
-      px(ox + sx * u, oy + (sy - 2) * u, 2, 2, "#b8d88a");
+      px(ox + sx * s, oy + (sy - 2) * s, 2, 2, "#b8d88a");
     }
     return;
   }
@@ -941,7 +933,7 @@ function drawPet(pose, pox = 52, poy = 32) {
     const r = 3 + Math.sin(frame / 15) * 1.5;
     ctx.strokeStyle = C.accent; ctx.globalAlpha = .8;
     ctx.beginPath();
-    ctx.ellipse(ox + 7 * u, oy + (1 - r) * u, r * u, r * u * .4, 0, 0, Math.PI * 2);
+    ctx.ellipse(ox + 7 * s, oy + (1 - r) * s, r * s, r * s * .4, 0, 0, Math.PI * 2);
     ctx.stroke(); ctx.globalAlpha = 1;
     return;
   }
@@ -954,15 +946,15 @@ function drawPet(pose, pox = 52, poy = 32) {
     return;
   }
   if (pose === "train") {                       // 打木桩：冲拳 + 背剑 + 汗滴
-    const x0 = 96;
-    px(x0, 42, 12, 24, "#7a5a34"); px(x0 + 2, 38, 8, 5, "#8a6a40");
-    px(x0 - 2, 46, 16, 3, "#6a4a2a"); px(x0 - 2, 56, 16, 3, "#6a4a2a");
+    const wx = ox + 15 * s, wy = oy + 3 * s;                 // 木桩（随人物缩放） 
+    px(wx, wy + s, 5 * s, 11 * s, "#7a5a34"); px(wx + s, wy, 4 * s, 2 * s, "#8a6a40");
+    px(wx - s, wy + 3 * s, 7 * s, 2 * s, "#6a4a2a"); px(wx - s, wy + 9 * s, 7 * s, 2 * s, "#6a4a2a");
     const punch = Math.floor(frame / 10) % 2;
     head(2, 0, "star"); body(9);
     if (punch) { P(11, 10, 6, 2, SK); P(16, 10, 2, 2, C.trim); }
     else { P(11, 12, 4, 2, SK); }
     P(10, 6, 2, 4, C.robe);
-    if (punch) { px(ox + 2 * u, oy + 1 * u, 2, 3, "#9ad0e8"); }
+    if (punch) { px(ox + 2 * s, oy + 1 * s, 2, 3, "#9ad0e8"); }
     return;
   }
   if (pose === "dig") {                         // 挖宝：举锹/插地
@@ -974,13 +966,13 @@ function drawPet(pose, pox = 52, poy = 32) {
     return;
   }
   if (pose === "dungeon") {                     // 副本：挥剑 + 小怪
-    const mx = 92 + (Math.floor(frame / 14) % 2);
-    px(mx, 44, 14, 12, "#4a7a3a"); px(mx + 2, 40, 10, 5, "#4a7a3a");
-    px(mx + 3, 42, 2, 2, "#e8d840"); px(mx + 8, 42, 2, 2, "#e8d840");
-    px(mx - 2, 38, 3, 4, "#2e4a24"); px(mx + 12, 38, 3, 4, "#2e4a24");
+    const mx = ox + 16 * s + (Math.floor(frame / 14) % 2), my = oy + 3 * s;
+    px(mx, my + 2 * s, 6 * s, 6 * s, "#4a7a3a"); px(mx + s, my, 5 * s, 3 * s, "#4a7a3a");
+    px(mx + s, my + s, s, s, "#e8d840"); px(mx + 4 * s, my + s, s, s, "#e8d840");
+    px(mx - s, my, s, 2 * s, "#2e4a24"); px(mx + 6 * s, my, s, 2 * s, "#2e4a24");
     const slash = Math.floor(frame / 6) % 2;
     head(2, 0, "happy"); body(9);
-    if (slash) { P(11, 7, 5, 2, C.trim); px(ox + 16 * u, oy + 7 * u, 8, 2, "#e8f0ff"); }
+    if (slash) { P(11, 7, 5, 2, C.trim); px(ox + 16 * s, oy + 7 * s, 8, 2, "#e8f0ff"); }
     else { P(11, 10, 4, 2, SK); }
     return;
   }
@@ -994,7 +986,7 @@ function drawPet(pose, pox = 52, poy = 32) {
 
 /* --- 气泡/表情 --- */
 function drawEmoji(kind) {
-  const u = 2, ox = 84, oy = 31;
+  const u = 2, ox = 104, oy = 42;
   if (kind === "heart") {
     px(ox, oy, 3, 3, "#e85a7a"); px(ox + 3, oy, 3, 3, "#e85a7a");
     px(ox + 1, oy + 1, 4, 3, "#e85a7a"); px(ox + 2, oy + 4, 2, 1, "#e85a7a");
@@ -1032,6 +1024,7 @@ function icon(id, x, y, sel) {
   if (id === "home")  { px(x + 3, y + 8, 10, 6, c1); px(x + 6, y + 10, 4, 4, cut); px(x + 2, y + 3, 12, 2, c1); px(x + 4, y + 5, 8, 2, c1); px(x + 7, y + 1, 2, 2, "#e8c860"); }
   if (id === "bag")   { px(x + 3, y + 6, 10, 8, c1); px(x + 5, y + 3, 6, 3, c1); px(x + 7, y + 4, 2, 2, cut); px(x + 4, y + 9, 2, 2, cut); px(x + 10, y + 9, 2, 2, cut); }
   if (id === "shop")  { px(x + 2, y + 4, 12, 2, c1); px(x + 3, y + 6, 10, 8, c1); px(x + 6, y + 9, 4, 5, cut); px(x + 2, y + 1, 3, 3, "#e8c860"); px(x + 11, y + 1, 3, 3, "#e8c860"); }
+  if (id === "activity") id = "daily";   // 活动复用日常卷轴图标
   if (id === "daily") { px(x + 3, y + 2, 10, 3, c1); px(x + 3, y + 5, 10, 9, c1); px(x + 5, y + 7, 2, 2, cut); px(x + 8, y + 9, 2, 2, cut); px(x + 7, y + 4, 2, 2, "#e8c860"); }
   if (id === "settings"){ px(x + 4, y + 1, 8, 2, c1); px(x + 4, y + 13, 8, 2, c1); px(x + 1, y + 4, 2, 8, c1); px(x + 13, y + 4, 2, 8, c1); px(x + 4, y + 4, 8, 8, c1); px(x + 6, y + 6, 4, 4, cut); }
 }
@@ -1083,15 +1076,16 @@ function render() {
   if (page === "settings") return renderSettings();
   if (page === "game") {
     if (!gameSt) { page = "main"; return renderMain(); }   // 异常态兜底，避免整屏空白
-    gameRollTick(); return renderGame();
+    gameTick(); return renderGame();
   }
   if (page === "home") return renderHome();
-  if (page === "daily") return renderDaily();
+  if (page === "activity") return renderActivity();
   renderMain();
 }
 
 /* ================= 今日日常（jx3api /active/calendar） ================= */
 let dailyData = null, dailyErr = null, dailyLoading = false, dailySel = 0;
+let actSel = 0;                               // 活动页选中行（上半行动 + 下半日常）
 let dailyStale = false, dailyStaleCache = null;   // 离线兜底：上次成功拉取的旧缓存
 let dailyCacheTs = 0;                             // 本地缓存时间戳，用于判断要不要重新拉
 (function loadDailyCache() {
@@ -1168,43 +1162,47 @@ async function fetchDaily() {
   else { dailyErr = "日常数据未加载"; }
   dailyLoading = false;
 }
-function renderDaily() {
+/* ================= 活动页（v0.2.0：打坐/木桩/挖宝/家园 + 今日日常） =================
+   ▲▼ 上下选，A 执行（行动）/ 进本（可打本的日常）/ 刷新，B 返回主页。 */
+function activityRows() {
+  const acts = [
+    { kind: "act", id: "sit",   cd: "sit",   t: "【打坐】吐纳调息 · 心情+20 修为+3" },
+    { kind: "act", id: "train", cd: "train", t: "【木桩】勤练剑法 · 修为+12 耗体力" },
+    { kind: "act", id: "dig",   cd: "dig",   t: "【挖宝】铁锹寻宝 · 金币入袋" },
+    { kind: "act", id: "home",  cd: null,    t: "【家园】升级宅子 · 打扫 · 保姆" },
+  ];
+  const rows = acts.slice();
+  const daily = buildDailyRows();
+  if (daily && daily.length) daily.forEach(r => rows.push({ kind: "daily", ...r }));
+  else rows.push({ kind: "dailyEmpty", t: dailyErr ? "日常数据未加载 · A 重试" : "今日日常暂无数据 · A 刷新" });
+  return rows;
+}
+function renderActivity() {
   px(0, 0, W, H, "#141824");
-  textC("— " + (dailyStale ? "日常缓存" : "今日日常") + " —", 64, 8, "#d8c68a", 10);
-  if (dailyLoading) {
-    textC("拉取中…", 64, 50, "#8a92ad", 10);
-  } else {
-    const rows = buildDailyRows();
-    if (rows) {
-      if (dailySel >= rows.length) dailySel = rows.length - 1;
-      if (dailySel < 0) dailySel = 0;
-      const visible = 6;
-      let start = Math.max(0, Math.min(dailySel - Math.floor(visible / 2), rows.length - visible));
-      rows.slice(start, start + visible).forEach((row, i) => {
-        const idx = start + i;
-        const y = 24 + i * 13;
-        const cur = idx === dailySel;
-        if (cur) px(4, y - 2, W - 8, 12, "#26314a");
-        text(cur ? "▶" : " ", 5, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
-        if (row.key && DUNGEON_KEYS[row.key]) text("本", 114, y + 1, "#e8a04a", 8);  // 可打本标记
-        const l = row.t;
-        if (cur) marquee(l, 14, y, 96, "#f5e9b8", 9, 0.4);   // 选中项全文滚动
-        else text(l.length > 11 ? l.slice(0, 10) + "…" : l, 14, y, "#cfd4e8", 9);
-      });
-      if (rows.length > visible) {
-        textC((dailySel + 1) + "/" + rows.length, 64, 106, "#8a8fa5", 8);
-        if (start > 0) text("▲", 8, 21, "#8a8fa5", 9);
-        if (start + visible < rows.length) text("▼", 113, 88, "#8a8fa5", 9);
-      }
-    } else if (dailyErr) {
-      textC("日常数据未加载", 64, 44, "#e8a08a", 10);
-      textC("按 A 重试 · 稍后自动刷新", 64, 60, "#8a92ad", 8);
-    } else {
-      textC("暂无数据 · A 刷新", 64, 50, "#8a92ad", 9);
-    }
+  textC("— 江湖活动 —", 64, 6, "#d8c68a", 10);
+  const rows = activityRows();
+  if (actSel >= rows.length) actSel = rows.length - 1;
+  if (actSel < 0) actSel = 0;
+  const visible = 6;
+  let start = Math.max(0, Math.min(actSel - Math.floor(visible / 2), rows.length - visible));
+  rows.slice(start, start + visible).forEach((row, i) => {
+    const idx = start + i, y = 20 + i * 13, cur = idx === actSel;
+    if (cur) px(4, y - 2, W - 8, 12, "#26314a");
+    text(cur ? "▶" : " ", 5, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
+    const isAct = row.kind === "act";
+    const coolingTip = isAct && row.cd && cooling(row.cd) ? " ·冷却中" : "";
+    const l = row.t + coolingTip;
+    if (row.kind === "daily" && row.key && DUNGEON_KEYS[row.key]) text("本", 114, y + 1, "#e8a04a", 8);  // 可打本标记
+    if (cur) marquee(l, 14, y, 96, "#f5e9b8", 9, 0.4);   // 选中项全文滚动
+    else text(l.length > 12 ? l.slice(0, 11) + "…" : l, 14, y, isAct ? "#b8e88a" : (row.kind === "dailyEmpty" ? "#8a92ad" : "#cfd4e8"), 9);
+  });
+  if (rows.length > visible) {
+    textC((actSel + 1) + "/" + rows.length, 64, 104, "#8a8fa5", 8);
+    if (start > 0) text("▲", 8, 17, "#8a8fa5", 9);
+    if (start + visible < rows.length) text("▼", 113, 82, "#8a8fa5", 9);
   }
-  const offline = dailyLoading ? false : (!!dailyErr || dailyStale);
-  textC(offline ? "离线 · A 刷新 · B 返回" : "A 进本/刷新 · B 返回", 64, 118, offline ? "#e8a08a" : "#8a92ad", 8);
+  const offline = dailyStale;
+  textC(offline ? "A 执行/刷新 · B 返回（离线缓存）" : "A 执行/进本/刷新 · B 返回", 64, 118, offline ? "#e8a08a" : "#8a92ad", 8);
 }
 
 /* ================= 开机画面（大 LOGO + PRESS A START） ================= */
@@ -1261,81 +1259,85 @@ function renderSect() {
 function renderMain() {
   const hour = drawScene();
   const day = hour > 6 && hour < 18;
-  const sel = menuIdx % (MENU.length - 1);   // v8.1：状态面板不参与 ▲▼ 选中
-  // ===== 顶部 4 个功能模块（日常/背包/商城/打坐）——v7.8 起去掉图标下文字，选中信息见提示长条 =====
-  const topCx = [19, 49, 79, 109];
-  topCx.forEach((cx, i) => {
-    const m = MENU[i], on = sel === i;
-    icon(m.id, cx - 8, 1, on);
-    const key = { sit: "sit", train: "train", dig: "dig" }[m.id];
-    if (key && cooling(key)) px(cx + 6, 0, 3, 3, "#e86a5a");
-  });
-  // ===== 中央场景区（v7.8 扩高：y 19~82）：右侧背景+人物，左侧人物状态面板 =====
-  const sx = 5, sy = 19, sw = 118, sh = 63, groundY = sy + sh - 7;
+  const sel = menuIdx % (MENU.length - 1);   // 状态项不参与 ▲▼ 选中
+  /* ===== 顶部状态栏（v0.2.0：原左侧面板上移成一条，场景腾出全部空间） ===== */
+  const pt = titleOf(S.exp);
+  const CS = SECTS[S.sect] || SECTS.cy;
+  px(0, 0, W, 16, "#1a1e2c");
+  px(0, 16, W, 1, "#39415e");
+  text(pt.t, 4, 3, "#f5e9b8", 8);
+  text(CS.name, 4 + pt.t.length * 8 + 4, 3, "#8a92ad", 8);
+  text("金" + S.coins, 124 - (String(S.coins).length * 5 + 14), 3, "#e8c860", 8);
+  text("体" + Math.round(S.hunger) + " 心" + Math.round(S.mood) + " 修" + S.exp, 4, 10,
+    (S.hunger < 25 || S.mood < 25) ? "#e8a08a" : "#cfd4e8", 7);
+  /* ===== 中央大场景（v0.2.0 扩到 y18~98）：远山/云/昼夜 + 人物放大 ===== */
+  const sx = 4, sy = 18, sw = 120, sh = 80, groundY = sy + sh - 9;
   const sleeping = hour >= 22 || hour < 6;          // 昼夜作息（与 applyTime 同一判定）
   px(sx - 2, sy - 2, sw + 4, sh + 4, "#20263a");                 // 视窗外框
   for (let i = 0; i < 48; i++)                                    // 边框点纹
     px(sx - 2 + (i * 7) % (sw + 4), sy - 2 + Math.floor((i * 7) / (sw + 4)) * 2, 1, 1, "#39415e");
-  px(sx, sy, sw, sh, day ? "#2a3a5e" : "#0d0f18");               // 背景：天空
+  px(sx, sy, sw, sh, day ? "#2a3a5e" : "#0d0f18");               // 天空
+  px(sx, sy + 14, sw, day ? 22 : 18, day ? "#31436c" : "#11131f"); // 天空下层
+  const mtn = day ? "#1f2c48" : "#0a0c14";                        // 远山剪影
+  px(sx + 4, 62, 34, 12, mtn); px(sx + 12, 54, 18, 20, mtn);
+  px(sx + 62, 64, 36, 10, mtn); px(sx + 72, 56, 18, 18, mtn);
   if (!day) {
-    const st = [[50, 23], [74, 21], [100, 23], [118, 21], [86, 27], [58, 27], [112, 29]];
-    st.forEach(([x, y], i) => { if ((frame + i) % 90 < 70) px(x, y, 1, 1, "#cfd8ea"); });
+    const st = [[20, 24], [44, 22], [74, 24], [92, 30], [32, 30], [58, 34], [88, 22], [34, 40]];
+    st.forEach(([x, y], i) => { if ((frame + i * 13) % 90 < 70) px(x, y, 1, 1, "#cfd8ea"); });
+    px(102, 24, 8, 8, "#d8d8e8"); px(104, 26, 4, 4, "#0d0f18");   // 弯月
   } else {
-    px(112, 21, 9, 9, "#f5e9b8"); px(114, 23, 4, 4, "#e8d890");   // 太阳
+    px(104, 22, 10, 10, "#f5e9b8"); px(106, 24, 5, 5, "#e8d890"); // 太阳
+    const c1 = sx + 20 + (frame * 0.15) % (sw - 40);              // 两朵慢云
+    px(c1, 26, 18, 4, "#4a5a80"); px(c1 + 4, 24, 10, 3, "#4a5a80");
+    const c2 = sx + 14 + (frame * 0.09) % (sw - 30);
+    px(c2, 38, 14, 3, "#3e4d70"); px(c2 + 3, 36, 8, 3, "#3e4d70");
   }
-  px(sx, groundY, sw, 7, "#3a2f22");                              // 地面
-  drawHouse(44, groundY);
+  px(sx, groundY, sw, 4, "#2a3d2a");                              // 地面：草沿
+  px(sx, groundY + 4, sw, 5, "#3a2f22");                          // 泥土
+  for (let i = 0; i < 3; i++) px(sx + 96 + i * 8, groundY - 7, 2, 7, "#5a4632");  // 篱笆
+  px(sx + 94, groundY - 5, 26, 2, "#6a5438");
+  [[48, groundY - 3], [96, groundY - 2]].forEach(([gx2, gy2]) => { // 草丛点缀
+    px(gx2, gy2, 2, 3, "#3a5a34"); px(gx2 + 3, gy2 + 1, 2, 2, "#3a5a34");
+  });
+  drawHouse(14, groundY + 4);
   drawMess();
-  drawPet(petPose(), 78, 42);
+  drawPet(petPose(), 56, 38, 3);
   if (sleeping) {                                   // 就寝：头顶 ZZZ 漂浮
     if (frame % 240 < 180) drawEmoji("zzz");
   } else if (Date.now() < emojiUntil && emoji) drawEmoji(emoji);
   else if (S.mood > 75 && frame % 300 < 120 && Math.floor(frame / 300) % 2) drawEmoji("heart");
   // 保姆在场标记（代管期间，场景里挂个小扫帚）
   if (S.nannyGH > 0) {
-    px(62, groundY - 12, 1, 10, "#8a6a40"); px(59, groundY - 14, 6, 3, "#c9b070");
-    text("保姆", 56, groundY - 22, "#b8e88a", 7);
+    px(44, groundY - 12, 1, 10, "#8a6a40"); px(41, groundY - 14, 6, 3, "#c9b070");
+    text("保姆", 38, groundY - 24, "#b8e88a", 7);
   }
   // 副本进度条（场景顶部）
   if (S.dungeonUntil > Date.now()) {
     const p = 1 - (S.dungeonUntil - Date.now()) / 10000;
-    px(46, 22, 44, 6, "#262a38");
-    px(46, 22, Math.round(44 * p), 6, "#e8a04a");
-    text("副本中…", 93, 22, "#f5ecd0", 7);
+    px(36, 21, 44, 6, "#262a38");
+    px(36, 21, Math.round(44 * p), 6, "#e8a04a");
+    text("副本中…", 82, 21, "#f5ecd0", 7);
   } else if ((S.poisoned || S.down || S.mess > 0 || S.hunger < 15) && !sleeping && frame % 40 < 25) {
-    text("！", 118, 21, "#e86a5a", 12);                           // 注意图标（场景右上，就寝时不闪）
+    text("！", 116, 21, "#e86a5a", 12);                           // 注意图标（场景右上，就寝时不闪）
   }
-  // ===== 左侧「人物状态」常驻面板 =====
-  const stOn = false;   // v8.1：左侧状态面板常驻展示，但不参与选中（进手札仍可按 B）
-  const pt = titleOf(S.exp);
-  px(6, 20, 34, 50, stOn ? "#3a3f54" : "#1a1e2c");
-  if (stOn) selFrame(6, 20, 34, 50); else { px(6, 20, 34, 1, "#39415e"); px(6, 69, 34, 1, "#39415e"); }
-  const stLine = (l, y, c) => text(l, 9, y, c, 7);
-  stLine(pt.t, 23, "#f5e9b8");
-  stLine("体 " + Math.round(S.hunger), 32, S.hunger < 25 ? "#e86a5a" : "#cfd4e8");
-  stLine("心 " + Math.round(S.mood), 41, S.mood < 25 ? "#e86a5a" : "#cfd4e8");
-  stLine("修 " + S.exp, 50, "#cfd4e8");
-  stLine("金 " + S.coins, 59, "#e8c860");
-  // ===== 提示文字长条（v7.9：非常驻——toast 优先，其次切换选中后 2 秒短暂显示，平时空白）=====
+  // ===== 提示文字长条（toast 优先，其次切换选中后 2 秒短暂显示，平时空白）=====
   const hintOn = toast && Date.now() < toast.until;
   const selOn = !hintOn && selHint && Date.now() < selHint.until;
-  px(4, 86, 120, 12, "#161a28");
-  px(4, 86, 120, 1, (hintOn || selOn) ? "#d8c68a" : "#2e3345");
-  px(4, 97, 120, 1, (hintOn || selOn) ? "#d8c68a" : "#2e3345");
-  if (hintOn) marquee(toast.text, 8, 89, 112, "#f5ecd0", 9, 0.7);
-  else if (selOn) marquee(selHint.text, 8, 89, 112, "#7a829c", 8, 0.5);
-  // 平时：长条留空，不显示任何文字（贴近正版拓麻歌子：图标即状态，文字只在需要时出现）
-  // ===== 底部 4 个功能模块（木桩/挖宝/小游戏/家园）——v8.2 去掉右下角设置按钮 =====
-  const botCx = [19, 49, 79, 109];   // 与顶部四宫格对齐（v8.2 去设置按钮后居中铺开）
+  px(4, 99, 120, 12, "#161a28");
+  px(4, 99, 120, 1, (hintOn || selOn) ? "#d8c68a" : "#2e3345");
+  px(4, 110, 120, 1, (hintOn || selOn) ? "#d8c68a" : "#2e3345");
+  if (hintOn) marquee(toast.text, 8, 102, 112, "#f5ecd0", 9, 0.7);
+  else if (selOn) marquee(selHint.text, 8, 102, 112, "#7a829c", 8, 0.5);
+  // 平时长条留空（贴近正版拓麻歌子：图标即状态，文字只在需要时出现）
+  // ===== 底部一排 4 个功能按钮（活动/游戏/背包/商城，v0.2.0） =====
+  const botCx = [20, 49, 79, 108];
   botCx.forEach((cx, i) => {
-    const m = MENU[i + 4], on = sel === i + 4;
-    icon(m.id, cx - 8, 103, on);
-    const key = { train: "train", dig: "dig" }[m.id];
-    if (key && cooling(key)) px(cx + 6, 102, 3, 3, "#e86a5a");
+    const m = MENU[i], on = sel === i;
+    icon(m.id, cx - 8, 112, on);
   });
   // sparkles
-  sparkles = sparkles.filter(s => s.life-- > 0);
-  sparkles.forEach(s => { const tw = (frame + s.x) % 20 < 10; px(s.x, s.y, tw ? 3 : 1, tw ? 3 : 1, "#f5e9b8"); });
+  sparkles = sparkles.filter(sp => sp.life-- > 0);
+  sparkles.forEach(sp => { const tw = (frame + sp.x) % 20 < 10; px(sp.x, sp.y, tw ? 3 : 1, tw ? 3 : 1, "#f5e9b8"); });
 }
 
 /* --- 家园小屋（随等级变大变漂亮，可指定落点） --- */
@@ -1586,16 +1588,86 @@ function renderFx() {
   return true;
 }
 
-/* ================= 黑市赌坊 · 押大小 =================
+/* ================= 游戏厅（v0.2.0） =================
+   进入先左右选游戏（◀▶ 或 ▲▼），A 进入所选，B 返回主页。
+   现有：押大小（黑市赌坊）；新增：打地鼠 / 钓鱼 / 翻牌配对。
+   每个小游戏独立冷却，防止无限刷金币。 */
+const GAMES = [
+  { id: "dice",   name: "押大小",  desc: "黑市赌坊 · 猜大小",    cd: 0 },
+  { id: "whack",  name: "打地鼠",  desc: "眼疾手快 · 敲中赚钱",  cd: 60000 },
+  { id: "fish",   name: "钓鱼",    desc: "看准时机 · 收竿",      cd: 45000 },
+  { id: "memory", name: "翻牌配对", desc: "记住牌面 · 两两配对", cd: 90000 },
+];
+function gameStart(id) {
+  const g = GAMES.find(x => x.id === id);
+  if (g && g.cd && cooling("g_" + id)) { toastMsg(g.name + "还在冷却，歇口气再来", sfx.err); return; }
+  if (id === "dice") {
+    if (S.coins < 50) { toastMsg("赌坊最低押 50 金币，先去赚点本钱", sfx.err); return; }
+    gameSt = { game: "dice", phase: "side", side: 1, betIdx: 1, dice: [1, 1, 1], t: 0, sum: 0, win: false, baozi: false, pay: 0 };
+  } else if (id === "whack") {
+    gameSt = { game: "whack", phase: "play", cur: 2, mole: -1, next: 18, t: 0, hits: 0, swings: 0, pay: 0, pop: "", popT: 0 };
+  } else if (id === "fish") {
+    gameSt = { game: "fish", phase: "run", pos: 0, dir: 1, cast: 3, zoneL: 6 + Math.floor(Math.random() * 9), zoneW: 5, gain: 0, good: 0, pop: "", popT: 0 };
+  } else if (id === "memory") {
+    gameSt = { game: "memory", phase: "play", cur: 0, faces: [0, 1, 2, 0, 1, 2].sort(() => Math.random() - 0.5),
+               open: [], done: [false, false, false, false, false, false], first: -1, matched: 0, wait: 0, pay: 0 };
+  }
+  sfx.ok();
+}
+function gameExit() { gameSt = { game: "hub", sel: 0 }; beep(440, .05); }   // 任意游戏 → 回游戏厅
+function gameTick() {   // render 帧驱动
+  const st = gameSt;
+  if (!st) return;
+  if (st.popT > 0) st.popT--;
+  if (st.game === "dice") return gameRollTick();
+  if (st.game === "whack" && st.phase === "play") {
+    st.t++;
+    if (st.mole < 0 || st.t > st.next) {                       // 地鼠冒头 / 换洞
+      st.mole = Math.floor(Math.random() * 6);
+      st.next = st.t + 26 + Math.floor(Math.random() * 30);
+    }
+  }
+  if (st.game === "fish" && st.phase === "run") {              // 指针摆动
+    st.pos += st.dir;
+    if (st.pos >= 20) { st.pos = 20; st.dir = -1; }
+    if (st.pos <= 0)  { st.pos = 0;  st.dir = 1; }
+  }
+  if (st.game === "memory" && st.phase === "play" && st.wait > 0) {
+    if (--st.wait === 0) { st.open = []; st.first = -1; }      // 不匹配：1 秒后盖回
+  }
+}
+
+/* ---- 游戏厅大厅：左右选游戏 ---- */
+function renderGameHub() {
+  const st = gameSt;
+  textC("— 游 戏 厅 —", 64, 8, "#d8c68a", 11);
+  text("金币：" + S.coins, 10, 24, "#e8c860", 9);
+  const on = i => i === st.sel;
+  GAMES.forEach((g, i) => {
+    const x = 14 + i * 26, y = 40, hot = on(i);
+    px(x, y, 22, 22, hot ? "#3a3f54" : "#22263a");
+    if (hot) selFrame(x, y, 22, 22);
+    const c1 = hot ? "#f5e9b8" : "#c9b070";
+    if (g.id === "dice")   { px(x + 3, y + 3, 8, 8, c1); px(x + 6, y + 6, 2, 2, "#10131c"); px(x + 11, y + 11, 8, 8, c1); px(x + 14, y + 14, 2, 2, "#10131c"); }
+    if (g.id === "whack")  { px(x + 6, y + 2, 3, 8, c1); px(x + 3, y + 9, 9, 4, c1); px(x + 4, y + 14, 14, 4, "#7a5a34"); px(x + 9, y + 12, 5, 3, "#8a5a34"); }
+    if (g.id === "fish")   { px(x + 3, y + 10, 12, 5, c1); px(x + 14, y + 8, 4, 4, c1); px(x + 15, y + 9, 1, 1, "#10131c"); px(x + 5, y + 12, 3, 1, "#10131c"); }
+    if (g.id === "memory") { px(x + 3, y + 4, 7, 10, c1); px(x + 12, y + 8, 7, 10, c1); px(x + 5, y + 6, 3, 6, "#10131c"); }
+    if (g.cd && cooling("g_" + g.id)) px(x + 17, y + 17, 4, 4, "#e86a5a");   // 冷却红点
+  });
+  const g = GAMES[st.sel];
+  textC("◀ " + g.name + " ▶", 64, 68, "#f5e9b8", 11);
+  textC(g.desc, 64, 82, "#8a92ad", 8);
+  if (g.cd && cooling("g_" + g.id)) textC("冷却中，稍后再来", 64, 96, "#e8a08a", 8);
+  textC("◀▶ 选择 · A 进入 · B 返回", 64, 114, "#8a92ad", 8);
+}
+
+/* ---- 押大小（原赌坊逻辑保留） ----
    三颗骰子：三同（豹子）庄家通吃；点数 11+ 为大、10 以下为小。
    ▲▼ 选边/调注 · A 确认 · B 后退/离开。赢按 1:1 赔付，额外修为+2。 */
-function renderGame() {
+function renderDice() {
   const st = gameSt;
-  px(0, 0, W, H, "#141824");
   textC("— 黑市赌坊 · 押大小 —", 64, 6, "#d8c68a", 10);
   text("金币：" + S.coins, 10, 20, "#e8c860", 9);
-
-  // 三颗骰子（摇动时闪烁）
   const rolling = st.phase === "roll";
   for (let i = 0; i < 3; i++) {
     const dx = 23 + i * 30, dy = 34;
@@ -1605,30 +1677,26 @@ function renderGame() {
     textC(v, dx + 11, dy + 5, "#262a38", 12);
   }
   if (st.phase === "roll" || st.phase === "result") textC("点数：" + st.sum, 64, 60, "#cfd4e8", 9);
-
-  // 押大 / 押小 选项
   const on1 = st.side === 1, on2 = st.side === 0;
   const y1 = 74, y2 = 86;
   if (st.phase === "side") { if (on1) px(10, y1 - 2, 108, 11, "#3a3f54"); if (on2) px(10, y2 - 2, 108, 11, "#3a3f54"); }
   text((st.phase === "side" && on1 ? "▶" : " ") + "押大 · 11点以上", 14, y1, on1 ? "#f5e9b8" : "#8a92ad", 9);
   text((st.phase === "side" && on2 ? "▶" : " ") + "押小 · 10点以下", 14, y2, on2 ? "#f5e9b8" : "#8a92ad", 9);
-
-  // 结果 / 注额 / 提示
   if (st.phase === "result") {
     if (st.baozi) textC("豹子！庄家通吃 -" + st.pay, 64, 100, "#e8a08a", 10);
     else if (st.win) textC("押中！金币 +" + st.pay + " · 修为+2", 64, 100, "#b8e88a", 10);
     else textC("没押中，- " + st.pay + " 金", 64, 100, "#e8a08a", 10);
-    textC("A 再来一局 · B 离开", 64, 114, "#8a92ad", 8);
+    textC("A 再来一局 · B 返回大厅", 64, 114, "#8a92ad", 8);
   } else if (st.phase === "bet") {
     const bet = BETS[st.betIdx];
     textC("◀ 注额：" + bet + " 金 ▶", 64, 100, "#e8c860", 10);
     textC("▲▼ 调整 · A 开骰 · B 返回", 64, 114, "#8a92ad", 8);
   } else if (st.phase === "side") {
     textC("豹子（三同）庄家通吃", 64, 100, "#8a8fa5", 7);
-    textC("▲▼ 选边 · A 押注 · B 离开", 64, 114, "#8a92ad", 8);
+    textC("▲▼ 选边 · A 押注 · B 返回大厅", 64, 114, "#8a92ad", 8);
   } else {
     textC("骰盅摇动中…", 64, 100, "#e8c860", 9);
-    textC("B 离开", 64, 114, "#8a92ad", 8);
+    textC("B 返回大厅", 64, 114, "#8a92ad", 8);
   }
 }
 function gameRollTick() {   // 摇骰动画与结算（render 帧驱动）
@@ -1646,12 +1714,94 @@ function gameRollTick() {   // 摇骰动画与结算（render 帧驱动）
     if (st.win) { S.coins += st.pay; S.exp += Math.max(1, Math.round(2 * pen)); checkTitle(); }
     else {
       S.coins = Math.max(0, S.coins - bet);
-      if (S.coins < 50) { st.phase = "result"; save(); toastMsg("输光了…赌坊老板把你请了出去", sfx.err); page = "main"; return; }
+      if (S.coins < 50) { st.phase = "result"; save(); toastMsg("输光了…赌坊老板把你请了出去", sfx.err); gameExit(); return; }
     }
     (st.win ? (st.baozi ? sfx.err : sfx.up) : sfx.err)();
     st.phase = "result";
     save();
   }
+}
+
+/* ---- 打地鼠：6 洞，◀▶ 移动锤子，A 敲！敲中赚钱，10 只一轮 ---- */
+function renderWhack() {
+  const st = gameSt;
+  textC("— 打地鼠 —", 64, 6, "#d8c68a", 10);
+  text("敲中 " + st.hits + "/10 · 已赚 " + st.pay + " 金", 10, 18, "#cfd4e8", 8);
+  for (let i = 0; i < 6; i++) {
+    const hx = 22 + (i % 3) * 30, hy = 32 + Math.floor(i / 3) * 26;
+    px(hx, hy + 10, 22, 8, "#3a2f22"); px(hx + 3, hy + 11, 16, 4, "#241c12");   // 洞
+    if (i === st.mole && st.phase === "play") {                                  // 冒头地鼠
+      px(hx + 5, hy, 12, 12, "#8a5a34");
+      px(hx + 7, hy + 3, 2, 2, "#262a38"); px(hx + 12, hy + 3, 2, 2, "#262a38");
+      px(hx + 8, hy + 7, 6, 2, "#e8a08a");
+    }
+    if (i === st.cur && st.phase === "play") selFrame(hx - 2, hy - 2, 26, 24);   // 锤子光标
+  }
+  if (st.popT > 0) textC(st.pop, 64, 90, st.pop.indexOf("+") === 0 ? "#b8e88a" : "#e8a08a", 10);
+  if (st.phase === "play") textC("◀▶ 移动 · A 敲！ · B 返回大厅", 64, 112, "#8a92ad", 8);
+  else {
+    textC("敲中 " + st.hits + " 只！" + (st.hits >= 8 ? "手气绝佳" : ""), 64, 96, "#b8e88a", 10);
+    textC("获得金币 +" + st.pay, 64, 106, "#e8c860", 10);
+    textC("A 返回大厅", 64, 116, "#8a92ad", 8);
+  }
+}
+
+/* ---- 钓鱼：指针摆动，绿区收竿，3 杆结算 ---- */
+function renderFish() {
+  const st = gameSt;
+  textC("— 池边垂钓 —", 64, 6, "#d8c68a", 10);
+  text("剩 " + st.cast + " 杆 · 收获 " + st.gain + " 金", 10, 18, "#cfd4e8", 8);
+  px(10, 30, 108, 26, "#1d3a5e");                              // 池水
+  for (let i = 0; i < 5; i++) px(16 + i * 22, 34 + ((frame / 20 + i) % 3) * 6, 10, 1, "#2a5a8e");
+  const fx = 20 + (frame * 0.4) % 80;                          // 游鱼影子
+  px(fx, 46, 9, 3, "#0f2438"); px(fx + 8, 46, 3, 3, "#0f2438");
+  px(14, 70, 100, 12, "#262a38");                              // 时机条
+  px(14 + st.zoneL * 5, 70, st.zoneW * 5, 12, "#3a7a3a");      // 绿区
+  px(14 + st.pos * 5, 70, 3, 12, "#f5e9b8");                   // 指针
+  if (st.popT > 0) textC(st.pop, 64, 88, st.pop.indexOf("+") === 0 ? "#b8e88a" : "#e8a08a", 10);
+  if (st.phase === "run") textC("A 收竿！ · B 返回大厅", 64, 112, "#8a92ad", 8);
+  else {
+    textC("收获 " + st.gain + " 金" + (st.good === 3 ? " · 神钓手！" : ""), 64, 96, "#b8e88a", 10);
+    textC("A 返回大厅", 64, 112, "#8a92ad", 8);
+  }
+}
+
+/* ---- 翻牌配对：6 张 3 对，◀▶ 选牌 A 翻开，全配对大奖 ---- */
+const MEM_FACES = [["#e86a5a", "剑"], ["#4a8db8", "书"], ["#e8c860", "钱"]];
+function renderMemory() {
+  const st = gameSt;
+  textC("— 翻牌配对 —", 64, 6, "#d8c68a", 10);
+  text("配对 " + st.matched + "/3 · 已赚 " + st.pay + " 金", 10, 18, "#cfd4e8", 8);
+  for (let i = 0; i < 6; i++) {
+    const x = 18 + (i % 3) * 32, y = 30 + Math.floor(i / 3) * 30;
+    const f = MEM_FACES[st.faces[i]];
+    if (st.done[i]) { px(x, y, 26, 26, "#161a28"); px(x, y, 26, 1, "#2e3345"); px(x, y + 25, 26, 1, "#2e3345"); }  // 已配走：空槽
+    else if (st.open.indexOf(i) >= 0) {                              // 翻开：图案
+      px(x, y, 26, 26, f[0]);
+      textC(f[1], x + 13, y + 8, "#f5ecd0", 12);
+    } else {                                                          // 牌背
+      px(x, y, 26, 26, "#2e3a58");
+      px(x + 3, y + 3, 20, 20, "#26314a"); px(x + 10, y + 10, 6, 6, "#3a4a70");
+    }
+    if (i === st.cur && st.phase === "play") selFrame(x - 2, y - 2, 30, 30);
+  }
+  if (st.popT > 0) textC(st.pop, 64, 92, st.pop.indexOf("+") === 0 ? "#b8e88a" : "#e8a08a", 10);
+  if (st.phase === "play") textC("◀▶ 选牌 · A 翻开 · B 返回大厅", 64, 112, "#8a92ad", 8);
+  else {
+    textC("配对 " + st.matched + "/3 · 金币 +" + st.pay, 64, 96, "#b8e88a", 10);
+    textC("A 返回大厅", 64, 112, "#8a92ad", 8);
+  }
+}
+
+function renderGame() {
+  const st = gameSt;
+  px(0, 0, W, H, "#141824");
+  if (st.game === "hub") return renderGameHub();
+  if (st.game === "dice") return renderDice();
+  if (st.game === "whack") return renderWhack();
+  if (st.game === "fish") return renderFish();
+  if (st.game === "memory") return renderMemory();
+  gameExit(); return renderMain();                    // 异常兜底
 }
 
 function renderSettings() {
@@ -1891,19 +2041,25 @@ function moveSel(d) {
   }
   if (page === "game") {
     const st = gameSt;
-    if (st.phase === "side") { st.side = 1 - st.side; beep(600, .03, "square", .06); }
-    else if (st.phase === "bet") {
-      const maxIdx = BETS.findIndex(b => b > S.coins);   // 只能押身上有的
-      const cap = maxIdx === -1 ? BETS.length - 1 : Math.max(0, maxIdx - 1);
-      st.betIdx = Math.max(0, Math.min(cap, st.betIdx + d));
+    if (st.game === "hub") { st.sel = (st.sel + d + GAMES.length * 10) % GAMES.length; beep(600, .03, "square", .06); }
+    else if (st.game === "dice") {
+      if (st.phase === "side") { st.side = 1 - st.side; beep(600, .03, "square", .06); }
+      else if (st.phase === "bet") {
+        const maxIdx = BETS.findIndex(b => b > S.coins);   // 只能押身上有的
+        const cap = maxIdx === -1 ? BETS.length - 1 : Math.max(0, maxIdx - 1);
+        st.betIdx = Math.max(0, Math.min(cap, st.betIdx + d));
+        beep(600, .03, "square", .06);
+      }
+    }
+    else if ((st.game === "whack" || st.game === "memory") && st.phase === "play") {
+      st.cur = Math.max(0, Math.min(5, st.cur + d));       // ◀▶ 移动锤子/选牌
       beep(600, .03, "square", .06);
     }
     return;
   }
-  if (page === "daily") {
-    const rows = buildDailyRows();
-    if (!rows) return;
-    dailySel = Math.max(0, Math.min(rows.length - 1, dailySel + d));
+  if (page === "activity") {
+    const rows = activityRows();
+    actSel = Math.max(0, Math.min(rows.length - 1, actSel + d));
     beep(600, .03, "square", .06); return;
   }
   if (page === "home") {
@@ -1913,7 +2069,7 @@ function moveSel(d) {
     return;
   }
   if (page !== "main") return;
-  // v8.1：主页 ▲▼ 只在 8 个模块 + 设置（0~8）间循环，不选中左侧状态面板（index 9）
+  // v0.2.0：主页 ▲▼（←→ 同效）在底部 4 个按钮间左右循环，不选中状态项
   const NAV_N = MENU.length - 1;
   if (menuIdx >= NAV_N) menuIdx = 0;
   menuIdx = (menuIdx + d + NAV_N * 10) % NAV_N;
@@ -1988,16 +2144,74 @@ function confirmA() {
     }
   } else if (page === "game") {
     const st = gameSt;
-    if (st.phase === "side") { st.phase = "bet"; sfx.ok(); }
-    else if (st.phase === "bet") {
-      const bet = BETS[st.betIdx];
-      if (S.coins < bet) { toastMsg("金币不够押这一注，调小点", sfx.err); return; }
-      st.phase = "roll"; st.t = 0; st.dice = [1, 1, 1]; st.sum = 0;   // A 开骰！
+    if (st.game === "hub") { gameStart(GAMES[st.sel].id); return; }   // 大厅 A = 进入所选游戏
+    if (st.game === "dice") {
+      if (st.phase === "side") { st.phase = "bet"; sfx.ok(); }
+      else if (st.phase === "bet") {
+        const bet = BETS[st.betIdx];
+        if (S.coins < bet) { toastMsg("金币不够押这一注，调小点", sfx.err); return; }
+        st.phase = "roll"; st.t = 0; st.dice = [1, 1, 1]; st.sum = 0;   // A 开骰！
+      }
+      else if (st.phase === "result") {
+        if (S.coins < 50) { toastMsg("本钱不够了，赌坊老板请你出去", sfx.err); gameExit(); return; }
+        st.phase = "side"; beep(600, .05);
+      }
+      return;
     }
-    else if (st.phase === "result") {
-      if (S.coins < 50) { page = "main"; toastMsg("本钱不够了，赌坊老板请你出去", sfx.err); return; }
-      st.phase = "side"; beep(600, .05);
+    if (st.game === "whack") {
+      if (st.phase === "over") { gameExit(); return; }
+      st.swings++;
+      if (st.cur === st.mole) {                                        // 敲中！
+        const gain = 8 + Math.floor(Math.random() * 8);
+        S.coins += gain; st.hits++; st.pay += gain;
+        st.pop = "+" + gain + "金"; st.popT = 12; sfx.up();
+        st.mole = Math.floor(Math.random() * 6);
+        st.next = st.t + 26 + Math.floor(Math.random() * 30);
+        if (st.hits >= 10) {                                           // 一轮结束
+          const pen = actPenalty();
+          st.pay = Math.max(1, Math.round(st.pay * pen));
+          S.exp += 3; checkTitle();
+          st.phase = "over"; S.cool["g_whack"] = Date.now() + 60000; save();
+          toastMsg("地鼠敲完，收获 " + st.pay + " 金！" + (hasEq("t_jade") ? "" : ""), sfx.up);
+        }
+      } else { st.pop = "空竿！"; st.popT = 10; sfx.err(); }
+      return;
     }
+    if (st.game === "fish") {
+      if (st.phase === "over") { gameExit(); return; }
+      st.cast--;
+      if (st.pos >= st.zoneL && st.pos < st.zoneL + st.zoneW) {        // 收在绿区：钓到！
+        const gain = 25 + Math.floor(Math.random() * 36);
+        S.coins += gain; st.gain += gain; st.good++;
+        st.pop = "+" + gain + "金"; st.popT = 14; sfx.up();
+        S.exp += 1; checkTitle();
+      } else { st.pop = "跑了…"; st.popT = 12; sfx.err(); }
+      if (st.cast <= 0) {                                              // 3 杆结算
+        const pen = actPenalty();
+        st.gain = Math.max(0, Math.round(st.gain * pen));
+        if (st.good === 3) { S.coins += 30; st.gain += 30; }           // 三连中奖励
+        st.phase = "over"; S.cool["g_fish"] = Date.now() + 45000; save();
+      } else { st.zoneL = 6 + Math.floor(Math.random() * 9); st.pos = 0; st.dir = 1; }
+      return;
+    }
+    if (st.game === "memory") {
+      if (st.phase === "over") { gameExit(); return; }
+      if (st.done[st.cur] || st.open.indexOf(st.cur) >= 0) { sfx.err(); return; }
+      if (st.first < 0) { st.first = st.cur; st.open = [st.cur]; beep(600, .03, "square", .06); return; }
+      st.open.push(st.cur);                                            // 第二张
+      if (st.faces[st.first] === st.faces[st.cur]) {                   // 配对成功
+        st.done[st.first] = true; st.done[st.cur] = true;
+        st.matched++; st.pay += 15; S.coins += 15;
+        st.pop = "+15金"; st.popT = 12; sfx.up();
+        st.open = []; st.first = -1;
+        if (st.matched >= 3) {                                         // 全配对大奖
+          st.pay += 30; S.coins += 30; S.exp += 3; checkTitle();
+          st.phase = "over"; S.cool["g_memory"] = Date.now() + 90000; save();
+        }
+      } else { st.wait = 26; st.first = -1; sfx.err(); }               // 不匹配：稍后盖回
+      return;
+    }
+    gameExit();
   } else if (page === "home") {
     const opts = homeOptions();
     if (homeSel >= opts.length) homeSel = 0;
@@ -2026,12 +2240,13 @@ function confirmA() {
   } else if (page === "status") {
     // v8.2：手札只认 B 返回；A 不再退出（原来 A 也能退，和底部「B 返回」提示不一致）
     beep(440, .05);
-  } else if (page === "daily") {
-    const rows = buildDailyRows();
-    const row = rows && rows[dailySel];
-    if (row && row.key && DUNGEON_KEYS[row.key]) {
+  } else if (page === "activity") {
+    const rows = activityRows();
+    const row = rows[actSel];
+    if (row && row.kind === "act") { doAct(row.id); return; }        // 行动：打坐/木桩/挖宝/家园
+    if (row && row.kind === "daily" && row.key && DUNGEON_KEYS[row.key]) {
       page = "main";
-      startDungeon(DUNGEON_KEYS[row.key]);
+      startDungeon(DUNGEON_KEYS[row.key]);                            // 日常可打本条目 → 进副本
     } else {
       fetchDaily();
       toastMsg("已刷新今日日常", sfx.ok);
@@ -2067,8 +2282,13 @@ function pressB() {
   }
   if (page === "game") {
     const st = gameSt;
-    if (st.phase === "bet") { st.phase = "side"; beep(440, .05); }        // 调注 → 退回选边
-    else if (st.phase !== "roll") { page = "main"; beep(440, .05); }      // 摇骰中不许退出
+    if (st.game === "hub") { page = "main"; beep(440, .05); return; }     // 大厅 B = 回主页
+    if (st.game === "dice") {
+      if (st.phase === "bet") { st.phase = "side"; beep(440, .05); }      // 调注 → 退回选边
+      else if (st.phase !== "roll") gameExit();                           // 摇骰中不许退出
+      return;
+    }
+    gameExit();                                                            // 小游戏 B = 回游戏厅（中途退出不给奖励）
     return;
   }
   if (page === "item") { page = itemFrom; catMode = false; beep(440, .05); return; }   // 详情 → 列表
@@ -2078,7 +2298,7 @@ function pressB() {
     page = "main"; catMode = false; beep(440, .05);
   }
   else if (page === "status") { page = "main"; beep(440, .05); }   // v8.2：手札 B 明确返回主页（A 不退出）
-  else if (page === "home" || page === "daily") { page = "main"; beep(440, .05); }
+  else if (page === "home" || page === "activity") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
 
