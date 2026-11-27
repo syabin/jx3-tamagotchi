@@ -47,13 +47,11 @@
     touch-action: none;              /* 屏幕横滑选单时不要触发页面滚动 */
   }
   /* ---------- 真机预览：明亮配色 + 30fps 节拍 ----------
-     v8.5：撤销 v8.4 的暖屏色域映射（QLUT 逐通道压暗/压黄、背光降 78%，画面发闷），
-     恢复原本深蓝底 + 金字的明亮通透配色，仅做轻微提亮。 */
+     v8.6：真机预览不再改机身配色——金框、粉键保持默认明亮风格；
+     v8.5 已撤销 v8.4 的暖屏色域映射（QLUT 逐通道压暗/压黄、背光降 78%），屏幕仅做轻微提亮。 */
   body.qmode canvas#screen {
     filter: saturate(1.12) brightness(1.10);
   }
-  body.qmode .screen-frame { border-color: #8a8478; }
-  body.qmode .ctl { background: radial-gradient(circle at 35% 30%, #d8d4c8, #a8a498 65%, #8a8680); border-color: #6a675e; }
   /* ---------- 机身下方按键排（4 键：▲▼ 选单 / A 确认 / B 返回） ---------- */
   .ctl-row {
     display: flex; gap: 16px; justify-content: center; align-items: center;
@@ -710,7 +708,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "8.5";
+const APP_VERSION = "8.6";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -2139,7 +2137,7 @@ window.addEventListener("keyup", e => {
 document.getElementById("speed").onchange = e => speedF = +e.target.value;
 document.getElementById("mute").onchange = e => setMuted(e.target.checked);
 setMuted(muted);   // 初始化：载入本地静音偏好并同步面板复选框
-// 真机预览：LCD 单色滤镜 + 30fps 节拍（对齐 ST7735 实际刷新能力）
+// 真机预览：30fps 节拍 + 屏幕轻微提亮（v8.6 起机身配色不再改暖，对齐 ST7735 实际刷新能力）
 const qEl = document.getElementById("qmode");
 function applyQmode(on) {
   qmode = !!on;
