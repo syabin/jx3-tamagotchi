@@ -1,0 +1,5 @@
+{
+  "version": "8.7",
+  "build": "2026-11-27",
+  "note": "目录层级重组：主目录只留 index.html/README.md/web端设计/单片机设计/.workbuddy；OTA、日常取数、Actions、测试路径全部同步"
+}

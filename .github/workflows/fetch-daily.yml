@@ -3,7 +3,7 @@ name: 更新日常数据
 # 为什么要有这个 workflow：
 # jx3api 不返回任何 Access-Control-Allow-Origin 头，浏览器页面无法直接 fetch；
 # 公共 CORS 代理（r.jina.ai / allorigins / codetabs）已全部失效。
-# 因此改为「构建时预取」：由 Actions 定时抓取接口，写成同源的 data/daily.json，
+# 因此改为「构建时预取」：由 Actions 定时抓取接口，写成同源的 web端设计/data/daily.json，
 # 页面直接读本地 JSON，不需要任何代理，也不需要服务器。
 
 on:
@@ -27,19 +27,19 @@ jobs:
       - name: 抓取 jx3api 日历接口
         run: |
           set -euo pipefail
-          mkdir -p data
+          mkdir -p web端设计/data
           curl -sS --retry 3 --retry-delay 2 --max-time 30 \
             -A "jx3-tamagotchi/7.x (+https://syabin.github.io/jx3-tamagotchi/)" \
-            "https://www.jx3api.com/active/calendar?mode=day" -o data/.raw.json
+            "https://www.jx3api.com/active/calendar?mode=day" -o web端设计/data/.raw.json
           echo "--- 原始响应 ---"
-          head -c 200 data/.raw.json; echo
+          head -c 200 web端设计/data/.raw.json; echo
 
-      - name: 校验并写入 data/daily.json
+      - name: 校验并写入 web端设计/data/daily.json
         run: |
           set -euo pipefail
           node -e '
           const fs = require("fs");
-          const txt = fs.readFileSync("data/.raw.json", "utf8");
+          const txt = fs.readFileSync("web端设计/data/.raw.json", "utf8");
           let raw;
           try { raw = JSON.parse(txt); } catch (e) {
             console.error("响应不是合法 JSON，保留旧数据。前 200 字：" + txt.slice(0, 200));
@@ -51,25 +51,25 @@ jobs:
             process.exit(1);
           }
           let prev = null;
-          try { prev = JSON.parse(fs.readFileSync("data/daily.json", "utf8")); } catch (e) {}
+          try { prev = JSON.parse(fs.readFileSync("web端设计/data/daily.json", "utf8")); } catch (e) {}
           if (prev && prev.date === d.date && JSON.stringify(prev.detail) === JSON.stringify(d)) {
             console.log("内容未变化（" + d.date + "），不写文件");
             process.exit(0);
           }
-          fs.writeFileSync("data/daily.json", JSON.stringify({ fetchedAt: new Date().toISOString(), date: d.date, detail: d }, null, 2) + "\n");
+          fs.writeFileSync("web端设计/data/daily.json", JSON.stringify({ fetchedAt: new Date().toISOString(), date: d.date, detail: d }, null, 2) + "\n");
           console.log("已更新：" + d.date);
           '
-          rm -f data/.raw.json
+          rm -f web端设计/data/.raw.json
 
       - name: 有变化才提交
         run: |
           set -euo pipefail
-          if git diff --quiet -- data/daily.json; then
-            echo "data/daily.json 无变化，跳过提交"
+          if git diff --quiet -- web端设计/data/daily.json; then
+            echo "web端设计/data/daily.json 无变化，跳过提交"
             exit 0
           fi
           git config user.name "jx3-daily-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/daily.json
+          git add web端设计/data/daily.json
           git commit -m "chore(daily): 更新日常数据 $(date -u +%F)"
           git push

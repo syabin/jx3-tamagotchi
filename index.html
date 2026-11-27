@@ -708,7 +708,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "8.6";
+const APP_VERSION = "8.7";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -724,12 +724,12 @@ const SET_MENU = [
 ];
 function otaCheck() {
   otaState = { phase: "checking", ver: null, pct: 0 };
-  // 优先读独立的 version.json（不受 index.html 内容变化 / Pages 缓存影响），失败再回退比对页面内版本号
+  // 优先读独立的 web端设计/version.json（不受 index.html 内容变化 / Pages 缓存影响），失败再回退比对页面内版本号
   const done = (j) => {
     otaState.ver = j && (j.version || j.ver);
     otaState.phase = (otaState.ver && otaState.ver !== APP_VERSION) ? "found" : "latest";
   };
-  fetch("version.json?ts=" + Date.now(), { cache: "no-store" })
+  fetch("web端设计/version.json?ts=" + Date.now(), { cache: "no-store" })
     .then(r => (r.ok ? r.json() : Promise.reject(0)))
     .then(done)
     .catch(() => {
@@ -1122,14 +1122,14 @@ function buildDailyRows() {
   }
   return rows.length ? rows : null;
 }
-/* 日常数据来源（v7.3 双通道，按顺序尝试）：
-   1) 同源 data/daily.json —— GitHub Actions 每小时预取（见 .github/workflows/fetch-daily.yml），
+/* 日常数据来源（v7.3 双通道，v8.7 目录重组后路径改为 web端设计/data/daily.json，按顺序尝试）：
+   1) 同源 web端设计/data/daily.json —— GitHub Actions 每小时预取（见 .github/workflows/fetch-daily.yml），
       网页端（GitHub Pages / 本地静态服务）走这条：同源请求零跨域、零代理，走的客户端自己的网络；
-   2) 直连 jx3api —— 主机端（ESP32 固件）没有浏览器跨域限制，data/daily.json 不存在时自然落到这条。
+   2) 直连 jx3api —— 主机端（ESP32 固件）没有浏览器跨域限制，json 不存在时自然落到这条。
    注意（别踩坑）：jx3api 不返回 Access-Control-Allow-Origin、不支持 JSONP，浏览器里直连通道
    基本必被同源策略拦——这是留给固件和有代理部署用的，网页端别指望它。
    公共 CORS 代理一律不用：r.jina.ai（海外）不稳定且用户明确不用，allorigins/codetabs 等 2026-11-26 实测全灭。 */
-const DAILY_SOURCES = ["data/daily.json", "https://www.jx3api.com/active/calendar?mode=day"];
+const DAILY_SOURCES = ["web端设计/data/daily.json", "https://www.jx3api.com/active/calendar?mode=day"];
 const DAILY_REFRESH_MS = 3600e3;   // 本地缓存超过 1 小时就重新拉一次
 async function fetchDaily() {
   dailyLoading = true; dailyErr = null;

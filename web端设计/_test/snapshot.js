@@ -1,6 +1,6 @@
 /* ASCII 布局快照（临时工具）：把 fillRect 记到 128×128 网格里目检 */
 const fs = require("fs"), vm = require("vm");
-const script = fs.readFileSync(__dirname + "/../index.html", "utf8").match(/<script>([\s\S]*)<\/script>/)[1];
+const script = fs.readFileSync(__dirname + "/../../index.html", "utf8").match(/<script>([\s\S]*)<\/script>/)[1];
 const grid = Array.from({ length: 128 }, () => Array(128).fill(" "));
 const ctxStub = new Proxy(
   { measureText: s => ({ width: String(s).length * 8 }) },

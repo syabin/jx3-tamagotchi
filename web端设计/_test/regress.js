@@ -1,9 +1,9 @@
 /* 回归冒烟测试：最小 DOM/canvas stub + vm 跑 index.html 脚本。
-   用法：node _test/regress.js   （改 index.html 后先跑这个） */
+   用法：node web端设计/_test/regress.js   （改 index.html 后先跑这个） */
 const fs = require("fs"), vm = require("vm");
 const assert = (cond, msg) => { if (!cond) { console.error("FAIL: " + msg); process.exitCode = 1; } else console.log("ok  - " + msg); };
 
-const html = fs.readFileSync(__dirname + "/../index.html", "utf8");
+const html = fs.readFileSync(__dirname + "/../../index.html", "utf8");
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
 const ctxStub = new Proxy({
@@ -217,9 +217,9 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "8.6", "版本号为 8.6");
+assert(g("APP_VERSION") === "8.7", "版本号为 8.7");
 assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
-const src86 = require("fs").readFileSync(require("path").join(__dirname, "..", "index.html"), "utf8");
+const src86 = require("fs").readFileSync(require("path").join(__dirname, "../..", "index.html"), "utf8");
 assert(!/body\.qmode \.screen-frame \{ border-color: #8a8478/.test(src86), "v8.6 真机预览不再覆盖暖灰边框");
 assert(!/body\.qmode \.ctl \{ background: radial-gradient\(circle at 35% 30%, #d8d4c8/.test(src86), "v8.6 真机预览不再覆盖暖灰按键");
 assert(g("B_HOLD_MS") === 1500, "长按 B 呼出设置阈值为 1.5 秒");
@@ -259,7 +259,7 @@ g("save();");
 assert(g("load()") === true, "存档可重新载入");
 
 /* ---- 日常双通道 ---- */
-assert(g("DAILY_SOURCES[0]") === "data/daily.json" && g("DAILY_SOURCES.length") === 2,
+assert(g("DAILY_SOURCES[0]") === "web端设计/data/daily.json" && g("DAILY_SOURCES.length") === 2,
   "日常数据双通道：预取 json 优先，直连 jx3api 兜底");
 
 console.log(process.exitCode ? "\n存在失败项" : "\n全部通过");
