@@ -700,7 +700,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "0.2.5";
+const APP_VERSION = "0.2.6";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -1024,47 +1024,125 @@ function drawPet(pose, pox = 52, poy = 32, s = 3) {
 
 /* --- 气泡/表情 --- */
 function drawEmoji(kind) {
-  const u = 2, ox = 104, oy = 42;
+  const ox = 104, oy = 42;
   if (kind === "heart") {
-    px(ox, oy, 3, 3, "#e85a7a"); px(ox + 3, oy, 3, 3, "#e85a7a");
-    px(ox + 1, oy + 1, 4, 3, "#e85a7a"); px(ox + 2, oy + 4, 2, 1, "#e85a7a");
+    // 1px 心形：外描边 + 高光，12×10 网格
+    const H = ["..oo..oo..", ".ohhoohho.", "ohhllhhhho", "ohlllllhlo", "ohlllllllo",
+               ".ohlllllho", "..ohlllho.", "...ohhlo..", "....oo...."];
+    H.forEach((row, r) => { for (let c = 0; c < row.length; c++) {
+      const ch = row[c];
+      if (ch === ".") continue;
+      px(ox + c, oy + r, 1, 1, ch === "o" ? "#8a2a44" : ch === "h" ? "#f08aa0" : "#e85a7a");
+    }});
   } else if (kind === "zzz") {
     text("Z", ox + (frame / 20 % 8), oy - (frame / 20 % 8), "#b8c8e8", 10);
   }
 }
 
-/* --- 菜单图标 --- */
+/* ===== 统一像素精灵（v0.2.6）：16×16 字符网格，统一描边/高光/阴影 =====
+   所有图标（菜单/物品/游戏/手札/活动）共用同一套像素语言；由 gen_sprites.py 生成。 */
+const SPR_PAL = {
+  ".": null,
+  "o": "#0b0e16",
+  "D": "#202638",
+  "d": "#6a6e7a",
+  "k": "#10131c",
+  "m": "#4a8db8",
+  "l": "#7cb8d8",
+  "h": "#d8eaf5",
+  "g": "#e8c860",
+  "y": "#e8d8a0",
+  "w": "#f2f5fa",
+  "s": "#f2c9a0",
+  "r": "#c04050",
+  "O": "#e88040",
+  "c": "#4ab88a",
+  "p": "#9a6ad8",
+  "n": "#8a5a34",
+  "b": "#2a3048",
+  "G": "#3a7a4a",
+};
+const SPR = {
+  feed: {p:{"m":"#e8ddc8","l":"#f5efe0","D":"#8a7a58"}, r:["................",".....oooooo.....","....ohhhhhho....","...ohggggggho...","..ohgmmmmmmgho..","..ogmllllllmgo..","..ogmllllllmgo..","..ogmmmmmmmmgo..","..oDggggggggDo..","...oDDDDDDDDo...","....oooooooo....","................","................","................","................","................"]},
+  sit: {p:{"m":"#4a8db8","l":"#7cb8d8","D":"#2e5c7a"}, r:["................",".......gg.......","......ghhg......","......ohho......",".....osssso.....","....osssssso....","....oDmmmmDo....","...ommmmmmmmo...","..ommllllllmmo..","..omllllllllmo..","..oDllllllllDo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  train: {p:{"m":"#8a5a34","l":"#a86a3c","D":"#5a3a1e"}, r:["................",".......hh.......",".......mm.......",".......mm.......","....gggggggg....","...ohllllllho...","...ommmmmmmmo...","...ommmmmmmmo...","....oDmmmmDo....","....oDmmmmDo....",".....oDDDDo.....","....oggggggo....","................","................","................","................"]},
+  clean: {p:{"m":"#c8b898","l":"#e8ddc8","D":"#8a7a58"}, r:["................","....n...........","....nn..........",".....nn.........","......nn........",".......nn.......","........nn......",".....mmmnnn.....","....mmmmmmm.....","...ohhhhhhhho...","...ohllllllho...","....oDDDDDDo....",".....oooooo.....","................","................","................"]},
+  cure: {p:{"h":"#f2f5fa"}, r:["................","......oooo......","......onnno.....",".....onnnnno....",".....owwwwwo....","....owwwwwwwo...","...owwhhhhwwwo..","...owwhrrhwwwo..","...owwhrrhwwwo..","...owwhhhhwwwo..","....owwwwwwwo...",".....owwwwwo....","......oooooo....","................","................","................"]},
+  status: {p:{"m":"#e8d8a0","D":"#8a7440"}, r:["................","....oooooooo....","...oggggggggo...","..ogwgggggggo...","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","...oDDDDDDDDo...","....oooooooo....","................","................"]},
+  dig: {p:{"D":"#5a6078"}, r:["................","...ggggggggg....","..oghhhhhhhgo...","...oDDDDDDDDo...",".......nn.......","......nn........",".....nn.........","....nn..........","...nn...........","...nn...........","..nn............","..nn............","..nn............","..nn............","................","................"]},
+  game: {p:{"h":"#f2f5fa","D":"#8a8474"}, r:["................","..oooooo........",".ohhhhhho.......",".ohhkkhhho......",".ohhhhhho.......",".ohhkkhkho......",".ohhhhhho.......","..oDDDDDo.......","................",".......oooooo...","......ohhhhhho..","......ohhkkhho..","......ohhhhhho..","......ohkkhhho..","......ohhhhhho..",".......oDDDDo..."]},
+  dungeon: {p:{"m":"#2a3048","D":"#5a6078"}, r:["................","...gggggggggg...","..oghhhhhhhggo..","..oggggggggggo..","..ogDDDDDDDDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDDDDDDDDgo..","..oggggggggggo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................"]},
+  home: {p:{"m":"#a06838","D":"#5a3f28"}, r:["................",".......gg.......","......ghhg......",".....ghhhhg.....","....ghhhhhhg....","...gggggggggg...","..ogoooooooogo..","..ogommmmmmggo..","..ogommmmmmggo..","..ogommmmmmggo..","..ogomswwwsmggo.","..ogommmmmmggo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................"]},
+  bag: {p:{"m":"#8a5a34","D":"#5a3a1e"}, r:["................",".....nnnnnn.....","....nhhhhhhn....","...nhgggggghn...","..nnggggggggnn..","..ngmmmmmmmmgn..","..ngmmmmmmmmgn..","..ngmmmmmmmmgn..","..ngmmmmmmmmgn..","..ngmmmmmmmmgn..","..oDDDDDDDDDDo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  shop: {p:{"D":"#8a6a28","h":"#f5e9b8"}, r:["................",".....oooooo.....","...oggggggggo...","..oggggggggggo..",".ogggDDDDDDgggo.",".oggDggggggDggo.",".oggDgwwwwgDggo.",".oggDgwhhhgDggo.",".oggDgwwwwgDggo.",".oggDggggggDggo.",".ogggDDDDDDgggo.","..oggggggggggo..","...oggggggggo...",".....oooooo.....","................","................"]},
+  daily: {p:{"m":"#e8d8a0","h":"#b8a87a","D":"#8a7440"}, r:["................","...nn......nn...","...ng......gn...","...nggggggggn...","..oghhhhhhhggo..","..ogmmmmmmmggo..","..ogmhhhmmmgggo.","..ogmmmmmmmggo..","..ogmhhhmmmgggo.","..ogmmmmmmmggo..","..oggggggggggo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  activity: {p:{"m":"#e8d8a0","h":"#b8a87a","D":"#8a7440"}, r:["................","...nn......nn...","...ng......gn...","...nggggggggn...","..oghhhhhhhggo..","..ogmmmmmmmggo..","..ogmhhhmmmgggo.","..ogmmmmmmmggo..","..ogmhhhmmmgggo.","..ogmmmmmmmggo..","..oggggggggggo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  settings: {p:{"m":"#4a8db8","D":"#2a3048"}, r:["................","....oo....oo....","...ogghoooggho..","..oghggggghgo...","..oghhDDDDhhgo..",".ogghDDmmDDhggo.",".ogghDmmmmDhggo.",".ogghDmmmmDhggo.",".ogghDmmmmDhggo.",".ogghDDmmDDhggo.","..oghhDDDDhhgo..","..oghggggghgo...","...ogghoooggho..","....oo....oo....","................","................"]},
+  whack: {p:{"l":"#e8e0c8","D":"#8a8474","k":"#0b0e16","r":"#e88040"}, r:["................",".......nn.......",".......nn.......","....oooooooo....","...ohllllllho...","...ohllllllho...","...oDDDDDDDDo...","................",".....oooooo.....","....osssssso....","...osssssssso...","...oskssskso....","...osssrrsso....","....oDDDDDDo....",".....oooooo.....","................"]},
+  game_fish: {p:{"l":"#f0c090","h":"#0b0e16","D":"#b86830","c":"#4a7a92"}, r:["................","................",".....nnnn.......",".....nnnn.......",".......nn.......",".......nn.......","......nn........","...oooooo.......","..oOOOOOOo..oo..",".oOOllllOOoooo..",".oOlhllllOoOOo..",".oOOllllOOoooo..","..oOOOOOOo..oo..","...oDDDDDo......","..cccccccccccc..","...oooooooooo..."]},
+  memory: {p:{"b":"#2a3048","p":"#9a6ad8","D":"#8a7440"}, r:["................","..oooooo........",".oggggggo.......",".ogbbbbgo.......",".ogbppbgo.......",".ogbbbbgo.......",".oggggggo.......","..oDDDDDo.......","................",".......oooooo...","......oggggggo..","......ogbbbbgo..","......ogbppbgo..","......ogbbbbgo..","......oggggggo..",".......oDDDDo..."]},
+  race: {p:{"O":"#c04a2e","h":"#e88060","l":"#e8c860"}, r:["................","...........oo...","..........onno..",".........onhno..","........onhhno..","...oooonhhhno...","..oOOOonnnnno...","..oOhhOonnnno...","..oOhlllOonno...","..oOOOOOOOono...","...oOooOooOo....","....oO..oOo.....","................","................","................","................"]},
+  book: {p:{"l":"#e8d8a0","D":"#8a7a55"}, r:["................","................","..oooo...oooo...",".oggggo.oggggo..",".oglllo.oglllo..",".oglDDloglDDlo..",".oglDDloglDDlo..",".oglDDloglDDlo..",".oglllo.oglllo..",".oggggo.oggggo..","..oDDDo..oDDDo..","...ooo....ooo...","................","................","................","................"]},
+  scroll: {p:{"D":"#8a7440"}, r:["................","...nn......nn...","...ng......gn...","...nggggggggn...","..oghhhhhhhggo..","..ogyyyyyyygo...","..ogyrrryyrgyo..","..ogyyyyyyygo...","..ogyrrryyrgyo..","..ogyyyyyyygo...","..oggggggggggo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  gate: {p:{"m":"#2a3048","D":"#8a7440"}, r:["................",".....gggggg.....","....oggggggo....","...oghhhhhhgo...","..oggggggggggo..","..oDDDDDDDDDDo..","..ogDDDDDDDDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDDDDDDDDgo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................"]},
+  dice: {p:{"h":"#f2f5fa","D":"#8a8474"}, r:["................","..oooooo........",".ohhhhhho.......",".ohhkkhhho......",".ohhhhhho.......",".ohhkkhkho......",".ohhhhhho.......","..oDDDDDo.......","................",".......oooooo...","......ohhhhhho..","......ohhkkhho..","......ohhhhhho..","......ohkkhhho..","......ohhhhhho..",".......oDDDDo..."]},
+  baozi: {p:{"m":"#e8ddc8","l":"#f5efe0","h":"#fffaf0","D":"#b8a888","r":"#d8b090"}, r:["................","......oooo......",".....ohhhho.....","....ohlllllho...","...ohllhhhllho..","...ohllhhhllho..","..ohlllhhhlllo..","..ohlrhlllrhlo..","..ohlllllllllo..","..oDllllllllDo..","...oDDDDDDDDo...","....oooooooo....","................","................","................","................"]},
+  fish: {p:{"O":"#e8a86a","l":"#f0c090","h":"#0b0e16","D":"#b86830","c":"#b8c8d8"}, r:["................","................",".......oo.......","......ohho......",".....oOOOOo.....","...ooOOlllOOoo..","..oOOllllllOOo..","..oOlhllllhlOo..","..oOOllllllOOo..","...ooOOOOOOoo...","..oDDDDDDDDDDo..","..occcccccccco..","...oooooooooo...","................","................","................"]},
+  feast: {p:{"O":"#b85838","l":"#d88848","D":"#6a3828","r":"#e8c860"}, r:["................","......oooo......","......ogggo.....",".....ohhhho.....","....oOOOOOOo....","...oOllllllOo...","...oOllllllOo...","..oDDDDDDDDDDo..","..ogOOOOOOOOgo..","..ogOrrrrrrOgo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................","................","................"]},
+  pill: {p:{"n":"#8a5a2a","r":"#c04050"}, r:["................","......oooo......","......onnno.....",".....onnnnno....",".....owwwwwo....","....owwwwwwwo...","...owwhhhhwwwo..","...owwhrrhwwwo..","...owwhrrhwwwo..","...owwhhhhwwwo..","....owwwwwwwo...",".....owwwwwo....","......oooooo....","................","................","................"]},
+  page: {p:{"y":"#e0d8bc","l":"#f0e8cc","D":"#8a7a55","m":"#5a4a30"}, r:["................","....oooooooo....","...oyyyyyyyyo...","..oyllllllllyo..","..oylDDDDDDlyo..","..oylDmmmmDlyo..","..oylDmmmmDlyo..","..oylDmmmmDlyo..","..oylDmmmmDlyo..","..oylDDDDDDlyo..","..oylllllllllyo.","...oyyyyyyyyyo..","....oooooooooo..","................","................","................"]},
+  iron: {p:{"D":"#565a66","l":"#8a909c","h":"#c8ced8","d":"#6a6e7a"}, r:["................","................","................",".......oo.......","......oDDdo.....",".....oDllldo....","....oDllllldo...","...oDllllllldo..","..oDllhllllldo..","..oDDDDDDDDDDDo.","...oooooooooo...","................","................","................","................","................"]},
+  tassel: {p:{"D":"#8a1a28","r":"#c04050"}, r:["................",".......gg.......","......oggo......","......orrrro....",".....orrrrrro...",".....oDDDDDDo...","......orrrro....","......orrrro....","......orrrro....",".....orrrrrro...","......oooooo....","................","................","................","................","................"]},
+  steel: {p:{"D":"#5a6078","l":"#aab0bc","h":"#eef2f8"}, r:["................","................","................",".....oooooo.....","....ohhhhhho....","...ohlllllhlo...","..ohlllllllllho.","..ogllllllllllo.","..oDDDDDDDDDDo..","...oooooooooo...","................","................","................","................","................","................"]},
+  shard: {p:{"p":"#7a4ab8","l":"#9a6ad8","h":"#d8b8f8"}, r:["................",".......pp.......","......opppo.....",".....opplppo....","....opplllppo...","...opplhhhhppo..","...opplhhhhppo..","....opplllppo...",".....opplppo....","......opppo.....",".......ppp......","................","................","................","................","................"]},
+  xj_zt: {p:{"O":"#e07820","h":"#ffb25a","l":"#ffe0a0"}, r:["................",".......OO.......","......OhhO......",".....OhllhO.....","....OhllllhO....","...OhllllllhO...","...OhlllhllhO...","...OhllllllhO...","....OhllllhO....",".....OhllhO.....","......OhhO......",".......OO.......","................","................","................","................"]},
+  w_sword: {p:{"l":"#eef2f8","h":"#ffffff","D":"#8a6a3a","n":"#5a3a1e"}, r:["................",".......hh.......",".......ll.......",".......ll.......",".......ll.......",".......ll.......",".......ll.......",".......ll.......",".....gggggg.....","......oDDDo.....",".......nn.......",".......nn.......","......onno......","................","................","................"]},
+  w_pick: {p:{"l":"#c8d0dc","h":"#eef2f8","D":"#8a909c","n":"#8a6a40"}, r:["................","..gggggggggggg..","..ohllllllllho..","...oDDDDDDDDo...",".......nn.......",".......nn.......",".......nn.......",".......nn.......",".......nn.......",".......nn.......",".......nn.......",".....oonnoo.....","................","................","................","................"]},
+  a_robe: {p:{"b":"#4a8db8","l":"#e8eef5","D":"#2e5c7a","h":"#bfe3ff"}, r:["................",".....oooooo.....","....ohbbbbho....","...obbbllbbbo...","..obbbllllbbbo..","..obbllllllbbo..","..obllllllllo...","..obllllllllo...","..obllllllllo...","..obllllllllo...","..oDDDDDDDDDDo..","...oooooooooo...","................","................","................","................"]},
+  a_charm: {p:{"y":"#e8d8a0","r":"#a83040"}, r:["................","......oooo......","......ogggo.....",".....ogggggo....",".....oyyyyyo....","....oyrrrrryo...","....oyyyyyyo....","....oyrrrrryo...","....oyyyyyyo....","....oyrrrrryo...",".....oyyyyo.....","......oooooo....","................","................","................","................"]},
+  t_jade: {p:{"c":"#3a9a78","l":"#4ab88a","h":"#a8e8c8"}, r:["................","......oooo......",".....occcco.....","....ocllllco....","...oclhhhhclo...","..oclhkkkkhlco..","..oclhk..khclo..","..oclhk..khclo..","..oclhk..khclo..","..oclhkkkkhlco..","...oclhhhhclo...","....ocllllco....",".....occcco.....","......oooo......","................","................"]},
+  t_gourd: {p:{"n":"#a86a30","l":"#c88a50","h":"#8a5a2a"}, r:["................",".......nn.......","......onno......",".....onnnno.....","....onnnnnno....","....onnnnnno....","...onllllllno...","...onllllllno...","...onlhhhhhno...","...onllllllno...","....onnnnnno....",".....onnnno.....","......oooooo....","................","................","................"]},
+  d_plant: {p:{"G":"#3a7a3a","h":"#8ac86a","n":"#8a5a34","D":"#5a3a1e"}, r:["................","................","......oGo.......",".....oGGGo......","....oGhGGGo.....","...oGhGGGGGo....","...oGGGGGGGo....","....oGGhGGo.....",".....oGGGo......",".....onnnno.....","....onnnnnno....","....oDDDDDDo....",".....oooooo.....","................","................","................"]},
+  d_screen: {p:{"n":"#8a5e40","y":"#d8c68a","g":"#a88858","h":"#f5e9b8","D":"#5a3a2a"}, r:["................","...oooooooooo...","..oggggggggggo..","..ognnnnnnnngo..","..ognyyyyyynngo.","..ognyggggynngo.","..ognyghhgynngo.","..ognyggggynngo.","..ognyyyyyynngo.","..ognnnnnnnngo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................","................","................"]},
+  d_lamp: {p:{"n":"#8a5a2a","g":"#e8a04a","h":"#f5e9b8","l":"#ffffd8","D":"#5a4a30"}, r:["................",".......nn.......","......onno......",".....oggggo.....","....oghhhhgo....","....oghllhgo....","....oghllhgo....","....oghhhhgo....",".....oggggo.....",".....onnnno.....","....oDDDDDDo....",".....oooooo.....","................","................","................","................"]},
+};
+/* over 优先级：over > 精灵自带调色板 > 全局调色板 */
+function drawSpr(id, x, y, s, over) {
+  const sp = SPR[id]; if (!sp) return;
+  s = s || 1;
+  const x0 = Math.round(x), y0 = Math.round(y);
+  for (let row = 0; row < 16; row++) {
+    const line = sp.r[row];
+    const py0 = Math.round(y0 + row * s), py1 = Math.round(y0 + (row + 1) * s);
+    for (let col = 0; col < 16; col++) {
+      const ch = line[col];
+      if (ch === ".") continue;
+      const c = (over && over[ch] !== undefined) ? over[ch]
+              : (sp.p[ch] !== undefined ? sp.p[ch] : SPR_PAL[ch]);
+      if (!c) continue;
+      const px0 = Math.round(x0 + col * s), px1 = Math.round(x0 + (col + 1) * s);
+      px(px0, py0, Math.max(1, px1 - px0), Math.max(1, py1 - py0), c);
+    }
+  }
+}
+const SPR_SEL = {o:"#7a6a3e", D:"#8a7440", m:"#f5e9b8", l:"#fff7d8", h:"#fffbea",
+                 g:"#f5e9b8", w:"#fffbea", s:"#ffe0c0", r:"#e8a0a0", O:"#f5c080",
+                 c:"#a8e8c8", p:"#d8b8f8", n:"#c8a070", b:"#c8d4e8", G:"#a8d8a8", k:"#7a6a3e"};
+const SPR_DIM = {o:"#3a4158", D:"#3a4158", m:"#8a92ad", l:"#8a92ad", h:"#a8b0c8",
+                 g:"#6a5e3a", w:"#8a92ad", s:"#8a92ad", r:"#8a5a5a", O:"#8a6a4a",
+                 c:"#4a7a6a", p:"#6a4a8a", n:"#5a4a32", b:"#3a4158", G:"#3a5a3a", k:"#2a3048"};
+
+/* --- 菜单图标：圆牌底 + 统一精灵 --- */
 function icon(id, x, y, sel) {
-  /* 剑网3无界风图标（像素重绘，参考无界版游戏内图标的暗色圆牌+金环配色，未使用游戏素材）：
-     暗色圆形「令牌」底 + 金环描边 + 居中金色纹样 */
-  const ROWW = [2, 8, 10, 12, 14, 14, 16, 16, 16, 16, 14, 14, 12, 10, 8, 2];   // 16px 圆的每行宽
+  const ROWW = [2, 8, 10, 12, 14, 14, 16, 16, 16, 16, 14, 14, 12, 10, 8, 2];
   const rim = sel ? "#e8c860" : "#7a6a3e";
   const disc = sel ? "#332b1c" : "#1c2130";
-  const cut = "#10131c";
-  const c1 = sel ? "#f5e9b8" : "#c9b070";
   ROWW.forEach((w, dy) => {
     const x0 = x + 8 - w / 2;
     px(x0, y + dy, w, 1, rim);
     if (w >= 8) px(x0 + 1, y + dy, w - 2, 1, disc);
   });
-  if (id === "feed") { px(x + 2, y + 7, 12, 5, c1); px(x + 3, y + 12, 10, 1, c1); px(x + 6, y + 4, 4, 2, "#c88a6a"); }
-  if (id === "sit")  { px(x + 4, y + 2, 8, 2, c1); px(x + 6, y + 4, 4, 4, c1); px(x + 3, y + 9, 10, 3, c1); px(x + 7, y + 1, 2, 2, c1); }
-  if (id === "train"){ px(x + 6, y + 2, 4, 10, c1); px(x + 3, y + 5, 10, 2, c1); px(x + 2, y + 12, 12, 2, c1); }
-  if (id === "clean"){ px(x + 3, y + 10, 10, 3, c1); px(x + 7, y + 3, 2, 7, c1); px(x + 5, y + 2, 6, 2, c1); }
-  if (id === "cure") { px(x + 6, y + 3, 4, 10, c1); px(x + 3, y + 6, 10, 4, "#e88a8a"); px(x + 7, y + 4, 2, 2, c1); }
-  if (id === "status"){px(x + 3, y + 2, 10, 12, c1); px(x + 5, y + 5, 6, 1, cut); px(x + 5, y + 8, 6, 1, cut); px(x + 5, y + 11, 4, 1, cut); }
-  if (id === "dig")   { px(x + 7, y + 2, 2, 8, c1); px(x + 5, y + 9, 6, 2, c1); px(x + 4, y + 11, 8, 3, "#b8c0d0"); }
-  if (id === "game")  { // 赌坊骰子
-    px(x + 2, y + 3, 7, 7, c1); px(x + 4, y + 5, 2, 2, cut);
-    px(x + 8, y + 8, 7, 7, c1); px(x + 10, y + 10, 2, 2, cut); px(x + 12, y + 12, 2, 2, cut);
-  }
-  if (id === "dungeon"){ px(x + 2, y + 10, 12, 4, c1); px(x + 4, y + 4, 8, 6, "#e88a8a"); px(x + 5, y + 6, 2, 2, cut); px(x + 9, y + 6, 2, 2, cut); }
-  if (id === "home")  { px(x + 3, y + 8, 10, 6, c1); px(x + 6, y + 10, 4, 4, cut); px(x + 2, y + 3, 12, 2, c1); px(x + 4, y + 5, 8, 2, c1); px(x + 7, y + 1, 2, 2, "#e8c860"); }
-  if (id === "bag")   { px(x + 3, y + 6, 10, 8, c1); px(x + 5, y + 3, 6, 3, c1); px(x + 7, y + 4, 2, 2, cut); px(x + 4, y + 9, 2, 2, cut); px(x + 10, y + 9, 2, 2, cut); }
-  if (id === "shop")  { px(x + 2, y + 4, 12, 2, c1); px(x + 3, y + 6, 10, 8, c1); px(x + 6, y + 9, 4, 5, cut); px(x + 2, y + 1, 3, 3, "#e8c860"); px(x + 11, y + 1, 3, 3, "#e8c860"); }
-  if (id === "activity") id = "daily";   // 活动复用日常卷轴图标
-  if (id === "daily") { px(x + 3, y + 2, 10, 3, c1); px(x + 3, y + 5, 10, 9, c1); px(x + 5, y + 7, 2, 2, cut); px(x + 8, y + 9, 2, 2, cut); px(x + 7, y + 4, 2, 2, "#e8c860"); }
-  if (id === "settings"){ px(x + 4, y + 1, 8, 2, c1); px(x + 4, y + 13, 8, 2, c1); px(x + 1, y + 4, 2, 8, c1); px(x + 13, y + 4, 2, 8, c1); px(x + 4, y + 4, 8, 8, c1); px(x + 6, y + 6, 4, 4, cut); }
+  drawSpr(id, x, y, 1, sel ? SPR_SEL : SPR_DIM);
 }
 
 /* --- 状态条 --- */
@@ -1526,72 +1604,8 @@ function drawHouse(x0 = 8, y0 = 100, night) {
   }
 }
 
-/* --- 物品像素图（16×16 逻辑坐标，s = 放大倍数；列表缩略图与详情大图共用同一套画法） --- */
-function itemIcon(id, x, y, s) {
-  s = s || 1;
-  const P = (ax, ay, aw, ah, c) => px(Math.round(x + ax * s), Math.round(y + ay * s),
-                                      Math.max(1, Math.round(aw * s)), Math.max(1, Math.round(ah * s)), c);
-  if (id === "baozi") {  // 包子：白面圆包 + 褶
-    P(2,5,10,7,"#e8ddc8"); P(3,4,8,1,"#e8ddc8");
-    P(6,2,2,2,"#e8ddc8"); P(4,6,1,3,"#c8b898"); P(7,5,1,4,"#c8b898"); P(10,6,1,3,"#c8b898");
-  } else if (id === "fish") {  // 蒸鱼：盘 + 鱼身
-    P(1,11,12,2,"#b8c8d8");
-    P(3,7,9,4,"#e8a86a"); P(11,6,3,3,"#e8a86a");
-    P(5,8,1,1,"#262a38"); P(4,8,3,1,"#c88848");
-  } else if (id === "feast") {  // 烧尾宴：多层食盒
-    P(2,6,10,3,"#a04830"); P(3,3,8,3,"#b85838");
-    P(6,1,2,2,"#d8c68a"); P(1,9,12,1,"#6a3828");
-  } else if (id === "pill") {  // 玉露丸：药瓶
-    P(5,1,4,2,"#8a5a2a"); P(4,3,6,8,"#68b8a0");
-    P(5,5,4,3,"#e8f5f0"); P(4,11,6,1,"#488878");
-  } else if (id === "page") {  // 剑意残页：泛黄纸 + 剑痕
-    P(3,2,10,11,"#e0d8bc"); P(11,2,2,2,"#b8b096");
-    P(5,4,4,1,"#8a7a55"); P(6,6,1,5,"#9a8a62"); P(5,8,3,1,"#8a7a55"); P(5,10,5,1,"#8a7a55");
-  } else if (id === "iron") {  // 铁矿石：灰石堆
-    P(3,7,10,6,"#6a6e7a"); P(5,5,6,3,"#7e8492");
-    P(4,10,4,3,"#565a66"); P(6,6,3,1,"#9aa0ac");
-  } else if (id === "tassel") {  // 剑穗：金顶 + 红穗
-    P(7,1,2,2,"#c8a04a"); P(6,3,4,4,"#a83040");
-    P(6,7,1,6,"#c04050"); P(8,7,1,6,"#c04050"); P(10,7,1,4,"#c04050");
-  } else if (id === "steel") {  // 精铁：金属锭
-    P(3,8,10,4,"#8a909c"); P(4,5,8,3,"#aab0bc"); P(5,6,3,1,"#d0d6e2");
-  } else if (id === "shard") {  // 神兵残片：紫晶碎片
-    P(5,3,5,5,"#9a6ad8"); P(4,7,7,4,"#7a4ab8");
-    P(6,4,2,2,"#c8a8f0"); P(10,6,2,3,"#8a5ac8");
-  } else if (id === "xj_zt") {  // 铸天玄晶：橙色棱晶（赛季至宝）
-    P(6,2,4,3,"#ffb25a"); P(4,5,8,5,"#ff9a3c"); P(3,10,10,3,"#e07820");
-    P(7,6,2,2,"#ffd9a0"); P(6,13,4,1,"#b85810");
-  } else if (id === "w_sword") {  // 精铁剑：立剑
-    P(7,1,2,9,"#c8d0dc"); P(8,2,1,7,"#eef2f8");
-    P(5,10,6,1,"#8a6a3a"); P(7,11,2,2,"#6a4a2a"); P(7,13,2,2,"#4a3a22");
-  } else if (id === "w_pick") {  // 镔铁镐：镐头+木柄
-    P(7,3,2,11,"#8a6a40"); P(3,3,10,2,"#b8c0d0");
-    P(2,4,2,2,"#b8c0d0"); P(12,4,2,2,"#b8c0d0"); P(8,4,1,1,"#e0e6ee");
-  } else if (id === "a_robe") {  // 云锦道袍：蓝袍+云纹
-    P(5,2,6,2,"#4a8db8"); P(3,4,10,9,"#4a8db8");
-    P(6,6,1,7,"#e8eef5"); P(9,6,1,7,"#e8eef5"); P(5,5,2,1,"#bfe3ff"); P(9,9,2,1,"#bfe3ff");
-  } else if (id === "a_charm") {  // 平安符：金顶+黄符红纹
-    P(6,1,4,2,"#c8a04a"); P(5,3,6,9,"#e8d8a0");
-    P(6,5,4,1,"#a83040"); P(6,8,4,1,"#a83040"); P(7,10,2,1,"#a83040");
-  } else if (id === "t_jade") {  // 翡翠扳指：绿玉环
-    P(6,2,4,1,"#4ab88a"); P(5,3,1,2,"#4ab88a"); P(10,3,1,2,"#4ab88a");
-    P(4,5,1,4,"#4ab88a"); P(11,5,1,4,"#4ab88a"); P(5,9,1,2,"#4ab88a"); P(10,9,1,2,"#4ab88a");
-    P(6,11,4,1,"#4ab88a"); P(7,4,2,2,"#a8e8c8");
-  } else if (id === "t_gourd") {  // 酒葫芦：小口葫芦
-    P(6,1,4,2,"#8a5a2a"); P(5,3,6,4,"#a86a30"); P(4,7,8,5,"#a86a30");
-    P(6,4,1,2,"#c88a50"); P(6,8,1,2,"#c88a50"); P(6,3,4,1,"#5a3a1a");
-  } else if (id === "d_plant") {  // 幽兰盆栽：陶盆+兰叶
-    P(5,10,6,3,"#8a5a34"); P(6,5,4,5,"#3a7a3a");
-    P(4,7,2,2,"#3a7a3a"); P(10,7,2,2,"#3a7a3a"); P(8,3,1,2,"#3a7a3a");
-    P(7,7,1,1,"#d88ab8"); P(9,8,1,1,"#d88ab8");
-  } else if (id === "d_screen") {  // 云纹屏风：三折屏
-    P(2,4,4,9,"#5a3a2a"); P(6,3,4,10,"#8a5e40"); P(10,4,4,9,"#5a3a2a");
-    P(7,5,2,6,"#d8c68a"); P(3,6,2,4,"#a88858"); P(11,6,2,4,"#a88858");
-  } else if (id === "d_lamp") {  // 长明灯：灯架+灯罩
-    P(7,1,2,2,"#8a5a2a"); P(5,3,6,7,"#e8a04a"); P(6,4,4,5,"#f5e9b8");
-    P(6,10,4,1,"#8a5a2a"); P(6,11,4,2,"#5a4a30");
-  }
-}
+/* --- 物品图标：统一 16×16 精灵（列表缩略图与详情大图共用） --- */
+function itemIcon(id, x, y, s) { drawSpr(id, x, y, s); }
 
 /* --- 选中框：像素金框 + 四角加粗 --- */
 function selFrame(x, y, w, h) {
@@ -1865,53 +1879,8 @@ function raceSettle(w) {
   save();
 }
 
-/* ---- 游戏图标：16×16 逻辑格，按 s 缩放（详情页大图 / 大厅小图标共用） ---- */
-function gameIcon(id, x, y, s) {
-  s = s || 1;
-  const P = (ax, ay, aw, ah, c) => px(Math.round(x + ax * s), Math.round(y + ay * s),
-                                      Math.max(1, Math.round(aw * s)), Math.max(1, Math.round(ah * s)), c);
-  const cut = "#10131c";
-  if (id === "dice") {                       // 两颗骰子斜叠
-    P(1, 1, 7, 7, "#f5e9b8"); P(1, 7, 7, 1, "#b8ac90");
-    P(2, 2, 2, 2, cut); P(4, 4, 1, 1, cut); P(5, 5, 1, 1, cut);
-    P(8, 7, 7, 7, "#f5e9b8"); P(8, 13, 7, 1, "#b8ac90");
-    P(9, 9, 1, 1, cut); P(12, 9, 1, 1, cut);
-    P(9, 12, 1, 1, cut); P(12, 12, 1, 1, cut);
-  } else if (id === "whack") {               // 木槌 + 探头的鼠
-    P(7, 1, 2, 6, "#a06838"); P(7, 1, 1, 6, "#c9884a");        // 柄
-    P(2, 5, 12, 4, "#d8d0b8"); P(2, 8, 12, 1, "#8a8474");      // 槌头
-    P(2, 5, 12, 1, "#f0eada");
-    P(1, 12, 14, 3, "#5a3f28"); P(1, 12, 14, 1, "#3d2a1a");    // 土与洞口
-    P(5, 9, 6, 4, "#c98a4a"); P(5, 9, 6, 1, "#e0a868");        // 鼠头
-    P(6, 10, 1, 1, cut); P(9, 10, 1, 1, cut);                  // 眼
-    P(7, 11, 2, 1, "#f0c090");                                 // 鼻
-  } else if (id === "fish") {                // 鱼 + 水波
-    P(2, 6, 10, 5, "#e8a86a"); P(3, 7, 8, 1, "#f0c090");       // 身 + 背光
-    P(5, 3, 4, 3, "#d88848");                                  // 背鳍
-    P(12, 4, 2, 4, "#e8a86a"); P(12, 8, 2, 4, "#e8a86a");      // 尾鳍（上下分叉）
-    P(12, 7, 2, 1, "#b86830");
-    P(3, 7, 1, 1, cut);                                        // 眼
-    P(2, 9, 1, 1, "#b86830");                                  // 嘴
-    P(6, 9, 4, 1, "#d88848");                                  // 侧纹
-    P(0, 13, 16, 1, "#4a7a92"); P(0, 14, 16, 1, "#2e5468");    // 水波
-  } else if (id === "memory") {              // 两张扣着的牌
-    P(1, 2, 6, 10, "#e8ddc8"); P(2, 3, 4, 8, "#2a3048");
-    P(3, 5, 2, 1, "#8a6ab8"); P(3, 8, 2, 1, "#8a6ab8");
-    P(9, 5, 6, 10, "#e8ddc8"); P(10, 6, 4, 8, "#2a3048");
-    P(11, 8, 2, 1, "#8a6ab8"); P(11, 11, 2, 1, "#8a6ab8");
-  } else if (id === "race") {                // 侧身奔马
-    P(1, 6, 11, 4, "#d0603e"); P(1, 6, 11, 1, "#e88060");      // 身
-    P(11, 4, 2, 3, "#d0603e");                                 // 颈
-    P(11, 2, 4, 3, "#d0603e"); P(11, 2, 4, 1, "#e88060");      // 头
-    P(12, 1, 1, 1, "#8a3a22");                                 // 耳
-    P(14, 4, 1, 1, "#8a3a22");                                 // 鼻
-    P(13, 3, 1, 1, cut);                                       // 眼
-    P(0, 6, 1, 3, "#8a3a22");                                  // 尾
-    P(1, 10, 2, 3, "#8a3a22"); P(4, 10, 1, 3, "#6e2c1c");      // 后腿（近/远）
-    P(9, 10, 2, 3, "#8a3a22"); P(11, 10, 1, 3, "#6e2c1c");     // 前腿
-    P(1, 13, 2, 1, "#5a2418"); P(9, 13, 2, 1, "#5a2418");
-  }
-}
+/* ---- 游戏图标：统一 16×16 精灵（钓鱼用 game_fish 区别于蒸鱼） ---- */
+function gameIcon(id, x, y, s) { drawSpr(id === "fish" ? "game_fish" : id, x, y, s); }
 
 /* ---- 左右切换三角：dir=-1 指左 / 1 指右，on 亮起 ---- */
 function triLR(x, y, dir, on) {
@@ -2334,72 +2303,11 @@ const NOTE_TABS = [
 let notePage = 0;        // 手札三页：0 手札 / 1 游戏日常 / 2 开服查询（预留）
 let dailyPage = 0;       // 日常查询翻页（每屏 6 行）
 
-/* 手札页签图标：16×16 逻辑格，按 s 缩放（与 gameIcon 同一套 P 闭包） */
-function noteIcon(id, x, y, s) {
-  s = s || 1;
-  const P = (ax, ay, aw, ah, c) => px(Math.round(x + ax * s), Math.round(y + ay * s),
-                                      Math.max(1, Math.round(aw * s)), Math.max(1, Math.round(ah * s)), c);
-  const edge = "#8a7440", ink = "#cfd4e8", gold = "#e8c860", cut = "#10131c";
-  if (id === "book") {                       // 手札：摊开的书卷
-    P(1, 3, 14, 10, "#2a3048"); P(1, 3, 14, 1, edge); P(1, 12, 14, 1, edge);
-    P(7, 3, 1, 10, edge);
-    P(2, 5, 4, 1, ink); P(2, 7, 4, 1, ink); P(2, 9, 3, 1, ink);
-    P(9, 5, 4, 1, ink); P(9, 7, 4, 1, ink); P(9, 9, 3, 1, ink);
-    P(6, 2, 3, 2, gold); P(7, 1, 1, 1, gold);
-  } else if (id === "scroll") {              // 游戏日常：展开的日历卷轴
-    P(2, 2, 12, 12, "#2a3048"); P(2, 2, 12, 1, edge); P(2, 13, 12, 1, edge);
-    P(2, 2, 1, 12, edge); P(13, 2, 1, 12, edge);
-    P(2, 5, 12, 1, gold);
-    P(4, 1, 1, 3, gold); P(11, 1, 1, 3, gold);      // 卷轴轴头
-    P(4, 7, 3, 2, ink); P(9, 7, 3, 2, "#8a92ad");
-    P(4, 10, 3, 1, ink); P(9, 10, 3, 1, "#8a92ad");
-    P(7, 7, 1, 4, gold);
-  } else if (id === "gate") {                // 开服查询：城门 + 问号
-    P(2, 5, 12, 9, "#2a3048"); P(2, 5, 12, 1, edge);
-    P(2, 5, 2, 9, edge); P(12, 5, 2, 9, edge);
-    P(6, 8, 4, 6, "#1c2130"); P(6, 8, 4, 1, edge);
-    P(4, 2, 8, 3, gold); P(5, 1, 6, 1, gold);       // 门楼
-    P(7, 9, 2, 1, ink); P(8, 10, 1, 2, ink); P(7, 12, 1, 1, ink);
-  }
-}
+/* 手札页签图标：统一 16×16 精灵 */
+function noteIcon(id, x, y, s) { drawSpr(id, x, y, s); }
 
-/* 活动页图标：16×16 逻辑格，与 gameIcon 同一套写法 */
-function actIcon(id, x, y, s) {
-  s = s || 1;
-  const P = (ax, ay, aw, ah, c) => px(Math.round(x + ax * s), Math.round(y + ay * s),
-                                      Math.max(1, Math.round(aw * s)), Math.max(1, Math.round(ah * s)), c);
-  const cut = "#10131c";
-  if (id === "sit") {                        // 打坐：盘腿小人 + 三缕气
-    P(7, 2, 3, 3, "#f2c9a0"); P(7, 2, 3, 1, "#f8dcc0");        // 头
-    P(5, 5, 7, 5, "#4a8db8"); P(5, 5, 7, 1, "#7cb8d8");        // 身
-    P(3, 9, 11, 3, "#3a6f94"); P(3, 11, 11, 1, "#263f58");     // 盘腿
-    P(5, 9, 2, 1, "#f2c9a0"); P(10, 9, 2, 1, "#f2c9a0");       // 手
-    P(3, 0, 1, 2, "#8ad8e8"); P(8, 0, 1, 2, "#8ad8e8"); P(13, 0, 1, 2, "#8ad8e8");
-  } else if (id === "train") {               // 木桩：桩身 + 剑痕
-    P(7, 1, 3, 11, "#8a5a2a"); P(7, 1, 3, 1, "#c9884a");
-    P(4, 2, 9, 3, "#a06838"); P(4, 2, 9, 1, "#c9884a");        // 横木
-    P(5, 13, 7, 2, "#5a3f28");
-    P(3, 5, 4, 1, "#e8f0ff"); P(10, 7, 4, 1, "#e8f0ff");       // 剑痕
-    P(4, 9, 3, 1, "#e8f0ff"); P(10, 11, 3, 1, "#e8f0ff");
-  } else if (id === "dig") {                 // 挖宝：铁锹 + 土堆
-    P(9, 1, 2, 8, "#b8c0d0"); P(8, 8, 4, 3, "#d8e0e8");        // 锹头
-    P(10, 1, 1, 8, "#e8f0ff");
-    P(3, 11, 12, 3, "#5a3f28"); P(3, 11, 12, 1, "#7a5a34");
-    P(5, 9, 6, 2, "#c98a4a"); P(6, 9, 4, 1, "#e0a868");        // 露出的宝物
-    P(7, 9, 2, 1, "#f5e9b8");
-  } else if (id === "home") {                // 家园：小屋
-    P(2, 5, 12, 9, "#a06838"); P(2, 5, 12, 1, "#c9884a");
-    P(1, 4, 14, 2, "#8a3a22"); P(3, 2, 10, 2, "#a84828");      // 屋顶
-    P(6, 8, 5, 6, "#3a2a1a"); P(6, 8, 5, 1, "#5a3f28");        // 门
-    P(4, 9, 2, 2, "#f5e9b8"); P(11, 9, 2, 2, "#f5e9b8");       // 窗
-  } else if (id === "dungeon") {             // 副本：石门 + 剑
-    P(2, 3, 12, 11, "#3a4158"); P(2, 3, 12, 1, "#8a7440");
-    P(2, 3, 2, 11, "#8a7440"); P(12, 3, 2, 11, "#8a7440");
-    P(6, 6, 4, 8, "#10131c"); P(6, 6, 4, 1, "#8a7440");
-    P(1, 1, 14, 2, "#b8a468"); P(3, 0, 10, 1, "#d8c68a");      // 门楣
-    P(10, 6, 1, 6, "#e8f0ff"); P(9, 11, 3, 1, "#e8f0ff");      // 门缝里的剑
-  }
-}
+/* 活动页图标：统一 16×16 精灵 */
+function actIcon(id, x, y, s) { drawSpr(id, x, y, s); }
 
 function renderStatus() {
   px(0, 0, W, H, "#141824");

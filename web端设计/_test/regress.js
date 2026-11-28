@@ -346,6 +346,20 @@ assert(g("gameSt.game") === "dice" && g("gameSt.phase") === "side", "进入押�
 g("moveSel(1);");
 assert(g("gameSt.side") === 0, "押大小 ▲▼ 切换押小");
 
+/* ---- 统一像素精灵（v0.2.6）：42 枚 16×16 字符网格 ---- */
+assert(g("Object.keys(SPR).length") >= 42, "统一精灵不少于 42 枚");
+assert(g("Object.keys(SPR).every(k => SPR[k].r.length === 16 && SPR[k].r.every(r => r.length === 16))") === true,
+  "所有精灵严格 16×16");
+assert(g("MENU.every(m => !!SPR[m.id])") === true, "主菜单每个入口都有精灵");
+assert(g("Object.keys(GOODS).every(id => !!SPR[id])") === true, "全部物品都有精灵");
+assert(g("GAMES.every(game => !!SPR[game.id === 'fish' ? 'game_fish' : game.id])") === true, "全部小游戏都有精灵");
+assert(g("ACTIVITIES.every(a => !!SPR[a.id])") === true, "全部活动都有精灵");
+assert(g("NOTE_TABS.every(t => !!SPR[t.icon])") === true, "手札三页页签都有精灵");
+assert(g("typeof drawSpr === 'function' && typeof itemIcon === 'function' && typeof gameIcon === 'function' && typeof noteIcon === 'function' && typeof actIcon === 'function'") === true,
+  "五类图标入口统一到 drawSpr");
+assert(g("(function(){ try { ['feed','baozi','dice','race','book','dungeon'].forEach((id,i)=>drawSpr(id,i*16,0,1)); itemIcon('baozi',0,0,3.5); gameIcon('fish',0,0,3.5); noteIcon('book',0,0,2.5); actIcon('dungeon',0,0,3.5); icon('bag',0,0,true); icon('shop',0,0,false); return 1; } catch(e) { return 0; } })()") === 1,
+  "所有图标入口渲染无异常");
+
 /* ---- 存档 ---- */
 g("save();");
 assert(g("load()") === true, "存档可重新载入");

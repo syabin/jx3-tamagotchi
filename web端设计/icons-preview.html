@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>像素图标总览 · 剑网三拓麻歌子</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;padding:28px 32px 60px;background:#f2ede3;color:#3a3328;
+    font-family:"Microsoft YaHei",sans-serif}
+  h1{font-size:20px;color:#6a5a2a;margin:0 0 4px} p.sub{color:#8a7a58;font-size:12px;margin:0 0 26px}
+  h2{font-size:14px;color:#8a5a1a;border-bottom:2px solid #d8c68a;padding-bottom:6px;margin:28px 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:12px}
+  .cell{background:#fffdf6;border:1px solid #d8cbb0;border-radius:10px;padding:10px 8px 8px;
+    text-align:center;box-shadow:0 2px 6px rgba(60,50,30,.10)}
+  canvas{image-rendering:pixelated;width:64px;height:64px;background:#141824;border-radius:4px;
+    border:2px solid #d8c68a}
+  .nm{font-size:12px;color:#4a4335;margin-top:6px} .id{font-size:10px;color:#9a8f78;font-family:monospace}
+  .sel{display:inline-block;margin-left:4px;color:#8a5a1a;font-size:10px}
+</style></head><body>
+<h1>统一像素图标总览</h1><p class="sub">42 枚 · 16×16 字符网格 · 统一描边 / 高光 / 阴影 · 由 gen_sprites.py 生成</p>
+<div id="root"></div>
+<script>
+/* ===== 统一像素精灵（v0.2.6）：16×16 字符网格，统一描边/高光/阴影 =====
+   所有图标（菜单/物品/游戏/手札/活动）共用同一套像素语言；由 gen_sprites.py 生成。 */
+const SPR_PAL = {
+  ".": null,
+  "o": "#0b0e16",
+  "D": "#202638",
+  "d": "#6a6e7a",
+  "k": "#10131c",
+  "m": "#4a8db8",
+  "l": "#7cb8d8",
+  "h": "#d8eaf5",
+  "g": "#e8c860",
+  "y": "#e8d8a0",
+  "w": "#f2f5fa",
+  "s": "#f2c9a0",
+  "r": "#c04050",
+  "O": "#e88040",
+  "c": "#4ab88a",
+  "p": "#9a6ad8",
+  "n": "#8a5a34",
+  "b": "#2a3048",
+  "G": "#3a7a4a",
+};
+const SPR = {
+  feed: {p:{"m":"#e8ddc8","l":"#f5efe0","D":"#8a7a58"}, r:["................",".....oooooo.....","....ohhhhhho....","...ohggggggho...","..ohgmmmmmmgho..","..ogmllllllmgo..","..ogmllllllmgo..","..ogmmmmmmmmgo..","..oDggggggggDo..","...oDDDDDDDDo...","....oooooooo....","................","................","................","................","................"]},
+  sit: {p:{"m":"#4a8db8","l":"#7cb8d8","D":"#2e5c7a"}, r:["................",".......gg.......","......ghhg......","......ohho......",".....osssso.....","....osssssso....","....oDmmmmDo....","...ommmmmmmmo...","..ommllllllmmo..","..omllllllllmo..","..oDllllllllDo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  train: {p:{"m":"#8a5a34","l":"#a86a3c","D":"#5a3a1e"}, r:["................",".......hh.......",".......mm.......",".......mm.......","....gggggggg....","...ohllllllho...","...ommmmmmmmo...","...ommmmmmmmo...","....oDmmmmDo....","....oDmmmmDo....",".....oDDDDo.....","....oggggggo....","................","................","................","................"]},
+  clean: {p:{"m":"#c8b898","l":"#e8ddc8","D":"#8a7a58"}, r:["................","....n...........","....nn..........",".....nn.........","......nn........",".......nn.......","........nn......",".....mmmnnn.....","....mmmmmmm.....","...ohhhhhhhho...","...ohllllllho...","....oDDDDDDo....",".....oooooo.....","................","................","................"]},
+  cure: {p:{"h":"#f2f5fa"}, r:["................","......oooo......","......onnno.....",".....onnnnno....",".....owwwwwo....","....owwwwwwwo...","...owwhhhhwwwo..","...owwhrrhwwwo..","...owwhrrhwwwo..","...owwhhhhwwwo..","....owwwwwwwo...",".....owwwwwo....","......oooooo....","................","................","................"]},
+  status: {p:{"m":"#e8d8a0","D":"#8a7440"}, r:["................","....oooooooo....","...oggggggggo...","..ogwgggggggo...","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","..ogwmmmmmgggo..","...oDDDDDDDDo...","....oooooooo....","................","................"]},
+  dig: {p:{"D":"#5a6078"}, r:["................","...ggggggggg....","..oghhhhhhhgo...","...oDDDDDDDDo...",".......nn.......","......nn........",".....nn.........","....nn..........","...nn...........","...nn...........","..nn............","..nn............","..nn............","..nn............","................","................"]},
+  game: {p:{"h":"#f2f5fa","D":"#8a8474"}, r:["................","..oooooo........",".ohhhhhho.......",".ohhkkhhho......",".ohhhhhho.......",".ohhkkhkho......",".ohhhhhho.......","..oDDDDDo.......","................",".......oooooo...","......ohhhhhho..","......ohhkkhho..","......ohhhhhho..","......ohkkhhho..","......ohhhhhho..",".......oDDDDo..."]},
+  dungeon: {p:{"m":"#2a3048","D":"#5a6078"}, r:["................","...gggggggggg...","..oghhhhhhhggo..","..oggggggggggo..","..ogDDDDDDDDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDDDDDDDDgo..","..oggggggggggo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................"]},
+  home: {p:{"m":"#a06838","D":"#5a3f28"}, r:["................",".......gg.......","......ghhg......",".....ghhhhg.....","....ghhhhhhg....","...gggggggggg...","..ogoooooooogo..","..ogommmmmmggo..","..ogommmmmmggo..","..ogommmmmmggo..","..ogomswwwsmggo.","..ogommmmmmggo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................"]},
+  bag: {p:{"m":"#8a5a34","D":"#5a3a1e"}, r:["................",".....nnnnnn.....","....nhhhhhhn....","...nhgggggghn...","..nnggggggggnn..","..ngmmmmmmmmgn..","..ngmmmmmmmmgn..","..ngmmmmmmmmgn..","..ngmmmmmmmmgn..","..ngmmmmmmmmgn..","..oDDDDDDDDDDo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  shop: {p:{"D":"#8a6a28","h":"#f5e9b8"}, r:["................",".....oooooo.....","...oggggggggo...","..oggggggggggo..",".ogggDDDDDDgggo.",".oggDggggggDggo.",".oggDgwwwwgDggo.",".oggDgwhhhgDggo.",".oggDgwwwwgDggo.",".oggDggggggDggo.",".ogggDDDDDDgggo.","..oggggggggggo..","...oggggggggo...",".....oooooo.....","................","................"]},
+  daily: {p:{"m":"#e8d8a0","h":"#b8a87a","D":"#8a7440"}, r:["................","...nn......nn...","...ng......gn...","...nggggggggn...","..oghhhhhhhggo..","..ogmmmmmmmggo..","..ogmhhhmmmgggo.","..ogmmmmmmmggo..","..ogmhhhmmmgggo.","..ogmmmmmmmggo..","..oggggggggggo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  activity: {p:{"m":"#e8d8a0","h":"#b8a87a","D":"#8a7440"}, r:["................","...nn......nn...","...ng......gn...","...nggggggggn...","..oghhhhhhhggo..","..ogmmmmmmmggo..","..ogmhhhmmmgggo.","..ogmmmmmmmggo..","..ogmhhhmmmgggo.","..ogmmmmmmmggo..","..oggggggggggo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  settings: {p:{"m":"#4a8db8","D":"#2a3048"}, r:["................","....oo....oo....","...ogghoooggho..","..oghggggghgo...","..oghhDDDDhhgo..",".ogghDDmmDDhggo.",".ogghDmmmmDhggo.",".ogghDmmmmDhggo.",".ogghDmmmmDhggo.",".ogghDDmmDDhggo.","..oghhDDDDhhgo..","..oghggggghgo...","...ogghoooggho..","....oo....oo....","................","................"]},
+  whack: {p:{"l":"#e8e0c8","D":"#8a8474","k":"#0b0e16","r":"#e88040"}, r:["................",".......nn.......",".......nn.......","....oooooooo....","...ohllllllho...","...ohllllllho...","...oDDDDDDDDo...","................",".....oooooo.....","....osssssso....","...osssssssso...","...oskssskso....","...osssrrsso....","....oDDDDDDo....",".....oooooo.....","................"]},
+  game_fish: {p:{"l":"#f0c090","h":"#0b0e16","D":"#b86830","c":"#4a7a92"}, r:["................","................",".....nnnn.......",".....nnnn.......",".......nn.......",".......nn.......","......nn........","...oooooo.......","..oOOOOOOo..oo..",".oOOllllOOoooo..",".oOlhllllOoOOo..",".oOOllllOOoooo..","..oOOOOOOo..oo..","...oDDDDDo......","..cccccccccccc..","...oooooooooo..."]},
+  memory: {p:{"b":"#2a3048","p":"#9a6ad8","D":"#8a7440"}, r:["................","..oooooo........",".oggggggo.......",".ogbbbbgo.......",".ogbppbgo.......",".ogbbbbgo.......",".oggggggo.......","..oDDDDDo.......","................",".......oooooo...","......oggggggo..","......ogbbbbgo..","......ogbppbgo..","......ogbbbbgo..","......oggggggo..",".......oDDDDo..."]},
+  race: {p:{"O":"#c04a2e","h":"#e88060","l":"#e8c860"}, r:["................","...........oo...","..........onno..",".........onhno..","........onhhno..","...oooonhhhno...","..oOOOonnnnno...","..oOhhOonnnno...","..oOhlllOonno...","..oOOOOOOOono...","...oOooOooOo....","....oO..oOo.....","................","................","................","................"]},
+  book: {p:{"l":"#e8d8a0","D":"#8a7a55"}, r:["................","................","..oooo...oooo...",".oggggo.oggggo..",".oglllo.oglllo..",".oglDDloglDDlo..",".oglDDloglDDlo..",".oglDDloglDDlo..",".oglllo.oglllo..",".oggggo.oggggo..","..oDDDo..oDDDo..","...ooo....ooo...","................","................","................","................"]},
+  scroll: {p:{"D":"#8a7440"}, r:["................","...nn......nn...","...ng......gn...","...nggggggggn...","..oghhhhhhhggo..","..ogyyyyyyygo...","..ogyrrryyrgyo..","..ogyyyyyyygo...","..ogyrrryyrgyo..","..ogyyyyyyygo...","..oggggggggggo..","...oDDDDDDDDo...","....oooooooo....","................","................","................"]},
+  gate: {p:{"m":"#2a3048","D":"#8a7440"}, r:["................",".....gggggg.....","....oggggggo....","...oghhhhhhgo...","..oggggggggggo..","..oDDDDDDDDDDo..","..ogDDDDDDDDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDmmmmmmDgo..","..ogDDDDDDDDgo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................"]},
+  dice: {p:{"h":"#f2f5fa","D":"#8a8474"}, r:["................","..oooooo........",".ohhhhhho.......",".ohhkkhhho......",".ohhhhhho.......",".ohhkkhkho......",".ohhhhhho.......","..oDDDDDo.......","................",".......oooooo...","......ohhhhhho..","......ohhkkhho..","......ohhhhhho..","......ohkkhhho..","......ohhhhhho..",".......oDDDDo..."]},
+  baozi: {p:{"m":"#e8ddc8","l":"#f5efe0","h":"#fffaf0","D":"#b8a888","r":"#d8b090"}, r:["................","......oooo......",".....ohhhho.....","....ohlllllho...","...ohllhhhllho..","...ohllhhhllho..","..ohlllhhhlllo..","..ohlrhlllrhlo..","..ohlllllllllo..","..oDllllllllDo..","...oDDDDDDDDo...","....oooooooo....","................","................","................","................"]},
+  fish: {p:{"O":"#e8a86a","l":"#f0c090","h":"#0b0e16","D":"#b86830","c":"#b8c8d8"}, r:["................","................",".......oo.......","......ohho......",".....oOOOOo.....","...ooOOlllOOoo..","..oOOllllllOOo..","..oOlhllllhlOo..","..oOOllllllOOo..","...ooOOOOOOoo...","..oDDDDDDDDDDo..","..occcccccccco..","...oooooooooo...","................","................","................"]},
+  feast: {p:{"O":"#b85838","l":"#d88848","D":"#6a3828","r":"#e8c860"}, r:["................","......oooo......","......ogggo.....",".....ohhhho.....","....oOOOOOOo....","...oOllllllOo...","...oOllllllOo...","..oDDDDDDDDDDo..","..ogOOOOOOOOgo..","..ogOrrrrrrOgo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................","................","................"]},
+  pill: {p:{"n":"#8a5a2a","r":"#c04050"}, r:["................","......oooo......","......onnno.....",".....onnnnno....",".....owwwwwo....","....owwwwwwwo...","...owwhhhhwwwo..","...owwhrrhwwwo..","...owwhrrhwwwo..","...owwhhhhwwwo..","....owwwwwwwo...",".....owwwwwo....","......oooooo....","................","................","................"]},
+  page: {p:{"y":"#e0d8bc","l":"#f0e8cc","D":"#8a7a55","m":"#5a4a30"}, r:["................","....oooooooo....","...oyyyyyyyyo...","..oyllllllllyo..","..oylDDDDDDlyo..","..oylDmmmmDlyo..","..oylDmmmmDlyo..","..oylDmmmmDlyo..","..oylDmmmmDlyo..","..oylDDDDDDlyo..","..oylllllllllyo.","...oyyyyyyyyyo..","....oooooooooo..","................","................","................"]},
+  iron: {p:{"D":"#565a66","l":"#8a909c","h":"#c8ced8","d":"#6a6e7a"}, r:["................","................","................",".......oo.......","......oDDdo.....",".....oDllldo....","....oDllllldo...","...oDllllllldo..","..oDllhllllldo..","..oDDDDDDDDDDDo.","...oooooooooo...","................","................","................","................","................"]},
+  tassel: {p:{"D":"#8a1a28","r":"#c04050"}, r:["................",".......gg.......","......oggo......","......orrrro....",".....orrrrrro...",".....oDDDDDDo...","......orrrro....","......orrrro....","......orrrro....",".....orrrrrro...","......oooooo....","................","................","................","................","................"]},
+  steel: {p:{"D":"#5a6078","l":"#aab0bc","h":"#eef2f8"}, r:["................","................","................",".....oooooo.....","....ohhhhhho....","...ohlllllhlo...","..ohlllllllllho.","..ogllllllllllo.","..oDDDDDDDDDDo..","...oooooooooo...","................","................","................","................","................","................"]},
+  shard: {p:{"p":"#7a4ab8","l":"#9a6ad8","h":"#d8b8f8"}, r:["................",".......pp.......","......opppo.....",".....opplppo....","....opplllppo...","...opplhhhhppo..","...opplhhhhppo..","....opplllppo...",".....opplppo....","......opppo.....",".......ppp......","................","................","................","................","................"]},
+  xj_zt: {p:{"O":"#e07820","h":"#ffb25a","l":"#ffe0a0"}, r:["................",".......OO.......","......OhhO......",".....OhllhO.....","....OhllllhO....","...OhllllllhO...","...OhlllhllhO...","...OhllllllhO...","....OhllllhO....",".....OhllhO.....","......OhhO......",".......OO.......","................","................","................","................"]},
+  w_sword: {p:{"l":"#eef2f8","h":"#ffffff","D":"#8a6a3a","n":"#5a3a1e"}, r:["................",".......hh.......",".......ll.......",".......ll.......",".......ll.......",".......ll.......",".......ll.......",".......ll.......",".....gggggg.....","......oDDDo.....",".......nn.......",".......nn.......","......onno......","................","................","................"]},
+  w_pick: {p:{"l":"#c8d0dc","h":"#eef2f8","D":"#8a909c","n":"#8a6a40"}, r:["................","..gggggggggggg..","..ohllllllllho..","...oDDDDDDDDo...",".......nn.......",".......nn.......",".......nn.......",".......nn.......",".......nn.......",".......nn.......",".......nn.......",".....oonnoo.....","................","................","................","................"]},
+  a_robe: {p:{"b":"#4a8db8","l":"#e8eef5","D":"#2e5c7a","h":"#bfe3ff"}, r:["................",".....oooooo.....","....ohbbbbho....","...obbbllbbbo...","..obbbllllbbbo..","..obbllllllbbo..","..obllllllllo...","..obllllllllo...","..obllllllllo...","..obllllllllo...","..oDDDDDDDDDDo..","...oooooooooo...","................","................","................","................"]},
+  a_charm: {p:{"y":"#e8d8a0","r":"#a83040"}, r:["................","......oooo......","......ogggo.....",".....ogggggo....",".....oyyyyyo....","....oyrrrrryo...","....oyyyyyyo....","....oyrrrrryo...","....oyyyyyyo....","....oyrrrrryo...",".....oyyyyo.....","......oooooo....","................","................","................","................"]},
+  t_jade: {p:{"c":"#3a9a78","l":"#4ab88a","h":"#a8e8c8"}, r:["................","......oooo......",".....occcco.....","....ocllllco....","...oclhhhhclo...","..oclhkkkkhlco..","..oclhk..khclo..","..oclhk..khclo..","..oclhk..khclo..","..oclhkkkkhlco..","...oclhhhhclo...","....ocllllco....",".....occcco.....","......oooo......","................","................"]},
+  t_gourd: {p:{"n":"#a86a30","l":"#c88a50","h":"#8a5a2a"}, r:["................",".......nn.......","......onno......",".....onnnno.....","....onnnnnno....","....onnnnnno....","...onllllllno...","...onllllllno...","...onlhhhhhno...","...onllllllno...","....onnnnnno....",".....onnnno.....","......oooooo....","................","................","................"]},
+  d_plant: {p:{"G":"#3a7a3a","h":"#8ac86a","n":"#8a5a34","D":"#5a3a1e"}, r:["................","................","......oGo.......",".....oGGGo......","....oGhGGGo.....","...oGhGGGGGo....","...oGGGGGGGo....","....oGGhGGo.....",".....oGGGo......",".....onnnno.....","....onnnnnno....","....oDDDDDDo....",".....oooooo.....","................","................","................"]},
+  d_screen: {p:{"n":"#8a5e40","y":"#d8c68a","g":"#a88858","h":"#f5e9b8","D":"#5a3a2a"}, r:["................","...oooooooooo...","..oggggggggggo..","..ognnnnnnnngo..","..ognyyyyyynngo.","..ognyggggynngo.","..ognyghhgynngo.","..ognyggggynngo.","..ognyyyyyynngo.","..ognnnnnnnngo..","..oDDDDDDDDDDo..","...oooooooooo...","................","................","................","................"]},
+  d_lamp: {p:{"n":"#8a5a2a","g":"#e8a04a","h":"#f5e9b8","l":"#ffffd8","D":"#5a4a30"}, r:["................",".......nn.......","......onno......",".....oggggo.....","....oghhhhgo....","....oghllhgo....","....oghllhgo....","....oghhhhgo....",".....oggggo.....",".....onnnno.....","....oDDDDDDo....",".....oooooo.....","................","................","................","................"]},
+};
+/* over 优先级：over > 精灵自带调色板 > 全局调色板 */
+function drawSpr(id, x, y, s, over) {
+  const sp = SPR[id]; if (!sp) return;
+  s = s || 1;
+  const x0 = Math.round(x), y0 = Math.round(y);
+  for (let row = 0; row < 16; row++) {
+    const line = sp.r[row];
+    const py0 = Math.round(y0 + row * s), py1 = Math.round(y0 + (row + 1) * s);
+    for (let col = 0; col < 16; col++) {
+      const ch = line[col];
+      if (ch === ".") continue;
+      const c = (over && over[ch] !== undefined) ? over[ch]
+              : (sp.p[ch] !== undefined ? sp.p[ch] : SPR_PAL[ch]);
+      if (!c) continue;
+      const px0 = Math.round(x0 + col * s), px1 = Math.round(x0 + (col + 1) * s);
+      px(px0, py0, Math.max(1, px1 - px0), Math.max(1, py1 - py0), c);
+    }
+  }
+}
+const SPR_SEL = {o:"#7a6a3e", D:"#8a7440", m:"#f5e9b8", l:"#fff7d8", h:"#fffbea",
+                 g:"#f5e9b8", w:"#fffbea", s:"#ffe0c0", r:"#e8a0a0", O:"#f5c080",
+                 c:"#a8e8c8", p:"#d8b8f8", n:"#c8a070", b:"#c8d4e8", G:"#a8d8a8", k:"#7a6a3e"};
+const SPR_DIM = {o:"#3a4158", D:"#3a4158", m:"#8a92ad", l:"#8a92ad", h:"#a8b0c8",
+                 g:"#6a5e3a", w:"#8a92ad", s:"#8a92ad", r:"#8a5a5a", O:"#8a6a4a",
+                 c:"#4a7a6a", p:"#6a4a8a", n:"#5a4a32", b:"#3a4158", G:"#3a5a3a", k:"#2a3048"};
+const NAMES = {
+  "feed": "喂食",
+  "sit": "打坐",
+  "train": "木桩",
+  "clean": "清洁",
+  "cure": "治疗",
+  "status": "状态",
+  "dig": "挖宝",
+  "game": "游戏",
+  "dungeon": "副本",
+  "home": "家园",
+  "bag": "背包",
+  "shop": "商城",
+  "daily": "日常",
+  "activity": "活动",
+  "settings": "设置",
+  "dice": "押大小",
+  "whack": "打地鼠",
+  "game_fish": "钓鱼",
+  "memory": "翻牌",
+  "race": "赛马",
+  "book": "手札",
+  "scroll": "日常卷轴",
+  "gate": "开服查询",
+  "baozi": "包子",
+  "fish": "蒸鱼",
+  "feast": "烧尾宴",
+  "pill": "玉露丸",
+  "page": "剑意残页",
+  "iron": "铁矿石",
+  "tassel": "剑穗",
+  "steel": "精铁",
+  "shard": "神兵残片",
+  "xj_zt": "铸天玄晶",
+  "w_sword": "精铁剑",
+  "w_pick": "镔铁镐",
+  "a_robe": "云锦道袍",
+  "a_charm": "平安符",
+  "t_jade": "翡翠扳指",
+  "t_gourd": "酒葫芦",
+  "d_plant": "幽兰盆栽",
+  "d_screen": "云纹屏风",
+  "d_lamp": "长明灯",
+};
+const GROUPS = [
+  {name:"菜单 / 活动", ids:["feed","sit","train","clean","cure","status","dig","game","dungeon","home","bag","shop","daily","activity","settings"]},
+  {name:"游戏厅", ids:["dice","whack","game_fish","memory","race"]},
+  {name:"侠士手札", ids:["book","scroll","gate"]},
+  {name:"物品 · 食物 / 丹药 / 材料", ids:["baozi","fish","feast","pill","page","iron","tassel","steel","shard","xj_zt"]},
+  {name:"物品 · 装备 / 家具", ids:["w_sword","w_pick","a_robe","a_charm","t_jade","t_gourd","d_plant","d_screen","d_lamp"]}
+];
+let pxCtx = null;
+function px(x,y,w,h,c){ pxCtx.fillStyle=c; pxCtx.fillRect(x,y,w,h); }
+function tile(id, sel, scale){
+  const c=document.createElement("canvas"); c.width=64; c.height=64;
+  pxCtx=c.getContext("2d"); pxCtx.imageSmoothingEnabled=false;
+  pxCtx.fillStyle="#141824"; pxCtx.fillRect(0,0,64,64);
+  const s=scale||4; drawSpr(id, (64-16*s)/2, (64-16*s)/2, s, sel?SPR_SEL:null);
+  return c;
+}
+const root=document.getElementById("root");
+GROUPS.forEach(g=>{
+  const h=document.createElement("h2"); h.textContent=g.name; root.appendChild(h);
+  const grid=document.createElement("div"); grid.className="grid";
+  g.ids.forEach(id=>{
+    const cell=document.createElement("div"); cell.className="cell";
+    cell.appendChild(tile(id,false,4));
+    const nm=document.createElement("div"); nm.className="nm"; nm.textContent=NAMES[id]||id;
+    cell.appendChild(nm);
+    const sid=document.createElement("div"); sid.className="id"; sid.textContent=id;
+    cell.appendChild(sid);
+    grid.appendChild(cell);
+  });
+  root.appendChild(grid);
+});
+</script></body></html>
