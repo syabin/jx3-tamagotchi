@@ -7,7 +7,7 @@
    固件与网页版 0.2.11 一比一：同一套 16×16 精灵、同一套数据表、同一套页面。
    ========================================================================== */
 
-#define APP_VERSION   "0.2.11"
+#define APP_VERSION   "0.2.12"
 #define SCR_W         128
 #define SCR_H         128
 
@@ -37,7 +37,7 @@
 #define DISP_MODE_KEY     "dmod2"
 #define DISP_OFF_X        2
 #define DISP_OFF_Y        1
-#define BLK_DUTY          200
+#define BLK_DUTY          255      /* 255 = 全亮（display.cpp 走 digitalWrite 常高，无 PWM 抖动） */
 #define BLK_ACTIVE_LOW    0
 
 #define TICK_MS           1000
@@ -57,30 +57,34 @@
 #define NVS_KEY           "save"
 #define NVS_TIME_KEY      "clock"
 
-/* ---------------- 通用色（含 1.44" TN 屏补偿） ----------------
-   TN 蓝通道透过率偏高，背景去蓝改暖黑、文字用暖白、金色提饱和；
-   场景部分仍按网页原色 HEXC()，保证稻香村的青绿不被压掉。 */
-static const uint16_t C_BG      = 0x1081;   // #121110 暖黑
-static const uint16_t C_BAR     = 0x18C2;   // #1c1a18 面板
-static const uint16_t C_LINE    = 0x3164;   // #332e28 深边框
-static const uint16_t C_GOLD    = 0xDDEE;   // #e3c078
-static const uint16_t C_GOLD_HI = 0xF758;   // #f8ecc8
-static const uint16_t C_TEXT    = 0xDEFA;   // #e6e2d8
-static const uint16_t C_DIM     = 0x8C50;   // #8f8d88
-static const uint16_t C_WARN    = 0xD2A8;   // #d8554a
-static const uint16_t C_BTN     = 0x2103;   // #26221e
-static const uint16_t C_PANEL   = 0x18C2;
-static const uint16_t C_PANEL2  = 0x2103;
-static const uint16_t C_WHITE   = 0xEF7B;   // #f5f0e4
-static const uint16_t C_SKIN    = 0xEE33;   // #f0c8a0
-static const uint16_t C_HAIR    = 0x18C6;
+/* ---------------- 通用色（v0.2.12：全部回归网页原色） ----------------
+   旧版做过"TN 屏去蓝"手工补偿（0x1081/0x18C2/0xDEFA…），
+   与网页色系整体偏暖偏黄，成为唯一色差来源；精灵表与开机 LOGO
+   都是网页原色直转，所以只有它们看着正常。
+   现统一用 HEXC(网页色值)，与 index.html 逐色一致。 */
+static const uint16_t C_BG      = HEXC(0x141824);   // 页面底色
+static const uint16_t C_BAR     = HEXC(0x1a1e2c);   // 状态栏 / 面板
+static const uint16_t C_LINE    = HEXC(0x39415e);   // 亮分隔线（标题下）
+static const uint16_t C_GOLD    = HEXC(0xe8c860);   // 金币 / 可执行
+static const uint16_t C_GOLD_HI = HEXC(0xf5e9b8);   // 称号
+static const uint16_t C_TEXT    = HEXC(0xcfd4e8);   // 正文
+static const uint16_t C_DIM     = HEXC(0x8a92ad);   // 次要文字 / 序号
+static const uint16_t C_TIP     = HEXC(0x79839a);   // 跑马灯提示
+static const uint16_t C_DESC    = HEXC(0xe8ddb8);   // 描述
+static const uint16_t C_WARN    = HEXC(0xe8a08a);   // 警告 / 冷却
+static const uint16_t C_BTN     = HEXC(0x20263a);   // 按钮 / 台座底
+static const uint16_t C_PANEL   = HEXC(0x1a1e2c);
+static const uint16_t C_PANEL2  = HEXC(0x20263a);
+static const uint16_t C_WHITE   = HEXC(0xf2f5fa);
+static const uint16_t C_SKIN    = HEXC(0xf2c9a0);
+static const uint16_t C_HAIR    = HEXC(0x1b2030);
 static const uint16_t C_PURPLE  = HEXC(0xc9a8e0);
 static const uint16_t C_GREEN   = HEXC(0x7ec8a0);
 static const uint16_t C_BLUE    = HEXC(0x7ec8f0);
 static const uint16_t C_VIOLET  = HEXC(0xc89af0);
 static const uint16_t C_ORANGE  = HEXC(0xff9a3c);
 static const uint16_t C_RED     = HEXC(0xd8554a);
-static const uint16_t C_DARK    = 0x3164;
+static const uint16_t C_DARK    = HEXC(0x2e3345);
 
 /* ---------------- 页面 ---------------- */
 enum PageId : uint8_t {

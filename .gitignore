@@ -4,3 +4,4 @@ web端设计/_test/_shots/
 web端设计/_test/_profile/
 __pycache__/
 *.pyc
+_*.png
