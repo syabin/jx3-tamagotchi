@@ -218,7 +218,18 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "0.2.9", "版本号为语义化 0.2.9");
+assert(g("APP_VERSION") === "0.2.10", "版本号为语义化 0.2.10");
+
+/* ---- v0.2.10：剑三化命名 + 最高识别度素材 ---- */
+assert(g("TITLES.map(t=>t.t).join(',')") === "初闯江湖,江湖新秀,一方名侠,武林名宿,武林至尊", "称号表对齐剑三成就称谓");
+assert(g("REPUTATIONS.map(r=>r.name).join(',')") === "中立,友好,尊敬,崇敬,崇拜", "声望五阶对齐剑三");
+assert(g("reputationOf(700).name") === "崇拜" && g("reputationOf(0).name") === "中立", "声望按修为正确映射");
+assert(g("HOME_NAMES.join(',')") === "荒地,茅舍,宅院,别院,山庄", "家园等级名对齐剑三宅院体系");
+assert(g("DUNGEONS.card.name") === "秘境" && g("DUNGEONS.raid.name") === "团本", "副本类型名对齐剑三");
+assert(g("typeof umbrella === 'undefined'"), "梅伞为 drawPet 内部绘制，不污染全局");
+assert(html.includes('text("稻香村"') && html.includes("const wx = sx + 99"), "稻香村木牌与大水车已进主场景");
+assert(html.includes("ux + 13, uy + 4") && html.includes("#e86a9a"), "梅纹伞保留右下缺角与梅花纹");
+assert(html.includes("淡紫面纱") && html.includes("药箱（斜背）"), "陈月面纱与药箱已绘制");
 assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
 const src86 = require("fs").readFileSync(require("path").join(__dirname, "../..", "index.html"), "utf8");
 assert(!/body\.qmode \.screen-frame \{ border-color: #8a8478/.test(src86), "v8.6 真机预览不再覆盖暖灰边框");
@@ -267,7 +278,8 @@ assert(g("activityRows().some(r => r.id === 'dungeon')") === true && g("activity
 g("actSel = 0; S.mood = 10; confirmA();");
 assert(g("S.mood") === 30, "活动页 A 执行打坐（心情+20）");
 assert(g("cooling('sit')") === true, "打坐进入冷却");
-g("page = 'activity'; actSel = 3; confirmA();");   // 打坐执行后 page 回了 main，需重进活动页
+assert(g("page") === "activity", "普通活动执行后留在活动页，不再自动回主页");
+g("actSel = 3; confirmA();");
 assert(g("page") === "home", "活动页 A 进家园页");
 g("pressB();");
 assert(g("page") === "main", "家园 B 回主页");

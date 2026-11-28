@@ -170,13 +170,23 @@ ctx.imageSmoothingEnabled = false;
 /* v0.2.7：取消门派设定，小人固定用原纯阳蓝白配色 */
 /* v0.2.9：成年陈月（北天药宗）——白衣淡紫、黑发白纱头巾、油纸伞 */
 const PET_STYLE = { robe: "#f0ecf5", trim: "#ffffff", accent: "#c9a8e0", dark: "#b8a8d0" };
+/* v0.2.10：称号与声望全面对齐剑网三（参考成就称谓 + 声望五阶） */
 const TITLES = [
-  { exp: 0,   t: "初入江湖" },
-  { exp: 50,  t: "小有名气" },
-  { exp: 150, t: "名动一方" },
-  { exp: 350, t: "威震八方" },
-  { exp: 700, t: "天下无双" },
+  { exp: 0,   t: "初闯江湖" },
+  { exp: 50,  t: "江湖新秀" },
+  { exp: 150, t: "一方名侠" },
+  { exp: 350, t: "武林名宿" },
+  { exp: 700, t: "武林至尊" },
 ];
+/* 剑三声望五阶：中立 → 友好 → 尊敬 → 崇敬 → 崇拜（按修为映射） */
+const REPUTATIONS = [
+  { exp: 0,   name: "中立", c: "#9aa3b8" },
+  { exp: 50,  name: "友好", c: "#7ec8a0" },
+  { exp: 150, name: "尊敬", c: "#7ec8f0" },
+  { exp: 350, name: "崇敬", c: "#c89af0" },
+  { exp: 700, name: "崇拜", c: "#f0c860" },
+];
+const reputationOf = exp => { for (let i = REPUTATIONS.length - 1; i >= 0; i--) if (exp >= REPUTATIONS[i].exp) return REPUTATIONS[i]; return REPUTATIONS[0]; };
 /* ================= 物品目录 =================
    type: food 食物 / med 药 / use 参悟 / mat 素材 / coll 收藏
    price = 商城售价（无则不卖）· sell = 卖价（无则不能卖）· cd = 食用冷却（秒）· anim = 使用演出时长（毫秒）
@@ -213,7 +223,11 @@ const SHOP_ORDER = ["baozi","fish","feast","pill","w_sword","w_pick","a_robe","a
 const EQUIP_SLOTS = ["weapon", "body", "trea"];
 const SLOT_NAMES  = { weapon: "武器", body: "护身", trea: "饰品" };
 /* 装备品级（v7.7）：1 凡品 · 2 良品 · 3 珍品；签到「鸿运当头」按品级加权从商城同池随机 */
-const EQ_TIERS = { 1: { name: "凡品", c: "#9aa3b8" }, 2: { name: "良品", c: "#7ec8f0" }, 3: { name: "珍品", c: "#c89af0" } };
+const EQ_TIERS = {
+  1: { name: "凡品", c: "#9aa3b8" },   // 剑三：白装
+  2: { name: "良品", c: "#7ec8f0" },   // 剑三：蓝装
+  3: { name: "珍品", c: "#c89af0" },   // 剑三：紫装
+};
 /* 签到「鸿运当头」装备池：商城全部装备，品级权重（凡品×5 / 良品×2 / 珍品×1），以后加新装备自动入池 */
 function giftEquipPool() {
   const pool = [];
@@ -249,15 +263,15 @@ const DECO_LIST   = ["d_plant", "d_screen", "d_lamp"];
 const DECO_MOOD   = { d_plant: 0.05, d_screen: 0.08, d_lamp: 0.06 };
 const BETS = [50, 100, 200, 500, 1000];   // 赌坊押注档位
 let gameSt = null;
-const HOME_NAMES = ["荒地", "草庐", "木屋", "庭院", "山庄"];
+const HOME_NAMES = ["荒地", "茅舍", "宅院", "别院", "山庄"];   // 剑三宅院体系
 const SPEEDS = { 60: 60, 600: 600, 1: 1, 10: 10 };
 /* ================= 副本掉落表 =================
    固定掉落（金币/修为区间）+ 额外掉落（每件独立掷骰，可多件齐掉，也可以纯保底） */
 const DUNGEONS = {
   war:    { name:"大战",     coin:[250,250], exp:[18,24], extra:[["iron",.40],["baozi",.30],["page",.10]] },
   battle: { name:"阵营战场", coin:[280,280], exp:[15,20], extra:[["gold100",.25],["pill",.08]] },
-  card:   { name:"秘境日常", coin:[260,260], exp:[16,22], extra:[["fish",.20],["pill",.10],["tassel",.05]] },
-  raid:   { name:"团本周本", coin:[400,450], exp:[25,33], extra:[["steel",.35],["pill",.15],["tassel",.12],["shard",.02]] },
+  card:   { name:"秘境",     coin:[260,260], exp:[16,22], extra:[["fish",.20],["pill",.10],["tassel",.05]] },
+  raid:   { name:"团本",     coin:[400,450], exp:[25,33], extra:[["steel",.35],["pill",.15],["tassel",.12],["shard",.02]] },
 };
 const OFFLINE_MAX_GH = 4;   // 离线最多结算 4 游戏小时（回来不至于一进门就残血）
 const LIST_ROWS = 4;        // 背包 / 商城列表每屏可见行数
@@ -731,10 +745,11 @@ function doAct(id, sub) {
     case "status":
       page = "status"; sfx.ok(); return;
   }
-  page = "main";
+  /* v0.2.10：普通活动执行完留在当前页（活动页），不再踢回主页。
+     只有副本 startDungeon() 会主动切回主页看战斗演示。 */
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "0.2.9";
+const APP_VERSION = "0.2.10";
 const BOOT_LOGO_URL = "data:image/png;base64,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";
 let bootLogo = null;
 try { if (typeof Image !== "undefined") { bootLogo = new Image(); bootLogo.src = BOOT_LOGO_URL; } } catch (e) { bootLogo = null; }
@@ -903,6 +918,38 @@ function drawPet(pose, pox = 52, poy = 32, s = 3) {
   const ox = pox, oy = poy + bob * u;
   const P = (x, y, w, h, c) => px(ox + x * u, oy + y * u, w * u, h * u, c);
 
+  /* 梅纹淡紫伞：右下撕缺一瓣（陈月原伞标志），先画伞再画人，脸不被遮。 */
+  const umbrella = (ux, uy) => {
+    const OUT = "#4a3a58", CAN = "#d8c2e8", CAN2 = "#c4a8dc", RIB = "#8f6fae";
+    const hr = gameHour();
+    const sky = (hr > 6 && hr < 18) ? "#7aa0b8" : "#0d0f18";
+    const rows = [[5, 7], [3, 11], [2, 13], [1, 15], [0, 15], [1, 14], [2, 13], [3, 11]];
+    rows.forEach(([rx, rw], r) => {
+      P(ux + rx, uy + r, rw, 1, r % 2 ? CAN : CAN2);
+      P(ux + rx, uy + r, 1, 1, OUT);
+      P(ux + rx + rw - 1, uy + r, 1, 1, OUT);
+    });
+    /* 缺角：用天空色挖出三角缺口，边缘留毛边，远远看也是一把破伞 */
+    P(ux + 13, uy + 4, 3, 1, sky);
+    P(ux + 11, uy + 5, 4, 1, sky);
+    P(ux + 9, uy + 6, 5, 1, sky);
+    P(ux + 7, uy + 7, 5, 1, sky);
+    P(ux + 12, uy + 4, 1, 1, OUT); P(ux + 10, uy + 5, 1, 1, OUT); P(ux + 8, uy + 6, 1, 1, OUT);
+    // 伞骨：从伞顶放射的深色线
+    P(ux + 7, uy + 1, 1, 6, RIB);
+    P(ux + 3, uy + 2, 1, 4, RIB); P(ux + 11, uy + 2, 1, 3, RIB);
+    P(ux + 1, uy + 4, 1, 2, RIB);
+    // 梅花纹：3×3 十字，一眼能认出「梅伞」
+    [[5, 3], [11, 2], [8, 5]].forEach(([bx, by]) => {
+      P(ux + bx, uy + by, 1, 1, "#f5d0e0");
+      P(ux + bx - 1, uy + by, 1, 1, "#e86a9a"); P(ux + bx + 1, uy + by, 1, 1, "#e86a9a");
+      P(ux + bx, uy + by - 1, 1, 1, "#e86a9a"); P(ux + bx, uy + by + 1, 1, 1, "#e86a9a");
+    });
+    P(ux + 7, uy + 8, 1, 5, "#7a5a3a");
+    P(ux + 6, uy + 13, 1, 3, "#7a5a3a");
+    P(ux + 5, uy + 16, 1, 2, "#7a5a3a");
+  };
+
   /* 陈月配色：黑发 / 白纱头巾 / 淡紫衣 / 深紫瞳 */
   const OL = "#2b2b3a", HA = "#2e2a38", HS = "#1e1c28", HL = "#4a4658", HM = "#3a3648";
   const SK = "#fce3d3", SK2 = "#eec9b4", BL = "#e8a8b8";
@@ -923,11 +970,14 @@ function drawPet(pose, pox = 52, poy = 32, s = 3) {
         }
       }
     });
-    // 白纱头巾蕾丝边（两侧垂纱，随风轻摆）
-    Q(2, 5, 2, 6, WH); Q(16, 5, 2, 6, WH);
+    /* 成年陈月识别点：黑长直 + 白纱抹额 + 两侧垂纱 + 淡紫面纱 + 梅纹发饰 */
+    Q(2, 1, 16, 1, WH); Q(3, 2, 14, 1, BOW2); Q(4, 3, 12, 1, WH);  // 白纱抹额
+    Q(1, 6, 2, 11, HA); Q(17, 6, 2, 11, HA);                        // 黑长直到肩
+    Q(1, 8, 1, 8, HL); Q(18, 8, 1, 8, HL);
+    Q(2, 5, 1, 7, WH); Q(17, 5, 1, 7, WH);                          // 垂纱
     Q(2, 5, 1, 1, BOW2); Q(17, 5, 1, 1, BOW2);
     const sway = Math.floor(frame / 40) % 2;
-    Q(sway ? 1 : 2, 11, 1, 2, WH); Q(sway ? 18 : 17, 11, 1, 2, WH);
+    Q(sway ? 1 : 2, 12, 1, 3, WH); Q(sway ? 18 : 17, 12, 1, 3, WH);
     // 眼睛（位图默认星星眼：eeWe / EWWE / Eewe，其余表情覆盖重画）
     if (mood === "closed" || mood === "sleep") {
       Q(5, 8, 4, 3, SK); Q(11, 8, 4, 3, SK);
@@ -951,31 +1001,46 @@ function drawPet(pose, pox = 52, poy = 32, s = 3) {
       if (Math.floor(frame / 8) % 2) Q(8, 13, 4, 1, "#8c3a48");
     }
     else if (mood === "hurt" || mood === "sick") { Q(9, 12, 2, 1, SK); Q(9, 12, 2, 1, "#8c3a48"); }
-    // 白纱头巾结（左耳侧）+ 淡紫丝带
+    /* 淡紫面纱：只露双眼——陈月最稳定的人物剪影 */
+    Q(3, 11, 14, 3, "#d8c4e8");
+    Q(3, 11, 14, 1, "#b89ad4");
+    Q(3, 13, 14, 1, "#c4aae0");
+    for (let vx = 5; vx <= 15; vx += 5) Q(vx, 12, 1, 1, "#f0e6f8");
+    if (mood === "happy" || mood === "eat") Q(9, 12, 2, 1, "#8c3a48");
+    // 白纱结 + 梅花发饰（右额）
     Q(1, 6, 2, 1, WH); Q(0, 7, 4, 1, WH); Q(0, 8, 4, 1, BOW2);
     Q(1, 7, 2, 1, BOW); Q(1, 8, 1, 1, C.accent);
-    Q(0, 9, 2, 2, BOW2); Q(1, 10, 1, 2, C.accent);
+    Q(15, 2, 1, 1, "#e86a9a"); Q(16, 3, 1, 1, "#f5a8c8"); Q(15, 4, 1, 1, "#e86a9a");
   }
 
-  /* 身体：交领右衽 + 双线袖口广袖 + 腰带玉佩 + 腿靴（18×13 细化网格） */
+  /* 身体：交领白衣 + 花瓣淡紫裙 + 白纱罩裙 + 药箱（陈月医者身份） */
   function body(by) {
     const DARK = C.dark || C.robe;
+    const SKIRT = "#c9a8e0", SKIRT2 = "#d9c0ea", GAUZE = "#f5f0fa";
     P(4, by, 12, 1, C.trim);                                 // 肩线
     P(8, by + 1, 4, 1, C.trim);                              // 交领口
     P(7, by + 2, 1, 1, C.trim); P(12, by + 2, 1, 1, C.trim); // 斜襟
     P(9, by + 3, 2, 1, C.trim);                              // V 领尖
-    P(4, by + 1, 12, 8, C.robe);                             // 衣身
-    P(4, by + 1, 1, 8, DARK); P(15, by + 1, 1, 8, DARK);     // 衣身侧影
+    P(4, by + 1, 12, 7, C.robe);                             // 白衣
+    P(4, by + 1, 1, 7, DARK); P(15, by + 1, 1, 7, DARK);     // 衣身侧影
     P(9, by + 6, 2, 1, GOLD);                                // 衣扣
     P(2, by + 1, 2, 5, C.robe); P(16, by + 1, 2, 5, C.robe); // 广袖
     P(2, by + 1, 2, 1, C.trim); P(16, by + 1, 2, 1, C.trim); // 袖口沿
     P(2, by + 5, 2, 1, C.trim); P(16, by + 5, 2, 1, C.trim); // 袖口双线
     P(2, by + 6, 1, 1, SK); P(17, by + 6, 1, 1, SK);         // 手
-    P(4, by + 9, 12, 1, C.trim);                             // 腰带
-    P(9, by + 10, 2, 1, GOLD);                               // 带扣
-    P(9, by + 11, 1, 2, C.accent);                           // 玉佩垂穗
-    P(6, by + 10, 2, 2, "#3a3a52"); P(12, by + 10, 2, 2, "#3a3a52"); // 腿
-    P(6, by + 12, 2, 1, "#23232f"); P(12, by + 12, 2, 1, "#23232f"); // 靴
+    P(4, by + 8, 12, 1, C.trim);                             // 腰带
+    P(9, by + 9, 2, 1, GOLD);                                // 带扣
+    /* 花瓣裙 + 白纱罩裙 */
+    P(5, by + 9, 10, 1, SKIRT);
+    P(3, by + 10, 14, 1, SKIRT2);
+    P(2, by + 11, 16, 1, SKIRT);
+    P(4, by + 9, 2, 3, GAUZE); P(14, by + 9, 2, 3, GAUZE);
+    P(6, by + 11, 2, 2, "#3a3a52"); P(12, by + 11, 2, 2, "#3a3a52"); // 腿
+    P(6, by + 13, 2, 1, "#23232f"); P(12, by + 13, 2, 1, "#23232f"); // 靴
+    /* 药箱（斜背）：医者身份，白十字 */
+    P(1, by + 7, 4, 4, "#8a5a34"); P(1, by + 7, 4, 1, "#b88a52");
+    P(2, by + 8, 2, 2, "#f0e6d6"); P(3, by + 8, 1, 2, "#c04050"); P(2, by + 9, 2, 1, "#c04050");
+    P(5, by + 2, 1, 6, "#a88c60");                           // 背带
   }
 
   if (pose === "sleep") {                       // 就寝：侧卧闭眼（贴地）
@@ -1017,6 +1082,7 @@ function drawPet(pose, pox = 52, poy = 32, s = 3) {
     return;
   }
   if (pose === "eat") {                         // 吃饭：张嘴 + 饭碗
+    umbrella(16, 0);
     head(0, 0, "eat"); body(17);
     const bo = Math.floor(frame / 8) % 2;
     P(19, 22, 6, 3, "#d8d8e0"); P(20, 25, 4, 1, "#d8d8e0");
@@ -1054,27 +1120,11 @@ function drawPet(pose, pox = 52, poy = 32, s = 3) {
     else { P(16, 21, 5, 2, SK); }
     return;
   }
-  // idle：站立呼吸 + 眨眼 + 斜撑油纸伞（陈月标志，不挡脸）
+  // idle：站立呼吸 + 眨眼 + 斜撑梅纹伞
   const blink = frame % 160 < 8;
+  umbrella(16, 0);
   head(0, 0, blink ? "closed" : "star");
   body(17);
-  /* 油纸伞：伞面在人物右后上方，米白伞面+淡紫伞骨+桃花点，伞柄斜撑到手 */
-  const ux = 17, uy = 4;
-  P(ux + 3, uy, 8, 1, "#e8dcc8");          // 伞顶
-  P(ux + 1, uy + 1, 12, 1, "#f0e6d6");
-  P(ux, uy + 2, 14, 2, "#f5ecdd");          // 伞面主体
-  P(ux - 1, uy + 4, 16, 2, "#f0e6d6");
-  P(ux, uy + 6, 14, 1, "#e0d2c0");          // 伞沿阴影
-  P(ux + 1, uy + 7, 12, 1, "#d8c8b4");
-  // 伞骨（淡紫，从顶辐射）
-  P(ux + 7, uy + 1, 1, 6, "#c9a8e0");
-  P(ux + 3, uy + 2, 1, 5, "#d8c8e0"); P(ux + 11, uy + 2, 1, 5, "#d8c8e0");
-  // 桃花点
-  P(ux + 4, uy + 3, 1, 1, "#e88ab8"); P(ux + 10, uy + 4, 1, 1, "#e88ab8");
-  // 伞柄（斜撑到人物右手）
-  P(ux + 7, uy + 8, 1, 4, "#8a6a4a");
-  P(ux + 6, uy + 12, 1, 3, "#8a6a4a");
-  P(ux + 5, uy + 15, 1, 2, "#8a6a4a");
 }
 
 /* --- 气泡/表情 --- */
@@ -1468,6 +1518,13 @@ function renderMain() {
   cloud(sx + 12 + (frame * 0.15) % (sw - 34), 26, 1);
   cloud(sx + 6 + (frame * 0.09) % (sw - 24), 38, 0);
   cloud(sx + 30 + (frame * 0.06) % (sw - 44), 33, 0);
+  /* --- 稻香村木牌：最强地标识别（牌坊式小匾） --- */
+  px(sx + 8, sy + 3, 34, 11, "#5a3a22");
+  px(sx + 9, sy + 4, 32, 9, "#8a6a40");
+  px(sx + 9, sy + 4, 32, 1, "#c9a86a");
+  px(sx + 9, sy + 12, 32, 1, "#3a2418");
+  text("稻香村", sx + 12, sy + 5, "#f5e9b8", 8);
+  px(sx + 14, sy + 14, 1, 4, "#6a4a2a"); px(sx + 36, sy + 14, 1, 4, "#6a4a2a");
   if (!day) {
     /* --- 星空：亮星十字闪烁 + 偶发流星 --- */
     const st = [[18, 24], [30, 22], [44, 25], [58, 21], [70, 24], [84, 22], [94, 27], [26, 32], [50, 30], [78, 33], [100, 25], [38, 38], [64, 40], [88, 42], [108, 32]];
@@ -1503,25 +1560,32 @@ function renderMain() {
     px(Math.round(bx + 16), Math.round(by + 4), 1, 1, "#1c2438");
     px(Math.round(bx + 15), Math.round(by + 4) - wf, 1, 1, "#1c2438");
   }
-  /* --- 稻香村远景：青绿梯田层叠 + 远山 --- */
+  /* --- 稻香村远景：青绿梯田层叠 + 远村茅屋 --- */
   const mtnF = day ? "#5a7e6a" : "#141c28", mtnN = day ? "#4a6a58" : "#0e1520";
-  const snow = day ? "#a8c8b8" : "#2a3a48";
   px(sx, 60, sw, groundY - 60, mtnF);                    // 远山整体
   px(sx + 8, 52, 30, groundY - 52, mtnF);
   px(sx + 60, 54, 46, groundY - 54, mtnF);
-  px(sx + 16, 52, 5, 2, snow); px(sx + 72, 54, 5, 2, snow);
-  // 梯田：五层弧形田埂（稻香村标志）
-  for (let i = 0; i < 5; i++) {
-    const ty = 62 + i * 4, tw2 = 100 - i * 10, tx = sx + 8 + i * 5;
-    px(tx, ty, tw2, 1, day ? "#7a9e5a" : "#1c2820");
-    px(tx, ty + 1, tw2, 2, day ? "#8eae62" : "#202e24");
-    px(tx, ty + 3, tw2, 1, day ? "#668848" : "#162018");
+  // 梯田：四层宽田带 + 少量稻苗（避免密密麻麻变格子）
+  for (let i = 0; i < 4; i++) {
+    const ty = 64 + i * 5, tw2 = 96 - i * 10, tx = sx + 8 + i * 6;
+    px(tx, ty, tw2, 1, day ? "#3e5a34" : "#101a14");       // 田埂暗边
+    px(tx + 1, ty + 1, tw2 - 2, 3, day ? "#7a9e5a" : "#1c2820");
+    px(tx + 1, ty + 1, tw2 - 2, 1, day ? "#9ebb68" : "#243226");
+    px(tx + 1, ty + 3, tw2 - 2, 1, day ? "#668848" : "#162018");
+    for (let sp = 12; sp < tw2 - 10; sp += 18) {            // 稀疏稻苗
+      px(tx + sp, ty, 1, 2, day ? "#c8d878" : "#2c3a28");
+      px(tx + sp + 1, ty - 1, 1, 2, day ? "#d8e898" : "#344430");
+    }
   }
-  // 远村：两间茅屋剪影
+  // 远村：两间茅屋（斜顶 + 门洞 + 炊烟）
   [[26, 66], [84, 64]].forEach(([hx, hy]) => {
-    px(hx, hy, 12, 4, day ? "#8a7a5a" : "#1a1e28");
-    px(hx - 2, hy - 2, 16, 2, day ? "#6a8a5a" : "#121820");
-    px(hx + 1, hy - 4, 10, 2, day ? "#7a9e6a" : "#16201c");
+    px(hx + 2, hy, 8, 4, day ? "#8a7a5a" : "#1a1e28");
+    px(hx + 5, hy + 1, 2, 3, day ? "#4a3a2a" : "#0d1218");
+    px(hx, hy - 2, 12, 2, day ? "#6a8a5a" : "#121820");
+    px(hx + 2, hy - 4, 8, 2, day ? "#7a9e6a" : "#16201c");
+    px(hx + 4, hy - 5, 4, 1, day ? "#8eae7a" : "#1a2420");
+    if (day && frame % 80 < 50)
+      px(hx + 6 + ((frame / 40 | 0) % 2), hy - 8 - ((frame / 60 | 0) % 3), 1, 1, "#d8e0dc");
   });
   /* --- 近景（贴草沿的矮丘） --- */
   px(sx - 2, 74, 34, groundY - 74, mtnN); px(sx + 6, 68, 16, groundY - 68, mtnN);
@@ -1532,9 +1596,9 @@ function renderMain() {
   px(sx, groundY + 3, sw, 1, "#2a3d2a");
   px(sx, groundY + 4, sw, 5, "#3a2f22");
   px(sx, groundY + 6, sw, 1, "#2e2418");
-  for (let i = 0; i < 14; i++)
-    px(sx + (i * 17 + 6) % sw, groundY + 5 + (i % 2), 2, 1, "#4a3c2a");   // 碎石
-  for (let i = 0; i < 26; i++) {                     // 摇曳草叶
+  for (let i = 0; i < 8; i++)
+    px(sx + (i * 23 + 8) % sw, groundY + 5 + (i % 2), 2, 1, "#4a3c2a");   // 碎石（少而精）
+  for (let i = 0; i < 16; i++) {                     // 摇曳草叶
     const gx2 = sx + (i * 9 + 3) % sw;
     const gw = Math.floor((frame + i * 7) / 30) % 2;
     px(gx2, groundY - 1 - gw, 1, 1 + gw, i % 3 ? "#4a6e40" : "#5a7e4a");
@@ -1547,33 +1611,55 @@ function renderMain() {
   [[24, groundY + 1], [32, groundY + 2], [42, groundY + 1]].forEach(([qx2, qy2]) => {
     px(qx2, qy2, 4, 2, "#7a6a4c"); px(qx2, qy2, 4, 1, "#8a7a5a");   // 石径
   });
-  /* --- 稻香村大水车（右侧，缓慢转动） --- */
-  const wx = sx + 96, wy = groundY - 16, wr = 11;
-  const wa = frame / 90;
-  // 轮辐（8 根，随 frame 转动）
-  for (let i = 0; i < 8; i++) {
+  /* --- 稻香村大水车（右侧，缓慢转动：最强行地标） --- */
+  const wx = sx + 99, wy = groundY - 20, wr = 15;
+  const wa = frame / 110;
+  px(wx - 18, wy + 8, 20, 2, day ? "#6a4a2a" : "#2a2018");              // 引水槽
+  px(wx - 18, wy + 10, 2, groundY - wy - 10, day ? "#5a3a22" : "#201810");
+  px(wx + 12, wy + 6, 2, groundY - wy - 6, day ? "#5a3a22" : "#201810");  // 支架
+  for (let i = 0; i < 8; i++) {                                           // 8 根粗轮辐
     const a2 = wa + i * Math.PI / 4;
     const ex = Math.round(wx + Math.cos(a2) * wr), ey = Math.round(wy + Math.sin(a2) * wr);
-    const steps = 9;
-    for (let k = 0; k <= steps; k++) {
-      px(Math.round(wx + (ex - wx) * k / steps), Math.round(wy + (ey - wy) * k / steps), 1, 1, "#6a4a2a");
-    }
-    px(ex - 1, ey - 1, 3, 3, "#8a6a40");   // 水斗
+    for (let k = 0; k <= 11; k++)
+      px(Math.round(wx + (ex - wx) * k / 11), Math.round(wy + (ey - wy) * k / 11), 2, 2,
+         day ? "#7a5a34" : "#2e2418");
+    px(ex - 2, ey - 1, 5, 3, day ? "#5a3a22" : "#201810");                // 水斗（外暗）
+    px(ex - 1, ey, 3, 1, day ? "#c9a86a" : "#4a3a2a");                    // 水斗高光
   }
-  px(wx - 2, wy - 2, 5, 5, "#5a3a22"); px(wx - 1, wy - 1, 3, 3, "#8a6a40");  // 轮毂
-  px(wx - 13, wy + 6, 2, groundY - wy - 6, "#5a4632");  // 支架
-  /* --- 溪流（水车下方，波光流动） --- */
+  for (let i = 0; i < 30; i++) {                                          // 加粗外圈
+    const a2 = i * Math.PI / 15;
+    px(Math.round(wx + Math.cos(a2) * wr), Math.round(wy + Math.sin(a2) * wr), 2, 2,
+       day ? "#b08a52" : "#403224");
+  }
+  px(wx - 3, wy - 3, 7, 7, day ? "#5a3a22" : "#201810");
+  px(wx - 2, wy - 2, 5, 5, day ? "#8a6a40" : "#342a20");
+  px(wx - 1, wy - 1, 3, 3, day ? "#c9a86a" : "#4a3a2a");
+  /* --- 溪流 + 木桥（水车下的村口水口） --- */
   const water = day ? "#5a9eb8" : "#1a3448", wave = day ? "#8ac8d8" : "#2a5068";
-  px(sx + 66, groundY + 2, 54, 6, water);
-  for (let i = 0; i < 9; i++) {
-    const xx = sx + 68 + (i * 7 + (frame / 6 | 0) % 7) % 50;
-    px(xx, groundY + 3 + (i % 3), 3, 1, wave);
+  px(sx + 2, groundY + 2, 118, 6, water);
+  px(sx + 2, groundY + 2, 118, 1, day ? "#8ac8d8" : "#2a5068");
+  for (let i = 0; i < 11; i++) {
+    const xx = sx + 6 + (i * 9 + (frame / 6 | 0) % 9) % 108;
+    px(xx, groundY + 3 + (i % 3), 4, 1, wave);
   }
+  const bx0 = sx + 24, by0 = groundY - 1;                                 // 拱桥
+  for (let i = 0; i < 13; i++) {
+    const arch = Math.round(Math.sin(i / 12 * Math.PI) * 3);
+    px(bx0 + i * 3, by0 - arch, 4, 2, day ? "#8a6a40" : "#342a20");
+    px(bx0 + i * 3, by0 - arch - 1, 4, 1, day ? "#b08a52" : "#4a3a2a");
+    if (i % 4 === 0) px(bx0 + i * 3, by0 - arch - 4, 1, 4, day ? "#6a4a2a" : "#2a2018");
+  }
+  px(bx0, by0 - 5, 39, 1, day ? "#6a4a2a" : "#2a2018");
   /* --- 荷花池（左侧溪湾，荷叶 + 粉荷） --- */
-  px(sx + 4, groundY + 2, 30, 6, day ? "#4a8a9e" : "#142c3c");
-  [[8, 2], [16, 4], [26, 3]].forEach(([lx, ly], i) => {
-    px(sx + lx, groundY + ly, 6, 2, day ? "#4a8a52" : "#1a3428");
-    if (i !== 1) { px(sx + lx + 2, groundY + ly - 2, 2, 2, "#e88ab8"); px(sx + lx + 3, groundY + ly - 3, 1, 1, "#f5c8d8"); }
+  px(sx + 4, groundY + 2, 20, 6, day ? "#4a8a9e" : "#142c3c");
+  [[7, 3], [15, 5], [21, 2]].forEach(([lx, ly], i3) => {
+    px(sx + lx, groundY + ly, 7, 2, day ? "#4a8a52" : "#1a3428");
+    px(sx + lx + 3, groundY + ly - 1, 1, 1, day ? "#6aa862" : "#244436");
+    if (i3 !== 1) {
+      px(sx + lx + 2, groundY + ly - 3, 2, 2, "#e88ab8");
+      px(sx + lx + 3, groundY + ly - 4, 1, 1, "#f5c8d8");
+      px(sx + lx + 1, groundY + ly - 2, 1, 1, "#d86a9a");
+    }
   });
   /* --- 草丛（受光面 + 浆果） --- */
   [[48, groundY - 3], [88, groundY - 2]].forEach(([gx2, gy2]) => {
@@ -2449,7 +2535,7 @@ function renderStatus() {
     const days = (((Date.now() - S.bornTs) / 1000 * speedF / 3600 + 8) / 24).toFixed(1);
     const lines = [
       "体力 " + Math.round(S.hunger) + " · 心情 " + Math.round(S.mood),
-      "修为 " + S.exp + " · 晋升 " + prog + "%",
+      "修为 " + S.exp + " · 声望 " + reputationOf(S.exp).name,
       "金币 " + S.coins + " · 装备 " + eqNames.length + " 件",
       "家园 " + HOME_NAMES[S.homeLv] + " · 装饰 " + decoCount() + "/3",
       "保姆 " + (S.nannyGH > 0 ? "剩" + Math.ceil(S.nannyGH) + "时辰" : "未雇"),

@@ -1,0 +1,116 @@
+<svg width="100%" viewBox="0 0 680 560" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>ESP32-C3 Super Mini 与 1.44 寸 ST7735S 屏幕接线图</title>
+<desc>左侧为 ESP32-C3 Super Mini 俯视引脚位置，右侧为屏幕模块 12 针，中间 12 根连线逐一配对。右侧针脚按接线顺序排列，实物丝印顺序见图下方。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<text x="40" y="32" font-family="var(--font-sans, sans-serif)" font-size="15" font-weight="500" fill="var(--color-text-primary, #1a1a1a)">ESP32-C3 Super Mini ↔ 1.44″ ST7735S 接线图</text>
+<text x="40" y="52" font-family="var(--font-sans, sans-serif)" font-size="12" fill="var(--color-text-secondary, #555)">两端引脚都已画出 · 右侧按接线顺序排列，按丝印名接线即可</text>
+<rect x="70" y="100" width="210" height="350" rx="14" fill="var(--color-background-secondary, #f5f5f3)" stroke="var(--color-border-secondary, #bbb)" stroke-width="0.5"/>
+<rect x="145" y="86" width="60" height="16" rx="4" fill="var(--color-background-tertiary, #e8e8e5)" stroke="var(--color-border-secondary, #bbb)" stroke-width="0.5"/>
+<text x="175" y="280" text-anchor="middle" font-family="var(--font-sans, sans-serif)" font-size="12" fill="var(--color-text-tertiary, #999)">C3 Super Mini</text>
+<rect x="54" y="120" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#EF9F27" stroke-width="1"/>
+<text x="70" y="133" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">5</text>
+<rect x="54" y="160" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="70" y="173" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">6</text>
+<rect x="54" y="200" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="70" y="213" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">7</text>
+<rect x="54" y="240" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="var(--color-text-tertiary, #999)" stroke-width="1" stroke-dasharray="3 2"/>
+<text x="70" y="253" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-tertiary, #999)">8</text>
+<rect x="54" y="280" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="var(--color-text-tertiary, #999)" stroke-width="1" stroke-dasharray="3 2"/>
+<text x="70" y="293" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-tertiary, #999)">9</text>
+<rect x="54" y="320" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="70" y="333" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">10</text>
+<rect x="54" y="360" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="70" y="373" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">20</text>
+<rect x="54" y="400" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="70" y="413" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">21</text>
+<rect x="264" y="120" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="var(--color-text-tertiary, #999)" stroke-width="1" stroke-dasharray="3 2"/>
+<text x="280" y="133" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-tertiary, #999)">5V</text>
+<rect x="264" y="160" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#EF9F27" stroke-width="1"/>
+<text x="280" y="173" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GND</text>
+<rect x="264" y="200" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#EF9F27" stroke-width="1"/>
+<text x="280" y="213" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">3V3</text>
+<rect x="264" y="240" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="280" y="253" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">4</text>
+<rect x="264" y="280" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="280" y="293" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">3</text>
+<rect x="264" y="320" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="var(--color-text-tertiary, #999)" stroke-width="1" stroke-dasharray="3 2"/>
+<text x="280" y="333" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-tertiary, #999)">2</text>
+<rect x="264" y="360" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="280" y="373" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">1</text>
+<rect x="264" y="400" width="32" height="26" rx="4" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="280" y="413" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--color-text-primary, #1a1a1a)">0</text>
+<text x="474" y="150" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO5</text>
+<circle cx="484" cy="146" r="3" fill="#EF9F27"/>
+<path d="M490 146 L544 146" fill="none" stroke="#EF9F27" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="176" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO6</text>
+<circle cx="484" cy="172" r="3" fill="#378ADD"/>
+<path d="M490 172 L544 172" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="202" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO7</text>
+<circle cx="484" cy="198" r="3" fill="#378ADD"/>
+<path d="M490 198 L544 198" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="228" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO10</text>
+<circle cx="484" cy="224" r="3" fill="#378ADD"/>
+<path d="M490 224 L544 224" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="254" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO20</text>
+<circle cx="484" cy="250" r="3" fill="#378ADD"/>
+<path d="M490 250 L544 250" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="280" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO21</text>
+<circle cx="484" cy="276" r="3" fill="#378ADD"/>
+<path d="M490 276 L544 276" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="306" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GND</text>
+<circle cx="484" cy="302" r="3" fill="#EF9F27"/>
+<path d="M490 302 L544 302" fill="none" stroke="#EF9F27" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="332" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">3V3</text>
+<circle cx="484" cy="328" r="3" fill="#EF9F27"/>
+<path d="M490 328 L544 328" fill="none" stroke="#EF9F27" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="358" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO4</text>
+<circle cx="484" cy="354" r="3" fill="#378ADD"/>
+<path d="M490 354 L544 354" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="384" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO3</text>
+<circle cx="484" cy="380" r="3" fill="#378ADD"/>
+<path d="M490 380 L544 380" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="410" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO1</text>
+<circle cx="484" cy="406" r="3" fill="#378ADD"/>
+<path d="M490 406 L544 406" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="474" y="436" text-anchor="end" font-size="12" fill="var(--color-text-primary, #1a1a1a)">GPIO0</text>
+<circle cx="484" cy="432" r="3" fill="#378ADD"/>
+<path d="M490 432 L544 432" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="548" y="110" width="92" height="344" rx="8" fill="var(--color-background-secondary, #f5f5f3)" stroke="var(--color-border-secondary, #bbb)" stroke-width="0.5"/>
+<text x="594" y="104" text-anchor="middle" font-family="var(--font-sans, sans-serif)" font-size="12" fill="var(--color-text-secondary, #555)">1.44″ 屏幕</text>
+<rect x="552" y="135" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#EF9F27" stroke-width="1"/>
+<text x="572" y="146" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">BLK</text>
+<rect x="552" y="161" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="172" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">SDA</text>
+<rect x="552" y="187" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="198" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">CS</text>
+<rect x="552" y="213" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="224" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">DC</text>
+<rect x="552" y="239" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="250" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">K3</text>
+<rect x="552" y="265" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="276" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">K4</text>
+<rect x="552" y="291" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#EF9F27" stroke-width="1"/>
+<text x="572" y="302" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">GND</text>
+<rect x="552" y="317" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#EF9F27" stroke-width="1"/>
+<text x="572" y="328" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">VCC</text>
+<rect x="552" y="343" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="354" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">SCL</text>
+<rect x="552" y="369" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="380" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">RES</text>
+<rect x="552" y="395" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="406" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">K2</text>
+<rect x="552" y="421" width="40" height="22" rx="3" fill="var(--color-background-primary, #fff)" stroke="#378ADD" stroke-width="1"/>
+<text x="572" y="432" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--color-text-primary, #1a1a1a)">K1</text>
+<text x="40" y="476" font-family="var(--font-sans, sans-serif)" font-size="12" fill="var(--color-text-secondary, #555)">屏幕实物丝印从左到右：K1 K2 K3 K4 BLK CS DC RES SDA SCL VCC GND · 本图按接线重排，认名字不认位置</text>
+<rect x="40" y="493" width="14" height="10" rx="2" fill="#EF9F27"/>
+<text x="60" y="502" font-family="var(--font-sans, sans-serif)" font-size="12" fill="var(--color-text-secondary, #555)">电源 / 背光</text>
+<rect x="150" y="493" width="14" height="10" rx="2" fill="#378ADD"/>
+<text x="170" y="502" font-family="var(--font-sans, sans-serif)" font-size="12" fill="var(--color-text-secondary, #555)">信号线</text>
+<rect x="250" y="493" width="14" height="10" rx="2" fill="var(--color-background-primary, #fff)" stroke="var(--color-text-tertiary, #999)" stroke-width="1" stroke-dasharray="3 2"/>
+<text x="270" y="502" font-family="var(--font-sans, sans-serif)" font-size="12" fill="var(--color-text-secondary, #555)">不用（2 / 8 / 9 是启动脚）</text>
+<text x="40" y="528" font-family="var(--font-sans, sans-serif)" font-size="12" fill="var(--color-text-danger, #A32D2D)">VCC 只接 3V3，接 5V 会烧屏。K1–K4 是屏上按键引线，按下拉低，代码已开内部上拉。</text>
+</svg>
