@@ -543,7 +543,7 @@ function toastMsg(text, sfxFn) { toast = { text, until: Date.now() + 2800 }; if 
    「打坐/木桩/挖宝/家园」并入「活动」页；「小游戏」升级为「游戏厅」（左右选游戏）。
    设置不占图标位，仍为「长按 B 1.5 秒」全局呼出。 */
 const MENU = [
-  { id: "activity", label: "活动", desc: "日常·打坐·木桩·挖宝·家园" },
+  { id: "activity", label: "活动", desc: "打坐·木桩·挖宝·家园·副本" },
   { id: "game",     label: "游戏", desc: "游戏厅 · 左右选小游戏" },
   { id: "bag",      label: "背包", desc: "查看行囊物品" },
   { id: "shop",     label: "商城", desc: "购买食材和药品" },
@@ -690,7 +690,7 @@ function doAct(id, sub) {
     case "home":
       page = "home"; homeSel = 0; sfx.ok(); return;
     case "activity":
-      page = "activity"; actSel = 0; sfx.ok();
+      page = "activity"; actSel = 0; dungeonPick = null; sfx.ok();
       // 没数据就拉；有数据但本地缓存超过 1 小时也重新拉一次
       if (!dailyLoading && (!dailyData || Date.now() - dailyCacheTs > DAILY_REFRESH_MS)) fetchDaily();
       return;
@@ -700,7 +700,7 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "0.2.4";
+const APP_VERSION = "0.2.5";
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -766,7 +766,7 @@ function wifiConnect(ssid) {
 }
 function wifiReset() { wifiState = { phase: "idle", sel: 0, list: [], ssid: null, ip: null, pct: 0 }; }
 
-/* 从日常页发起打本（副本已从主菜单移除）· key 对应 DUNGEONS 表 */
+/* 从活动页的「副本」发起打本（0.2.5：日常页只查询，不再能进本）· key 对应 DUNGEONS 表 */
 function startDungeon(key) {
   const now = Date.now();
   const d = DUNGEONS[key] || DUNGEONS.war;
@@ -1200,46 +1200,66 @@ async function fetchDaily() {
   else { dailyErr = "日常数据未加载"; }
   dailyLoading = false;
 }
-/* ================= 活动页（v0.2.0：打坐/木桩/挖宝/家园 + 今日日常） =================
-   ▲▼ 上下选，A 执行（行动）/ 进本（可打本的日常）/ 刷新，B 返回主页。 */
+/* ================= 活动页（0.2.5：一页一大图标台座） =================
+   打坐 / 木桩 / 挖宝 / 家园 / 副本。左右切换，A 执行。
+   副本活动与「游戏日常」彻底解耦：日常只用于查询；副本名从日常里随机取一个，
+   取不到就随便挑个副本，副标题显示「正在进行XXX」。 */
+const ACTIVITIES = [
+  { id: "sit",     name: "打坐", desc: "吐纳调息 · 心情+20 修为+3", cd: "sit",
+    tip: "行气一周天，心绪渐宁；属性恢复不吃异常状态折扣" },
+  { id: "train",   name: "木桩", desc: "勤练剑法 · 修为+12 耗体力", cd: "train",
+    tip: "木桩练剑，修为涨得快，体力也掉得快" },
+  { id: "dig",     name: "挖宝", desc: "铁锹寻宝 · 金币入袋", cd: "dig",
+    tip: "铁锹所向皆是尘土，偶有金银埋在土里" },
+  { id: "home",    name: "家园", desc: "升级宅子 · 打扫 · 保姆", cd: null,
+    tip: "荒地起庭院；打扫免狼藉，保姆替你干活" },
+  { id: "dungeon", name: "副本", desc: "", cd: "dungeon",
+    tip: "体力 30 起，进本耗 12 体力；刚出本要歇一分钟" },
+];
+// 日常 label → 副本 key（只用于给副本活动取名字，不再让日常条目可点进副本）
+const DUNGEON_LABEL_KEYS = {};
+DAILY_FIELDS.forEach(([k, label]) => { if (DUNGEON_KEYS[k]) DUNGEON_LABEL_KEYS[label] = DUNGEON_KEYS[k]; });
+let dungeonPick = null;
+function dungeonActivity() {
+  if (dungeonPick) return dungeonPick;
+  const rows = buildDailyRows() || [];
+  const pool = rows.filter(r => r.label && DUNGEON_LABEL_KEYS[r.label])
+                   .map(r => ({ name: r.label, key: DUNGEON_LABEL_KEYS[r.label] }));
+  if (!pool.length) Object.keys(DUNGEONS).forEach(k => pool.push({ name: DUNGEONS[k].name, key: k }));
+  dungeonPick = pool[Math.floor(Math.random() * pool.length)];
+  return dungeonPick;
+}
 function activityRows() {
-  const acts = [
-    { kind: "act", id: "sit",   cd: "sit",   t: "【打坐】吐纳调息 · 心情+20 修为+3" },
-    { kind: "act", id: "train", cd: "train", t: "【木桩】勤练剑法 · 修为+12 耗体力" },
-    { kind: "act", id: "dig",   cd: "dig",   t: "【挖宝】铁锹寻宝 · 金币入袋" },
-    { kind: "act", id: "home",  cd: null,    t: "【家园】升级宅子 · 打扫 · 保姆" },
-  ];
-  const rows = acts.slice();
-  const daily = buildDailyRows();
-  if (daily && daily.length) daily.forEach(r => rows.push({ kind: "daily", ...r }));
-  else rows.push({ kind: "dailyEmpty", t: dailyErr ? "日常数据未加载" : "今日日常暂无数据" });
-  return rows;
+  return ACTIVITIES.map(a => ({
+    kind: "act", id: a.id, cd: a.cd,
+    t: a.id === "dungeon" ? "正在进行" + dungeonActivity().name : a.desc,
+    name: a.name, desc: a.id === "dungeon" ? "正在进行" + dungeonActivity().name : a.desc, tip: a.tip,
+  }));
 }
 function renderActivity() {
   px(0, 0, W, H, "#141824");
-  textC("— 江湖活动 —", 64, 6, "#d8c68a", 10);
   const rows = activityRows();
   if (actSel >= rows.length) actSel = rows.length - 1;
   if (actSel < 0) actSel = 0;
-  const visible = 7;
-  let start = Math.max(0, Math.min(actSel - Math.floor(visible / 2), rows.length - visible));
-  rows.slice(start, start + visible).forEach((row, i) => {
-    const idx = start + i, y = 20 + i * 13, cur = idx === actSel;
-    if (cur) px(4, y - 2, W - 8, 12, "#26314a");
-    text(cur ? "▶" : " ", 5, y, cur ? "#f5e9b8" : "#cfd4e8", 9);
-    const isAct = row.kind === "act";
-    const coolingTip = isAct && row.cd && cooling(row.cd) ? " ·冷却中" : "";
-    const l = row.t + coolingTip;
-    if (row.kind === "daily" && row.key && DUNGEON_KEYS[row.key]) text("本", 114, y + 1, "#e8a04a", 8);  // 可打本标记
-    if (cur) marquee(l, 14, y, 96, "#f5e9b8", 9, 0.4);   // 选中项全文滚动
-    else text(l.length > 12 ? l.slice(0, 11) + "…" : l, 14, y, isAct ? "#b8e88a" : (row.kind === "dailyEmpty" ? "#8a92ad" : "#cfd4e8"), 9);
-  });
-  if (rows.length > visible) {
-    textC((actSel + 1) + "/" + rows.length, 64, 115, "#8a8fa5", 8);
-    if (start > 0) text("▲", 8, 17, "#8a8fa5", 9);
-    if (start + visible < rows.length) text("▼", 113, 100, "#8a8fa5", 9);
-  }
-  const offline = dailyStale;
+  const a = rows[actSel];
+  const cdLeft = a.cd && cooling(a.cd) ? Math.max(1, Math.ceil((S.cool[a.cd] - Date.now()) / 1000)) : 0;
+
+  textC(a.name, 54, 4, cdLeft ? "#8a92ad" : "#f5e9b8", 12);
+  textR((actSel + 1) + "/" + rows.length, 124, 7, "#8a92ad", 8);
+  triLR(6, 46, -1, true);
+  triLR(111, 46, 1, true);
+
+  // 大图台座 56×56（与游戏厅同款）
+  const bx = 36, by = 22, bs = 56;
+  px(bx - 3, by - 3, bs + 6, bs + 6, "#20263a");
+  px(bx - 3, by - 3, bs + 6, 1, "#39415e");
+  px(bx + 14, by + bs - 1, 28, 3, "#161b28");
+  actIcon(a.id, bx + 3, by + 3, 3.5);
+
+  textC(a.desc, 64, 82, "#e8ddb8", 9);
+  textC(cdLeft ? "冷却中 · 还需 " + cdLeft + " 秒" : "可执行", 64, 94, cdLeft ? "#e8a08a" : "#e8c860", 8);
+  px(4, 104, 120, 1, "#2e3345");
+  marquee(a.tip, 10, 108, 108, "#79839a", 8, 0.4);
 }
 
 /* ================= 开机画面（大 LOGO + PRESS A START） ================= */
@@ -2303,29 +2323,141 @@ function renderHome() {
   });
 }
 
+/* ================= 侠士手札 · 三页轮播（0.2.5） =================
+   第一页手札 / 第二页游戏日常（只查询，不进副本）/ 第三页开服查询（预留）。
+   与游戏厅同款：56 内框的大图标台座 + 两侧三角箭头 + 页码，左右切换。 */
+const NOTE_TABS = [
+  { id: "note",   name: "侠士手札", icon: "book" },
+  { id: "daily",  name: "游戏日常", icon: "scroll" },
+  { id: "server", name: "开服查询", icon: "gate" },
+];
+let notePage = 0;        // 手札三页：0 手札 / 1 游戏日常 / 2 开服查询（预留）
+let dailyPage = 0;       // 日常查询翻页（每屏 6 行）
+
+/* 手札页签图标：16×16 逻辑格，按 s 缩放（与 gameIcon 同一套 P 闭包） */
+function noteIcon(id, x, y, s) {
+  s = s || 1;
+  const P = (ax, ay, aw, ah, c) => px(Math.round(x + ax * s), Math.round(y + ay * s),
+                                      Math.max(1, Math.round(aw * s)), Math.max(1, Math.round(ah * s)), c);
+  const edge = "#8a7440", ink = "#cfd4e8", gold = "#e8c860", cut = "#10131c";
+  if (id === "book") {                       // 手札：摊开的书卷
+    P(1, 3, 14, 10, "#2a3048"); P(1, 3, 14, 1, edge); P(1, 12, 14, 1, edge);
+    P(7, 3, 1, 10, edge);
+    P(2, 5, 4, 1, ink); P(2, 7, 4, 1, ink); P(2, 9, 3, 1, ink);
+    P(9, 5, 4, 1, ink); P(9, 7, 4, 1, ink); P(9, 9, 3, 1, ink);
+    P(6, 2, 3, 2, gold); P(7, 1, 1, 1, gold);
+  } else if (id === "scroll") {              // 游戏日常：展开的日历卷轴
+    P(2, 2, 12, 12, "#2a3048"); P(2, 2, 12, 1, edge); P(2, 13, 12, 1, edge);
+    P(2, 2, 1, 12, edge); P(13, 2, 1, 12, edge);
+    P(2, 5, 12, 1, gold);
+    P(4, 1, 1, 3, gold); P(11, 1, 1, 3, gold);      // 卷轴轴头
+    P(4, 7, 3, 2, ink); P(9, 7, 3, 2, "#8a92ad");
+    P(4, 10, 3, 1, ink); P(9, 10, 3, 1, "#8a92ad");
+    P(7, 7, 1, 4, gold);
+  } else if (id === "gate") {                // 开服查询：城门 + 问号
+    P(2, 5, 12, 9, "#2a3048"); P(2, 5, 12, 1, edge);
+    P(2, 5, 2, 9, edge); P(12, 5, 2, 9, edge);
+    P(6, 8, 4, 6, "#1c2130"); P(6, 8, 4, 1, edge);
+    P(4, 2, 8, 3, gold); P(5, 1, 6, 1, gold);       // 门楼
+    P(7, 9, 2, 1, ink); P(8, 10, 1, 2, ink); P(7, 12, 1, 1, ink);
+  }
+}
+
+/* 活动页图标：16×16 逻辑格，与 gameIcon 同一套写法 */
+function actIcon(id, x, y, s) {
+  s = s || 1;
+  const P = (ax, ay, aw, ah, c) => px(Math.round(x + ax * s), Math.round(y + ay * s),
+                                      Math.max(1, Math.round(aw * s)), Math.max(1, Math.round(ah * s)), c);
+  const cut = "#10131c";
+  if (id === "sit") {                        // 打坐：盘腿小人 + 三缕气
+    P(7, 2, 3, 3, "#f2c9a0"); P(7, 2, 3, 1, "#f8dcc0");        // 头
+    P(5, 5, 7, 5, "#4a8db8"); P(5, 5, 7, 1, "#7cb8d8");        // 身
+    P(3, 9, 11, 3, "#3a6f94"); P(3, 11, 11, 1, "#263f58");     // 盘腿
+    P(5, 9, 2, 1, "#f2c9a0"); P(10, 9, 2, 1, "#f2c9a0");       // 手
+    P(3, 0, 1, 2, "#8ad8e8"); P(8, 0, 1, 2, "#8ad8e8"); P(13, 0, 1, 2, "#8ad8e8");
+  } else if (id === "train") {               // 木桩：桩身 + 剑痕
+    P(7, 1, 3, 11, "#8a5a2a"); P(7, 1, 3, 1, "#c9884a");
+    P(4, 2, 9, 3, "#a06838"); P(4, 2, 9, 1, "#c9884a");        // 横木
+    P(5, 13, 7, 2, "#5a3f28");
+    P(3, 5, 4, 1, "#e8f0ff"); P(10, 7, 4, 1, "#e8f0ff");       // 剑痕
+    P(4, 9, 3, 1, "#e8f0ff"); P(10, 11, 3, 1, "#e8f0ff");
+  } else if (id === "dig") {                 // 挖宝：铁锹 + 土堆
+    P(9, 1, 2, 8, "#b8c0d0"); P(8, 8, 4, 3, "#d8e0e8");        // 锹头
+    P(10, 1, 1, 8, "#e8f0ff");
+    P(3, 11, 12, 3, "#5a3f28"); P(3, 11, 12, 1, "#7a5a34");
+    P(5, 9, 6, 2, "#c98a4a"); P(6, 9, 4, 1, "#e0a868");        // 露出的宝物
+    P(7, 9, 2, 1, "#f5e9b8");
+  } else if (id === "home") {                // 家园：小屋
+    P(2, 5, 12, 9, "#a06838"); P(2, 5, 12, 1, "#c9884a");
+    P(1, 4, 14, 2, "#8a3a22"); P(3, 2, 10, 2, "#a84828");      // 屋顶
+    P(6, 8, 5, 6, "#3a2a1a"); P(6, 8, 5, 1, "#5a3f28");        // 门
+    P(4, 9, 2, 2, "#f5e9b8"); P(11, 9, 2, 2, "#f5e9b8");       // 窗
+  } else if (id === "dungeon") {             // 副本：石门 + 剑
+    P(2, 3, 12, 11, "#3a4158"); P(2, 3, 12, 1, "#8a7440");
+    P(2, 3, 2, 11, "#8a7440"); P(12, 3, 2, 11, "#8a7440");
+    P(6, 6, 4, 8, "#10131c"); P(6, 6, 4, 1, "#8a7440");
+    P(1, 1, 14, 2, "#b8a468"); P(3, 0, 10, 1, "#d8c68a");      // 门楣
+    P(10, 6, 1, 6, "#e8f0ff"); P(9, 11, 3, 1, "#e8f0ff");      // 门缝里的剑
+  }
+}
+
 function renderStatus() {
   px(0, 0, W, H, "#141824");
-  textC("— 侠士手札 —", 64, 5, "#d8c68a", 11);
-  const C = SECTS[S.sect] || SECTS.cy;   // 旧档 / 异常门派 id 兜底，避免整页崩
-  const days = (((Date.now() - S.bornTs) / 1000 * speedF / 3600 + 8) / 24).toFixed(1);   // 与 gameHour 的 +8 时区一致
-  const t = titleOf(S.exp);
-  const nt = nextTitle(S.exp);
-  const prog = nt ? Math.round((S.exp - t.exp) / (nt.exp - t.exp) * 100) : 100;
-  const eqNames = EQUIP_SLOTS.map(s => S.equip[s] ? GOODS[S.equip[s]].name : null).filter(Boolean);
-  const eqStr = eqNames.length ? (eqNames.join("·").length > 12 ? eqNames[0] + " 等 " + eqNames.length + " 件" : eqNames.join("·")) : "无";
-  const lines = [
-    "门派：" + C.name + " · 称号：" + t.t,
-    "体力：" + Math.round(S.hunger) + " · 心情：" + Math.round(S.mood),
-    "修为：" + S.exp + "（晋升 " + prog + "%）",
-    "金币：" + S.coins + " · 家园：" + HOME_NAMES[S.homeLv],
-    "装备：" + eqStr,
-    "装饰：" + decoCount() + "/3 · 保姆：" + (S.nannyGH > 0 ? "剩" + Math.ceil(S.nannyGH) + "时辰" : "未雇"),
-    "状态：" + (S.down ? "重伤·收益-40%" : S.poisoned ? "中毒·收益-20%" : "康健"),
-    "狼藉：" + S.mess + " 处 · 岁月：" + days + " 日",
-    "连续登录：" + (S.loginStreak || 0) + " 天",
-  ];
-  // v8.1：字号 8→10、行距 9→11，手札更易读（9 行从 y=17 排到 y=105）
-  lines.forEach((l, i) => text(l, 6, 17 + i * 11, i === 6 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 10));
+  const tab = NOTE_TABS[notePage];
+  textC(tab.name, 54, 4, "#f5e9b8", 12);
+  textR((notePage + 1) + "/" + NOTE_TABS.length, 124, 7, "#8a92ad", 8);
+  triLR(6, 34, -1, true);
+  triLR(111, 34, 1, true);
+
+  // 大图标台座（与游戏厅同款，44×44）
+  const bx = 42, by = 16, bs = 44;
+  px(bx - 3, by - 3, bs + 6, bs + 6, "#20263a");
+  px(bx - 3, by - 3, bs + 6, 1, "#39415e");
+  px(bx + 14, by + bs - 1, 28, 3, "#161b28");
+  noteIcon(tab.icon, bx + 2, by + 2, 2.5);
+
+  if (notePage === 0) {
+    // 第一页：侠士手札（9 项原信息合并成 7 行，字号 9 行距 9）
+    const C = SECTS[S.sect] || SECTS.cy;
+    const days = (((Date.now() - S.bornTs) / 1000 * speedF / 3600 + 8) / 24).toFixed(1);
+    const t = titleOf(S.exp);
+    const nt = nextTitle(S.exp);
+    const prog = nt ? Math.round((S.exp - t.exp) / (nt.exp - t.exp) * 100) : 100;
+    const eqNames = EQUIP_SLOTS.map(s => S.equip[s] ? GOODS[S.equip[s]].name : null).filter(Boolean);
+    const lines = [
+      "门派：" + C.name + " · 称号：" + t.t,
+      "体力 " + Math.round(S.hunger) + " · 心情 " + Math.round(S.mood) + " · 修为 " + S.exp,
+      "晋升 " + prog + "% · 金币 " + S.coins,
+      "家园 " + HOME_NAMES[S.homeLv] + " · 装备 " + eqNames.length + " 件",
+      "装饰 " + decoCount() + "/3 · 保姆 " + (S.nannyGH > 0 ? "剩" + Math.ceil(S.nannyGH) + "时辰" : "未雇"),
+      "状态 " + (S.down ? "重伤·收益-40%" : S.poisoned ? "中毒·收益-20%" : "康健") + " · 狼藉 " + S.mess + " 处",
+      "岁月 " + days + " 日 · 连续登录 " + (S.loginStreak || 0) + " 天",
+    ];
+    lines.forEach((l, i) => text(l, 6, 64 + i * 9, i === 5 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 9));
+  } else if (notePage === 1) {
+    // 第二页：游戏日常（纯查询，A 翻页；不再进副本）
+    const rows = buildDailyRows() || [];
+    const per = 6;
+    const maxPage = Math.max(1, Math.ceil(rows.length / per));
+    if (dailyPage >= maxPage) dailyPage = 0;
+    if (!rows.length) {
+      textC(dailyErr ? "日常数据未加载" : "今日日常暂无数据", 64, 78, "#8a92ad", 10);
+      textC("暂无数据", 64, 94, "#8a92ad", 8);
+    } else {
+      rows.slice(dailyPage * per, dailyPage * per + per).forEach((r, i) => {
+        const y = 64 + i * 9;
+        text(r.t.length > 14 ? r.t.slice(0, 13) + "…" : r.t, 6, y, r.key ? "#e8ddb8" : "#e8c860", 9);
+      });
+      textR((dailyPage + 1) + "/" + maxPage, 124, 121, "#8a92ad", 8);
+      if (dailyStale) textC("离线缓存", 64, 121, "#e8a08a", 8);
+    }
+  } else {
+    // 第三页：开服查询（预留）
+    textC("开服查询", 64, 72, "#e8ddb8", 11);
+    px(28, 88, 72, 1, "#2e3345");
+    textC("功能预留", 64, 96, "#8a92ad", 9);
+    textC("敬请期待", 64, 108, "#79839a", 8);
+  }
 }
 
 /* ================= 输入 ================= */
@@ -2350,6 +2482,11 @@ function moveSel(d) {
     }
     sel = (sel + d + order.length) % order.length;
     if (isShop) shopSel = sel; else bagSel = sel;
+    beep(600, .03, "square", .06); return;
+  }
+  if (page === "status") {
+    notePage = (notePage + d + NOTE_TABS.length * 10) % NOTE_TABS.length;
+    dailyPage = 0;
     beep(600, .03, "square", .06); return;
   }
   if (page === "settings") {
@@ -2388,7 +2525,7 @@ function moveSel(d) {
   }
   if (page === "activity") {
     const rows = activityRows();
-    actSel = Math.max(0, Math.min(rows.length - 1, actSel + d));
+    actSel = (actSel + d + rows.length * 10) % rows.length;
     beep(600, .03, "square", .06); return;
   }
   if (page === "home") {
@@ -2586,19 +2723,28 @@ function confirmA() {
     for (let i = 0; i < 12; i++) sparkles.push({ x: 20 + Math.random() * 88, y: 25 + Math.random() * 60, life: 30 + Math.random() * 20 });
     save();
   } else if (page === "status") {
-    // v8.2：手札只认 B 返回；A 不再退出（原来 A 也能退，和底部「B 返回」提示不一致）
-    beep(440, .05);
+    // 0.2.5：第一页 A 不退出（保持旧行为）；第二页 A 翻日常查询页；第三页预留
+    if (notePage === 1) {
+      const rows = buildDailyRows() || [];
+      const maxPage = Math.max(1, Math.ceil(rows.length / 6));
+      if (maxPage > 1) dailyPage = (dailyPage + 1) % maxPage;
+      else { fetchDaily(); toastMsg("已刷新今日日常", sfx.ok); }
+      beep(620, .03, "square", .06);
+    } else if (notePage === 2) {
+      toastMsg("开服查询功能预留，敬请期待", sfx.ok);
+    } else {
+      beep(440, .05);
+    }
   } else if (page === "activity") {
     const rows = activityRows();
-    const row = rows[actSel];
-    if (row && row.kind === "act") { doAct(row.id); return; }        // 行动：打坐/木桩/挖宝/家园
-    if (row && row.kind === "daily" && row.key && DUNGEON_KEYS[row.key]) {
+    const row = rows[Math.max(0, Math.min(actSel, rows.length - 1))];
+    if (!row) return;
+    if (row.id === "dungeon") {          // 独立副本活动（与日常查询彻底解耦）
       page = "main";
-      startDungeon(DUNGEON_KEYS[row.key]);                            // 日常可打本条目 → 进副本
-    } else {
-      fetchDaily();
-      toastMsg("已刷新今日日常", sfx.ok);
+      startDungeon(dungeonActivity().key);
+      return;
     }
+    if (row.kind === "act") { doAct(row.id); return; }               // 打坐/木桩/挖宝/家园
   }
 }
 /* v8.0：随时打开系统设置——真机只有 4 键，没有独立设置键，

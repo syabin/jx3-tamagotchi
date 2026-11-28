@@ -217,7 +217,7 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "0.2.4", "版本号为语义化 0.2.4");
+assert(g("APP_VERSION") === "0.2.5", "版本号为语义化 0.2.5");
 assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
 const src86 = require("fs").readFileSync(require("path").join(__dirname, "../..", "index.html"), "utf8");
 assert(!/body\.qmode \.screen-frame \{ border-color: #8a8478/.test(src86), "v8.6 真机预览不再覆盖暖灰边框");
@@ -258,7 +258,8 @@ assert(g("page") === "main", "状态/背包/商城/活动/设置页进出正常"
 g("doAct('activity'); render();");
 assert(g("page") === "activity", "A 进活动页");
 assert(g("activityRows()[0].id") === "sit", "活动页第一行 = 打坐");
-assert(g("activityRows().some(r => r.kind === 'daily' || r.kind === 'dailyEmpty')") === true, "活动页含今日日常（或离线占位）");
+assert(g("activityRows().some(r => r.id === 'dungeon')") === true && g("activityRows().some(r => r.kind === 'daily')") === false,
+  "活动页含独立副本，今日日常已移出手札页且不再参与副本");
 g("actSel = 0; S.mood = 10; confirmA();");
 assert(g("S.mood") === 30, "活动页 A 执行打坐（心情+20）");
 assert(g("cooling('sit')") === true, "打坐进入冷却");
@@ -287,6 +288,23 @@ assert(g("gameSt.hits") === 10 && g("gameSt.phase") === "over" && g("S.coins") >
 assert(g("cooling('g_whack')") === true, "打地鼠进入冷却");
 g("confirmA();");
 assert(g("gameSt.game") === "hub", "结算后 A 回大厅");
+
+/* ---- 0.2.5 手札三页 / 大图标 / 日常只查询 ---- */
+g("page = 'status'; notePage = 0; moveSel(1);");
+assert(g("notePage") === 1, "手札 ▲▼ 切到第 2 页：游戏日常");
+g("render();");
+assert(g("typeof noteIcon === 'function' && typeof actIcon === 'function'") === true, "三页页签与活动页的大图标可渲染");
+g("moveSel(1);");
+assert(g("notePage") === 2, "手札切到第 3 页：开服查询（预留）");
+g("moveSel(1);");
+assert(g("notePage") === 0, "手札三页循环回第一页");
+g("notePage = 1; dailyData = { date: '2026-11-28', war: '大战' }; dailyPage = 0; page = 'status'; confirmA();");
+assert(g("page") === "status", "手札游戏日常 A 只翻页/刷新，不再进副本");
+g("dailyData = { date: '2026-11-28', war: '大战' }; dungeonPick = null;");
+assert(g("dungeonActivity().key") === "war", "有日常时副本地名取自日常条目");
+g("dailyData = null; dungeonPick = null;");
+assert(g("Object.keys(DUNGEONS).includes(dungeonActivity().key)") === true, "无日常时副本随意挑一个");
+g("dailyData = null; dungeonPick = null; page = 'game';");   // 恢复后续赛马测试依赖的 game 页
 
 /* ---- v0.2.3 赛马：选马 → 定注 → 起跑 → 结算 ---- */
 g("gameExit(); gameSt.sel = 4; S.coins = 1000; gameStart('race');");
