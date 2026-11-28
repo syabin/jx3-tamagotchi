@@ -48,13 +48,14 @@ const ctx = vm.createContext(sandbox);
 vm.runInContext(script, ctx, { filename: "index.html" });
 const g = code => vm.runInContext(code, ctx);
 
-/* ---- 开机流程 ---- */
+/* ---- 开机流程（v0.2.7：取消门派，boot → main） ---- */
 assert(g("typeof render === 'function' && typeof confirmA === 'function'"), "脚本可求值，核心函数存在");
 assert(g("page") === "boot", "新档进入开机画面");
 g("confirmA()");
-assert(g("page") === "sect", "A 键进入门派选择");
-g("confirmA()");
-assert(g("page") === "main", "选门派后进入主界面");
+assert(g("page") === "main", "A 键从开机直接进入主界面（无门派选择）");
+assert(g("typeof SECTS === 'undefined' && typeof PET_STYLE !== 'undefined'"), "SECTS 门派表已移除，改为固定配色");
+assert(g("!('sect' in S)"), "存档中无 sect 字段");
+assert(g("typeof BOOT_LOGO_URL === 'string' && BOOT_LOGO_URL.startsWith('data:image/png;base64,')"), "开机画面内嵌 SeasunGame logo");
 
 /* ---- v8.0 随时呼出设置（长按 B）---- */
 g("page = 'bag'; bagSel = 3; catMode = true; openSettings();");
@@ -217,7 +218,7 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "0.2.5", "版本号为语义化 0.2.5");
+assert(g("APP_VERSION") === "0.2.7", "版本号为语义化 0.2.7");
 assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
 const src86 = require("fs").readFileSync(require("path").join(__dirname, "../..", "index.html"), "utf8");
 assert(!/body\.qmode \.screen-frame \{ border-color: #8a8478/.test(src86), "v8.6 真机预览不再覆盖暖灰边框");
@@ -227,9 +228,12 @@ assert(g("speedF") === 1, "默认时间流速 = 真实 ×1");
 g("page = 'main'; pressB();");
 assert(g("page") === "status", "主页 B 进手札");
 g("confirmA();");
-assert(g("page") === "status", "手札页 A 不再退出");
+assert(g("page") === "status" && g("noteDetail") === true, "手札页 A 进入详情");
+g("render();");
 g("pressB();");
-assert(g("page") === "main", "手札页 B 返回主页");
+assert(g("page") === "status" && g("noteDetail") === false, "详情页 B 返回手札列表");
+g("pressB();");
+assert(g("page") === "main", "手札列表 B 返回主页");
 /* v8.3 二次触发 bug：实体 B 的 pointerup 才返回，pointerleave 不得再返回一次 */
 const btnB = sandbox._els["btnB"];
 g("page = 'main';");
@@ -359,6 +363,17 @@ assert(g("typeof drawSpr === 'function' && typeof itemIcon === 'function' && typ
   "五类图标入口统一到 drawSpr");
 assert(g("(function(){ try { ['feed','baozi','dice','race','book','dungeon'].forEach((id,i)=>drawSpr(id,i*16,0,1)); itemIcon('baozi',0,0,3.5); gameIcon('fish',0,0,3.5); noteIcon('book',0,0,2.5); actIcon('dungeon',0,0,3.5); icon('bag',0,0,true); icon('shop',0,0,false); return 1; } catch(e) { return 0; } })()") === 1,
   "所有图标入口渲染无异常");
+
+/* ---- v0.2.7 手札详情页 ---- */
+g("page = 'status'; notePage = 0; noteDetail = false;");
+g("confirmA();");
+assert(g("noteDetail") === true && g("noteDetailPage") === 0, "手札首页 A 进详情第 1 页");
+g("moveSel(1);");
+assert(g("notePage") === 0 && g("noteDetailPage") === 1, "详情页左右翻到第 2 页");
+g("confirmA();");
+assert(g("noteDetailPage") === 0, "详情页 A 循环回第 1 页");
+g("render();");
+g("page = 'status'; notePage = 0; noteDetail = false; noteDetailPage = 0;");
 
 /* ---- 存档 ---- */
 g("save();");

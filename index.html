@@ -123,7 +123,7 @@
   <div class="screen-frame">
     <canvas id="screen" width="128" height="128"></canvas>
   </div>
-  <div class="device-title">剑网三 · 拓麻歌子</div>
+  <div class="device-title">剑侠情缘·单机版三</div>
 </div>
 <div class="ctl-row">
   <div class="ctl" id="btnUp">▲</div>
@@ -167,12 +167,8 @@ const cv = document.getElementById("screen");
 const ctx = cv.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
-const SECTS = {
-  cy: { name: "纯阳", robe: "#4a8db8", trim: "#e8eef5", accent: "#bfe3ff", dark: "#3a6f94" },
-  tc: { name: "天策", robe: "#a53a3a", trim: "#e8c860", accent: "#ffb0a0", dark: "#7e2b2b" },
-  qx: { name: "七秀", robe: "#d16a9a", trim: "#f5e5f2", accent: "#ffc0e0", dark: "#a94f7c" },
-  sl: { name: "少林", robe: "#a08040", trim: "#e8d8b0", accent: "#e8c890", dark: "#7e6630" },
-};
+/* v0.2.7：取消门派设定，小人固定用原纯阳蓝白配色 */
+const PET_STYLE = { robe: "#4a8db8", trim: "#e8eef5", accent: "#bfe3ff", dark: "#3a6f94" };
 const TITLES = [
   { exp: 0,   t: "初入江湖" },
   { exp: 50,  t: "小有名气" },
@@ -268,7 +264,7 @@ const LIST_ROWS = 4;        // 背包 / 商城列表每屏可见行数
 /* ================= 状态 ================= */
 let S = null;
 let speedF = 1;                 // v8.2：默认真实 ×1（原 ×60）；面板下拉可改
-let page = "sect";            // sect | main | bag | shop | item | home | daily | status | settings
+let page = "main";            // main | bag | shop | item | home | daily | status | settings
 let settingsFrom = "main";    // v8.0：进入设置前的页面，B 返回时回到原处（随时可开设置）
 let menuIdx = 0;
 let bagSel = 0;               // 背包列表选中索引
@@ -289,7 +285,6 @@ let downGraceH = 0;           // 中毒累计游戏小时
 function emptyBag() { const b = {}; BAG_ORDER.forEach(k => b[k] = 0); return b; }
 function newState() {
   return {
-    sect: null,
     hunger: 80, mood: 80, exp: 0, coins: 200, homeLv: 0,
     poisoned: false, down: false, mess: 0, dungeonUntil: 0, dungeonKey: null,
     bornTs: Date.now(), lastTs: Date.now(),
@@ -307,8 +302,7 @@ function load() {
     const raw = localStorage.getItem("jx3tama");
     if (!raw) return false;
     const parsed = JSON.parse(raw);
-    S = Object.assign(newState(), parsed);   // 旧档兼容：新字段自动补默认值
-    if (!S.sect) return false;
+    S = Object.assign(newState(), parsed);   // 旧档兼容：新字段自动补默认值（旧 sect 字段被忽略）
     // 数值字段防 NaN 清洗
     ["hunger", "mood", "exp", "coins", "homeLv"].forEach(k => S[k] = +S[k] || 0);
     S.dungeonUntil = +S.dungeonUntil || 0;
@@ -354,7 +348,7 @@ function isSleeping() { const h = gameHour(); return h >= 22 || h < 6; }
 /* 每日登录奖励：以现实自然日计，连续登录递增（断签重置），50 金起步、封顶 200，附赠包子；
    v7.7：30% 概率「鸿运当头」额外赠送一件装备（与商城同池，按品级加权随机，凡品多见、珍品稀有） */
 function checkDailyLogin() {
-  if (!S || !S.sect) return;
+  if (!S) return;
   const today = new Date().toDateString();
   if (S.lastLogin === today) return;
   const yest = new Date(Date.now() - 864e5).toDateString();
@@ -700,7 +694,10 @@ function doAct(id, sub) {
   page = "main";
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "0.2.6";
+const APP_VERSION = "0.2.7";
+const BOOT_LOGO_URL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAJ3ElEQVR4nK1ZfUwUZxp/ZmEB+ZAA9sNWjXgCqWKtn7h3CJUtOWsstJ4ltRcSSznPkF68pHd/GM01dzmvl6b+cTExJ9dSEtPa2sb6ldoLZU8ED6GVyinXFKwYEa1VICrIx8LO5ffOPrPvzM7M7vb4JcN8MDP7ez7f53mGXKTQdG5VWXk0WFkm9u/PXzKt766u2B52TcGf6UT/q4vp8Xe76JNNi1UiUjYf6RLXEicWWN5/uOkhKo1rpZzeb6L+jWt93TRvbq52Mh2a+S57kdA6n0Pzg5Vl6pFN+dNqgR079qrVFdtVHF/v6xHX4v9fjd+pfI5mHTxBFNTgwfn5aolXpbiCcdq8rUtc25qVS960BFhExxplis6pcXyqVF69FPG3Ro+3UdHOTThU583NVWCJH+1C7CoMEAep5BIXJRc8To2f99Noh0IQhvHAFwh7zzlNCGViTSEVtTWFuVJ97SHaum0L/aNmr9p6p1tcS5mdQ/v+9jvxnKMA7760nV798O/2WjcRB0BekG3rdyTdeH9CqR/QCMnoWVRONNotBKmq+DXVHT6AyyoEAVrePCL2gVWZ5Ppy0NkCMP3GYrd6sskvfgzne553C80fnJ8PN1DNxB3JzwgGngkNw1mU5mq3dCNo/j9uzYojN3vEHsRZCFsBONKD2YQ2H+lS7r6/jNJ/+bXu50BqSQIFRh5yJJ9RuJCcMHTeZRCm5lqdTqq+9pD4odM736D4mUsFaaDu8AFxj20Qp516Tew9GaFrkchPNScSJWjkYRlOnXFrx8PeL+4NImNFQBeiNHUAbqRCkOTdpXTmi9Piusu7jgKS9hm2AiSXZRJtI53o1qNaJpHJWxEC6eSdTHjcljSjz/MCdcbPoI30gcESiT/V3h9o/JcuAJN/p/dj3UKhJyLAijy0D0HZbey0bYXxhCvi3mU1VeS/cINOrn1ZWAI4+9uX6GxAFW4jiHvXcTDrQIA7WiDx0Q8N53bkxxq/Fefu9dcN7hRJ87DU1ckXqL72FeEmm+cUCSHOjJ8m+uI0/cylUHPw3pXn/BTIyoXW1cl7nUL7bA1HCyDr2EFo/vggDfsmwtwpEnkr/HD9su7vgnyDT2ge5BEXq1MK1Xd6P9bv52NLAZDngY3FbgM5Pk7y5mkPp9x2JA/ATazcCv6+rKZKP5fJi3d714ljkJcVumtmHI19u1i/ZilA6u4rYu/JIH0ZNROF9qMBLIANhIdaLmvbeZfu7wCI8pZwrkVoHyh3h2ILWJ1SSA1THjUpr0tXclgMQErcgD1IJ66coPGvQuRxztqPBCYOgHCf5/fiGFnnfFc/1de+TEsnR2muu1/cd+bJ2VihhfZRLhy7pVAR3RTPdMTdp+VTafq7oYie7CfCLXCga7nY73k+uPxJYPLyufmaFXngwV/2UtZzhYI8sGKxtnLPbf2UZu5bT8mey5pivOv0VReZCEKZsX9elYpSo2HKYxQAEiH7cPDK5PhYSV9CToBlkFZl8rK7yNi6bYvY3359v6EUQYbhLCPS6dNFls/XXKszupBY8nu/Qc6n1BI3EVlr1yycTF4vIzRF64tVlk250neiRRx3igeaxDGXC4BnVi75T3YRxZmEz8ol1GcGCyCXAyVe1eA+dm5iJRTSqo7Rbhp+rVy4DuPhOQt1zQNwKXYraPutxBu089L3In1iE+SJDP4PIK1ib7AAap1YSctAsD/wjQnfTHvQTmMbqunnEvlLF+9S/pJ0vVCsrz2kp08GXA91kBW+WuMWQsmIupSwghwPssBprnZCg/Kr/a8b7gd5BoR4eM5CKnrmaX0DOTvy7E5m6AJw4Dqtvnbkzc0KyFs1QjJgjViBjgzpFBtzdXH2QeD+WMjaB/m4kmLhHtCyFdiV8pekU8mzK8Qmx4UdsNDNKCugyXudQgj0B0IA5FR0Q1iirdq8WBDIzBF7kLIDu9I8Ho0Q0df76yK+e/zfE2J9AHGGIYixAscKuJJ696J+7hrsoZJntWXeDiD+2WdfiuN/vnlCzzTRALHin3WDzn50QLS58XKHBew66nccUyhJa8VeHeNi1+hKm0auUGvQRewA8hs2rEK/GzV5Tgyw7MDkKLWdWqrSQLfiwnSgdSh0I0oInMv1jwwr4nJAYzFDaWwH+D/IY+Jx9iNjkxINBoILn6dAy1YumAENu68xpHi5D45kCbMQsEI5vWeZZZg8KklUnfGSL1tBLqUZvOgxXDykqrx6yWAJw4oaJSAENlhh9tWLuhDwed+p8zr5U829dD+wWqyunBKjBarXMAF2HfWLDIT5j1z7m92IAxZuhM1sBQZaywXp+3QheCgFt2HyjMl7nVERl5+BFVrbBkICcOqUU6hVpyVnG5C3EwLtJro2COG5vktcm/I1CbdhIhXFt6m8tM2RtHlVRooGeQwBwtLowFvavnWIFI9vQpWtIC9UbAU5G7EwZnDrWX78PaISLA6PEZFWMPIkIx5xMEUxAalab+75IsaFiAXM850KOkEeQow10y3/nwxC6EImrTVsKRXlwipi1iSRjwU8J4L24T7sLZZjFbZC4kpNCLaCuf55xP0HIcSjaQ2OMcHW4T6arTscQ6KA++hrRrA3wDoSNhuVv7CU/iLkPnZCgPT390vDfhBCmQVgYJYE8r5GhUYzt9Dkne8iah9lBKN9pEWswtXZL4ZbAN0UMlJSXpfSn4HBrkacLZHkJUuyZiGM56UGqzGalCcolFvsIZNH2mXymA2F9QMo7Ib/vECUqn9NfYX8n8/R0ymEkDORrF1Z41bA/0Fe1v7qjKcial8GyHPwcvoNEwAzR3y8cHnXqZgc/DGzWBeCFyoZst/LQuCYNxBnQZm8nNdjAWufg9jy+wBumFFWoMrjj43NH4iBLKYHnE2cYgDg4GZA+z/s1lrO+Fk/iVn7mErjC07Of4/p1w0xgKhGGxhYlRk2E8LgFU1HfzAN8hgkuayZHnE3h1lDW621tAvrQfOILybfPnRBZBNzs+5EHsd7bhm/oVla4Dc73hYCPOlXyP0UFh8j2Boy7GakMnGue+DH8TOXqtGSx/1y4MrQLSB9UIsIxMXIzcdEi7c+JeTbZoC49kFvSqkfCHVc1dkvRiTfERwlOpE3CCALwjBrH/NM/tCG2eUFIiXhWIvuNdKtCmac5vYUJJZPpanxGc7+3xG0lJzvrcgbBAAhM2TC5vtGbvYoJovZdnJMHDVPpODtCJXXEckbBOBsA03i2ExeFlAmj/Xi7Q15Iibe8C0yv19zlSBxwI58hxSosuBO5A0CYMgkD4/M5PmcP28yoKX6g5qrVGcLAXT/ZtIMM/mOoLbNxAGMenIikAf0LMRBHIwBgz9jUixrIlLAwypSu2hOyeIHzZpFCkePHOtY538BWjT6+WpP0gAAAABJRU5ErkJggg==";
+let bootLogo = null;
+try { if (typeof Image !== "undefined") { bootLogo = new Image(); bootLogo.src = BOOT_LOGO_URL; } } catch (e) { bootLogo = null; }
 const bootTs = Date.now();
 let setIdx = 0, setPage = null;   // setPage: null | ota | wifi | ap | about
 let otaState = { phase: "idle", ver: null, pct: 0 };          // idle|checking|found|latest|fail|writing
@@ -859,7 +856,7 @@ const PET_HEAD = [
 ];
 const PET_PAL = {};
 function drawPet(pose, pox = 52, poy = 32, s = 3) {
-  const C = SECTS[S.sect] || SECTS.cy;
+  const C = PET_STYLE;
   const u = Math.max(1, Math.round(s * 2 / 3));
   const bob = pose === "idle" ? (Math.floor(frame / 30) % 2) : 0;
   const ox = pox, oy = poy + bob * u;
@@ -1184,7 +1181,6 @@ function render() {
   frame++;
   if (renderFx()) return;                     // 使用演出期间独占屏幕
   if (page === "boot") return renderBoot();
-  if (page === "sect") return renderSect();
   if (page === "status") return renderStatus();
   if (page === "bag") return renderListPage("bag");
   if (page === "shop") return renderListPage("shop");
@@ -1352,43 +1348,24 @@ function renderBoot() {
   px(108, 22, 6, 1, "#d8c68a"); px(113, 22, 1, 5, "#d8c68a");
   px(14, 71, 6, 1, "#d8c68a"); px(14, 67, 1, 5, "#d8c68a");
   px(108, 71, 6, 1, "#d8c68a"); px(113, 67, 1, 5, "#d8c68a");
-  // 大 LOGO：剑网三（四向描边 + 悬浮微动）
-  const t = "剑网三";
-  ctx.font = "bold 32px 'Microsoft YaHei', sans-serif";
-  ctx.textBaseline = "top";
-  const tw = ctx.measureText(t).width;
+  // SeasunGame 原始 LOGO（火焰剑标，48×48 悬浮微动）
   const bob = Math.floor(frame / 30) % 2;
-  const lx = Math.round(64 - tw / 2), ly = 34 + bob;
-  ctx.fillStyle = "#2a1e0a";
-  [[2,0],[-2,0],[0,2],[0,-2],[2,2],[-2,-2]].forEach(([dx,dy]) => ctx.fillText(t, lx+dx, ly+dy));
-  ctx.fillStyle = "#d8c68a";
-  ctx.fillText(t, lx, ly);
-  // LOGO 两侧小剑光闪烁
-  if (frame % 90 < 30) { text("✦", lx - 12, ly + 10, "#f5ecd0", 12); text("✦", lx + tw + 4, ly + 10, "#f5ecd0", 12); }
+  if (bootLogo && bootLogo.complete && bootLogo.naturalWidth) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bootLogo, 40, 24 + bob, 48, 48);
+    ctx.imageSmoothingEnabled = false;
+  } else {
+    textC("剑网三", 64, 40 + bob, "#d8c68a", 20);
+  }
   // 副标题
-  textC("剑侠情缘 · 单机版3", 64, 84 + bob, "#8a92ad", 8);
+  textC("剑侠情缘·单机版三", 64, 80 + bob, "#d8c68a", 9);
   // PRESS A START（呼吸闪烁）
-  if (frame % 64 < 40) textC("PRESS A START", 64, 102, "#f5ecd0", 10);
+  if (frame % 64 < 40) textC("PRESS A START", 64, 96, "#f5ecd0", 9);
   // 底部小字
   textC("v" + APP_VERSION, 64, 118, "#5a6078", 7);
   // 四角星光
   sparkles = sparkles.filter(s => s.life-- > 0);
   sparkles.forEach(s => { const tw2 = (frame + s.x) % 20 < 10; px(s.x, s.y, tw2 ? 3 : 1, tw2 ? 3 : 1, "#f5e9b8"); });
-}
-
-function renderSect() {
-  px(0, 0, W, H, "#141824");
-  textC("— 初入江湖 · 择门派 —", 64, 12, "#d8c68a", 10);
-  const keys = Object.keys(SECTS);
-  const sel = keys[menuIdx % keys.length];
-  keys.forEach((k, i) => {
-    const y = 32 + i * 23;
-    const on = k === sel;
-    if (on) px(18, y - 4, 92, 19, "#3a3f54");
-    px(23, y + 1, 10, 10, SECTS[k].robe);
-    px(23, y + 1, 10, 3, SECTS[k].trim);
-    text(SECTS[k].name + (on ? "  ◀" : ""), 40, y + 1, on ? "#f5e9b8" : "#8a92ad", 11);
-  });
 }
 
 function renderMain() {
@@ -1397,11 +1374,9 @@ function renderMain() {
   const sel = menuIdx % (MENU.length - 1);   // 状态项不参与 ▲▼ 选中
   /* ===== 顶部状态栏（v0.2.0：原左侧面板上移成一条，场景腾出全部空间） ===== */
   const pt = titleOf(S.exp);
-  const CS = SECTS[S.sect] || SECTS.cy;
   px(0, 0, W, 16, "#1a1e2c");
   px(0, 16, W, 1, "#39415e");
   text(pt.t, 4, 3, "#f5e9b8", 8);
-  text(CS.name, 4 + pt.t.length * 8 + 4, 3, "#8a92ad", 8);
   text("金" + S.coins, 124 - (String(S.coins).length * 5 + 14), 3, "#e8c860", 8);
   text("体" + Math.round(S.hunger) + " 心" + Math.round(S.mood) + " 修" + S.exp, 4, 10,
     (S.hunger < 25 || S.mood < 25) ? "#e8a08a" : "#cfd4e8", 7);
@@ -2226,7 +2201,7 @@ function renderSettings() {
     const lines = [
       "固件版本：v" + APP_VERSION,
       "模拟硬件：ESP32-C3 + 1.44寸屏",
-      "侠士：" + (SECTS[S.sect] || SECTS.cy).name + " · " + t.t,
+      "侠士：" + t.t + " · 岁月 " + (((Date.now() - S.bornTs) / 1000 * speedF / 3600 + 8) / 24).toFixed(1) + " 日",
       "运行时长：" + upMin + " 分钟",
       "存档大小：" + saveKB + " KB",
       "WiFi：" + (wifiState.phase === "ok" ? "已连 " + wifiState.ssid : "未连接"),
@@ -2301,6 +2276,8 @@ const NOTE_TABS = [
   { id: "server", name: "开服查询", icon: "gate" },
 ];
 let notePage = 0;        // 手札三页：0 手札 / 1 游戏日常 / 2 开服查询（预留）
+let noteDetail = false;  // 第一页详情：A 进入看数值，B 返回
+let noteDetailPage = 0;   // 详情分两页，每页 4 行（字放大到 11px）
 let dailyPage = 0;       // 日常查询翻页（每屏 6 行）
 
 /* 手札页签图标：统一 16×16 精灵 */
@@ -2311,39 +2288,56 @@ function actIcon(id, x, y, s) { drawSpr(id, x, y, s); }
 
 function renderStatus() {
   px(0, 0, W, H, "#141824");
-  const tab = NOTE_TABS[notePage];
-  textC(tab.name, 54, 4, "#f5e9b8", 12);
-  textR((notePage + 1) + "/" + NOTE_TABS.length, 124, 7, "#8a92ad", 8);
-  triLR(6, 34, -1, true);
-  triLR(111, 34, 1, true);
 
-  // 大图标台座（与游戏厅同款，44×44）
-  const bx = 42, by = 16, bs = 44;
-  px(bx - 3, by - 3, bs + 6, bs + 6, "#20263a");
-  px(bx - 3, by - 3, bs + 6, 1, "#39415e");
-  px(bx + 14, by + bs - 1, 28, 3, "#161b28");
-  noteIcon(tab.icon, bx + 2, by + 2, 2.5);
-
-  if (notePage === 0) {
-    // 第一页：侠士手札（9 项原信息合并成 7 行，字号 9 行距 9）
-    const C = SECTS[S.sect] || SECTS.cy;
-    const days = (((Date.now() - S.bornTs) / 1000 * speedF / 3600 + 8) / 24).toFixed(1);
+  // 第一页详情：分两页，每页 4 行，字号 11（比原来 8 行 9px 好读）
+  if (notePage === 0 && noteDetail) {
     const t = titleOf(S.exp);
+    textC("— 侠士手札 —", 64, 4, "#d8c68a", 10);
+    textC(t.t, 64, 16, "#f5e9b8", 12);
+    px(16, 30, 96, 1, "#39415e");
     const nt = nextTitle(S.exp);
     const prog = nt ? Math.round((S.exp - t.exp) / (nt.exp - t.exp) * 100) : 100;
     const eqNames = EQUIP_SLOTS.map(s => S.equip[s] ? GOODS[S.equip[s]].name : null).filter(Boolean);
+    const days = (((Date.now() - S.bornTs) / 1000 * speedF / 3600 + 8) / 24).toFixed(1);
     const lines = [
-      "门派：" + C.name + " · 称号：" + t.t,
-      "体力 " + Math.round(S.hunger) + " · 心情 " + Math.round(S.mood) + " · 修为 " + S.exp,
-      "晋升 " + prog + "% · 金币 " + S.coins,
-      "家园 " + HOME_NAMES[S.homeLv] + " · 装备 " + eqNames.length + " 件",
-      "装饰 " + decoCount() + "/3 · 保姆 " + (S.nannyGH > 0 ? "剩" + Math.ceil(S.nannyGH) + "时辰" : "未雇"),
-      "状态 " + (S.down ? "重伤·收益-40%" : S.poisoned ? "中毒·收益-20%" : "康健") + " · 狼藉 " + S.mess + " 处",
-      "岁月 " + days + " 日 · 连续登录 " + (S.loginStreak || 0) + " 天",
+      "体力 " + Math.round(S.hunger) + " · 心情 " + Math.round(S.mood),
+      "修为 " + S.exp + " · 晋升 " + prog + "%",
+      "金币 " + S.coins + " · 装备 " + eqNames.length + " 件",
+      "家园 " + HOME_NAMES[S.homeLv] + " · 装饰 " + decoCount() + "/3",
+      "保姆 " + (S.nannyGH > 0 ? "剩" + Math.ceil(S.nannyGH) + "时辰" : "未雇"),
+      "状态 " + (S.down ? "重伤·收益-40%" : S.poisoned ? "中毒·收益-20%" : "康健"),
+      "狼藉 " + S.mess + " 处 · 岁月 " + days + " 日",
+      "连续登录 " + (S.loginStreak || 0) + " 天",
     ];
-    lines.forEach((l, i) => text(l, 6, 64 + i * 9, i === 5 && (S.down || S.poisoned) ? "#e8a08a" : "#cfd4e8", 9));
+    const per = 4, maxPage = 2;
+    if (noteDetailPage >= maxPage) noteDetailPage = 0;
+    lines.slice(noteDetailPage * per, noteDetailPage * per + per).forEach((l, i) => {
+      const gi = noteDetailPage * per + i;
+      text(l, 10, 42 + i * 18, (gi === 5 && (S.down || S.poisoned)) ? "#e8a08a" : "#cfd4e8", 11);
+    });
+    textR((noteDetailPage + 1) + "/2", 124, 118, "#8a92ad", 8);
+    return;
+  }
+
+  const tab = NOTE_TABS[notePage];
+  textC(tab.name, 54, 4, "#f5e9b8", 12);
+  textR((notePage + 1) + "/" + NOTE_TABS.length, 124, 7, "#8a92ad", 8);
+  triLR(6, 46, -1, true);
+  triLR(111, 46, 1, true);
+
+  // 大图标台座（与游戏厅/背包详情同款 56×56）
+  const bx = 36, by = 22, bs = 56;
+  px(bx - 3, by - 3, bs + 6, bs + 6, "#20263a");
+  px(bx - 3, by - 3, bs + 6, 1, "#39415e");
+  px(bx + 14, by + bs - 1, 28, 3, "#161b28");
+  noteIcon(tab.icon, bx + 3, by + 3, 3.5);
+
+  if (notePage === 0) {
+    // 第一页：只有图标，A 进详情
+    const tips = ["门派 · 称号", "体力 · 心情", "金币 · 装备", "家园 · 状态", "岁月 · 签到"];
+    marquee(tips[Math.floor(frame / 40) % tips.length] + "　A 查看", 8, 92, 112, "#8a92ad", 8, 0.3);
   } else if (notePage === 1) {
-    // 第二页：游戏日常（纯查询，A 翻页；不再进副本）
+    // 第二页：游戏日常（纯查询，A 翻页）
     const rows = buildDailyRows() || [];
     const per = 6;
     const maxPage = Math.max(1, Math.ceil(rows.length / per));
@@ -2353,7 +2347,7 @@ function renderStatus() {
       textC("暂无数据", 64, 94, "#8a92ad", 8);
     } else {
       rows.slice(dailyPage * per, dailyPage * per + per).forEach((r, i) => {
-        const y = 64 + i * 9;
+        const y = 60 + i * 9;
         text(r.t.length > 14 ? r.t.slice(0, 13) + "…" : r.t, 6, y, r.key ? "#e8ddb8" : "#e8c860", 9);
       });
       textR((dailyPage + 1) + "/" + maxPage, 124, 121, "#8a92ad", 8);
@@ -2361,10 +2355,9 @@ function renderStatus() {
     }
   } else {
     // 第三页：开服查询（预留）
-    textC("开服查询", 64, 72, "#e8ddb8", 11);
-    px(28, 88, 72, 1, "#2e3345");
-    textC("功能预留", 64, 96, "#8a92ad", 9);
-    textC("敬请期待", 64, 108, "#79839a", 8);
+    textC("开服查询", 64, 88, "#e8ddb8", 11);
+    textC("功能预留", 64, 100, "#8a92ad", 9);
+    textC("敬请期待", 64, 112, "#79839a", 8);
   }
 }
 
@@ -2393,6 +2386,7 @@ function moveSel(d) {
     beep(600, .03, "square", .06); return;
   }
   if (page === "status") {
+    if (noteDetail) { noteDetailPage = (noteDetailPage + d + 2) % 2; beep(620, .03, "square", .06); return; }
     notePage = (notePage + d + NOTE_TABS.length * 10) % NOTE_TABS.length;
     dailyPage = 0;
     beep(600, .03, "square", .06); return;
@@ -2457,19 +2451,14 @@ function pokeMenu() { menuHideAt = Date.now() + 4500; }
 function menuOpen() { return true; }
 
 function confirmA() {
-  if (page === "boot") {          // 开机画面按 A → 进门派选择
-    page = "sect"; sfx.up();
+  if (page === "boot") {          // 开机画面按 A → 直接进江湖（v0.2.7 取消门派）
+    page = "main"; sfx.up();
     for (let i = 0; i < 8; i++) sparkles.push({ x: 30 + Math.random() * 68, y: 30 + Math.random() * 50, life: 25 + Math.random() * 15 });
+    toastMsg("初入江湖，多多关照", sfx.up);
+    save();
     return;
   }
-  if (page === "sect") {
-    const keys = Object.keys(SECTS);
-    S.sect = keys[menuIdx % keys.length];
-    S._lastTitle = titleOf(S.exp).t;
-    page = "main";
-    toastMsg("拜入" + SECTS[S.sect].name + "！江湖路远，多多关照", sfx.up);
-    save();
-  } else if (page === "main") {
+  if (page === "main") {
     const id = MENU[menuIdx % MENU.length].id;
     doAct(id);
   } else if (page === "bag" || page === "shop") {
@@ -2640,8 +2629,10 @@ function confirmA() {
       beep(620, .03, "square", .06);
     } else if (notePage === 2) {
       toastMsg("开服查询功能预留，敬请期待", sfx.ok);
+    } else if (noteDetail) {
+      noteDetailPage = (noteDetailPage + 1) % 2; beep(620, .03, "square", .06);   // 详情内 A 翻页
     } else {
-      beep(440, .05);
+      noteDetail = true; noteDetailPage = 0; sfx.ok();   // 第一页：A 进详情
     }
   } else if (page === "activity") {
     const rows = activityRows();
@@ -2704,7 +2695,10 @@ function pressB() {
     if (!catMode) { catMode = true; beep(440, .05); return; }
     page = "main"; catMode = false; beep(440, .05);
   }
-  else if (page === "status") { page = "main"; beep(440, .05); }   // v8.2：手札 B 明确返回主页（A 不退出）
+  else if (page === "status") {
+    if (noteDetail) { noteDetail = false; beep(440, .05); return; }   // 详情 → 手札列表
+    page = "main"; beep(440, .05);
+  }
   else if (page === "home" || page === "activity") { page = "main"; beep(440, .05); }
   else if (page === "main") { page = "status"; sfx.ok(); }   // B 在主页 = 快捷看状态
 }
@@ -2818,7 +2812,7 @@ setInterval(() => {
   const now = Date.now();
   const dt = (now - lastTick) / 1000;
   lastTick = now;
-  if (page !== "sect" && page !== "boot") applyTime(dt, speedF, false);   // 开机/选门派时时间不走
+  if (page !== "boot") applyTime(dt, speedF, false);   // 开机画面时时间不走
   checkDailyLogin();   // 页面开着跨天也能领签到
   save();
 }, 1000);
