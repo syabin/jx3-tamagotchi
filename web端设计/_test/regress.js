@@ -69,9 +69,9 @@ assert(g("page") === "game" && g("gameSt.phase") === "roll", "摇骰中呼出设
 g("page = 'main'; gameSt = null;");   // 恢复：直接回主界面，避免 confirmA 误入其它页
 
 /* ---- v0.2.0 主界面：底部一排 4 个按钮 ---- */
-assert(g("MENU.length") === 5, "菜单共 5 项（4 按钮 + 状态面板）");
-assert(g("MENU.map(m=>m.id).join(',')") === "activity,game,bag,shop,status",
-  "菜单顺序 = 活动/游戏/背包/商城 + status（不参与选中）");
+assert(g("MENU.length") === 6, "菜单共 6 项（5 按钮 + 状态面板）");
+assert(g("MENU.map(m=>m.id).join(',')") === "activity,game,bag,shop,mail,status",
+  "菜单顺序 = 活动/游戏/背包/商城/邮箱 + status（不参与选中）");
 assert(g("MENU.some(m => m.id === 'settings')") === false, "主界面无设置按钮（长按 B 呼出）");
 assert(g("MENU.some(m => m.id === 'sit') && MENU.some(m => m.id === 'dig')") === false, "打坐/挖宝等行动已移入活动页");
 
@@ -83,11 +83,11 @@ assert(true, "主界面渲染无异常（中毒/重伤/副本中/狼藉）");
 
 /* ---- 导航与非常驻提示 ---- */
 g("menuIdx = 0; moveSel(-1);");
-assert(g("menuIdx") === 3, "▲ 从第 0 项左回绕到最后一个按钮 shop（状态面板不参与选中）");
+assert(g("menuIdx") === 4, "▲ 从第 0 项左回绕到最后一个按钮 mail（状态面板不参与选中）");
 g("moveSel(1);");
 assert(g("menuIdx") === 0, "▼ 从 shop 回到第 0 项（不进状态面板）");
-g("menuIdx = 3; moveSel(1);");
-assert(g("menuIdx") === 0, "shop 右移回绕到第 0 项而非状态面板");
+g("menuIdx = 4; moveSel(1);");
+assert(g("menuIdx") === 0, "mail 右移回绕到第 0 项而非状态面板");
 g("menuIdx = 0; moveSel(-1);");
 assert(g("!!selHint && Date.now() < selHint.until"), "切换选中时出现短暂 selHint");
 assert(g("selHint.until - Date.now()") > 1900 && g("selHint.until - Date.now()") <= 2000, "selHint 时长为 2 秒");
@@ -218,7 +218,7 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "0.2.7", "版本号为语义化 0.2.7");
+assert(g("APP_VERSION") === "0.2.8", "版本号为语义化 0.2.8");
 assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
 const src86 = require("fs").readFileSync(require("path").join(__dirname, "../..", "index.html"), "utf8");
 assert(!/body\.qmode \.screen-frame \{ border-color: #8a8478/.test(src86), "v8.6 真机预览不再覆盖暖灰边框");
@@ -363,6 +363,23 @@ assert(g("typeof drawSpr === 'function' && typeof itemIcon === 'function' && typ
   "五类图标入口统一到 drawSpr");
 assert(g("(function(){ try { ['feed','baozi','dice','race','book','dungeon'].forEach((id,i)=>drawSpr(id,i*16,0,1)); itemIcon('baozi',0,0,3.5); gameIcon('fish',0,0,3.5); noteIcon('book',0,0,2.5); actIcon('dungeon',0,0,3.5); icon('bag',0,0,true); icon('shop',0,0,false); return 1; } catch(e) { return 0; } })()") === 1,
   "所有图标入口渲染无异常");
+
+/* ---- v0.2.8 邮箱 ---- */
+assert(g("typeof MAIL_SCENES !== 'undefined' && MAIL_SCENES.length >= 6"), "奇遇场景池 >= 6 种");
+assert(g("Array.isArray(S.mail)"), "存档含 mail 数组");
+g("S.mail = []; S.coins = 0; S.exp = 0;");
+g("_mrMail = Math.random; Math.random = () => 0.1; rollEncounter(); Math.random = _mrMail;");
+assert(g("S.mail.length") === 1 && (g("S.coins") > 0 || g("S.exp") > 0), "随机奇遇写入邮件并发放奖励");
+assert(g("S.mail[0].t.includes('获得了') && S.mail[0].t.includes('遇到了')"), "邮件文案含遇到/获得叙事");
+g("page = 'main'; menuIdx = 4; confirmA();");
+assert(g("page") === "mail" && g("mailDetail") === false, "主页选邮箱 A 进邮箱列表");
+g("confirmA();");
+assert(g("mailDetail") === true, "邮箱列表 A 进详情");
+g("render(); pressB();");
+assert(g("mailDetail") === false && g("page") === "mail", "邮箱详情 B 回列表");
+g("pressB();");
+assert(g("page") === "main", "邮箱列表 B 回主页");
+g("render();");
 
 /* ---- v0.2.7 手札详情页 ---- */
 g("page = 'status'; notePage = 0; noteDetail = false;");
