@@ -217,7 +217,7 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "0.2.3", "版本号为语义化 0.2.3");
+assert(g("APP_VERSION") === "0.2.4", "版本号为语义化 0.2.4");
 assert(g("typeof applyPanelLook") === "undefined" && g("typeof QLUT") === "undefined", "v8.4 暖屏色域映射已撤销");
 const src86 = require("fs").readFileSync(require("path").join(__dirname, "../..", "index.html"), "utf8");
 assert(!/body\.qmode \.screen-frame \{ border-color: #8a8478/.test(src86), "v8.6 真机预览不再覆盖暖灰边框");
@@ -272,6 +272,8 @@ g("render();");
 g("doAct('game'); render();");
 assert(g("page") === "game" && g("gameSt.game") === "hub", "A 进游戏厅（大厅态）");
 assert(g("GAMES.map(x=>x.id).join(',')") === "dice,whack,fish,memory,race", "游戏厅 5 个游戏（含赛马）");
+assert(g("GAMES.every(x=>x.tip && x.tip.length > 8)") === true, "5 个游戏都有玩法小抄（单页详情的底部说明）");
+assert(g("typeof gameIcon === 'function' && typeof triLR === 'function'") === true, "游戏厅单页图标与左右箭头可渲染");
 g("moveSel(1); moveSel(1);");
 assert(g("gameSt.sel") === 2, "大厅 ▶ 切到第 3 个游戏（钓鱼）");
 g("moveSel(-1);");
@@ -296,7 +298,7 @@ assert(g("gameSt.phase") === "bet", "赛马 A 进入定注");
 const raceCoins = g("S.coins");
 g("confirmA();");
 assert(g("gameSt.phase") === "race", "赛马 A 起跑");
-g("gameSt.hs[gameSt.sel].pos = 95.5; gameTick();");     // 让押中的马先冲线
+g("gameSt.hs[gameSt.sel].pos = RACE_LEN - 0.1; gameTick();");   // 让押中的马先冲线（留足一帧最小步长，避免随机不过线）
 assert(g("gameSt.phase") === "result" && g("gameSt.winner") === g("gameSt.sel"), "先到终点者夺冠");
 assert(g("S.coins") > raceCoins, "押中按赔率赔付");
 assert(g("cooling('g_race')") === true, "赛马进入冷却");
