@@ -314,11 +314,27 @@ function newState() {
     mail: [],                                                // 奇遇邮件（v0.2.8）
   };
 }
-function save() { S.lastTs = Date.now(); localStorage.setItem("jx3tama", JSON.stringify(S)); }
-function load() {
+/* 存档：主档 + 备份档双写。隐私模式 / 配额满 / 沙盒下 setItem 会抛错，
+   以前会让整页看起来“从头开始”，现在只要写失败就明确提示，并保留内存进度。 */
+let storageOK = true, saveWarned = false;
+function save() {
+  S.lastTs = Date.now();
   try {
-    const raw = localStorage.getItem("jx3tama");
-    if (!raw) return false;
+    localStorage.setItem("jx3tama", JSON.stringify(S));
+  } catch (e) {
+    storageOK = false;
+    if (!saveWarned) {
+      saveWarned = true;
+      try { toastMsg("存档写入失败（" + ((e && e.name) || "未知") + "），进度只在本页有效", sfx.err); } catch (e2) {}
+    }
+  }
+}
+function load() {
+  let raw = null;
+  try { raw = localStorage.getItem("jx3tama"); } catch (e) { storageOK = false; }
+  if (!raw) { try { raw = localStorage.getItem("jx3tama.bak"); } catch (e) {} }   // 主档丢了读备份
+  if (!raw) return false;
+  try {
     const parsed = JSON.parse(raw);
     S = Object.assign(newState(), parsed);   // 旧档兼容：新字段自动补默认值（旧 sect 字段被忽略）
     // 数值字段防 NaN 清洗
@@ -338,9 +354,13 @@ function load() {
     S.loginStreak = +S.loginStreak || 0;
     S.mail = Array.isArray(S.mail) ? S.mail.slice(0, 30) : [];   // 最多留 30 封
     // 离线结算：上限 OFFLINE_MAX_GH 游戏小时（按 ×60 折算，与体验档一致）
-    const awayReal = Math.max(0, Date.now() - (S.lastTs || Date.now())) / 1000;
-    S._awayHours = Math.min(awayReal * 60 / 3600, OFFLINE_MAX_GH);
-    if (S._awayHours > 0.05) applyTime(S._awayHours * 60, 60, true);   // 秒数 = 游戏小时 × 60
+    // 结算本身出错也不能判整档无效，否则会被当成“新档”回到开机画面
+    try {
+      const awayReal = Math.max(0, Date.now() - (S.lastTs || Date.now())) / 1000;
+      S._awayHours = Math.min(awayReal * 60 / 3600, OFFLINE_MAX_GH);
+      if (S._awayHours > 0.05) applyTime(S._awayHours * 60, 60, true);   // 秒数 = 游戏小时 × 60
+    } catch (e) { S._awayHours = 0; }
+    try { localStorage.setItem("jx3tama.bak", raw); } catch (e) {}   // 留一份可回退的备份
     return true;
   } catch (e) { return false; }
 }
@@ -749,7 +769,7 @@ function doAct(id, sub) {
      只有副本 startDungeon() 会主动切回主页看战斗演示。 */
 }
 /* ================= 系统设置（在线升级 / WiFi / 热点 —— ESP32 固件 OTA 交互蓝图） ================= */
-const APP_VERSION = "0.2.10";
+const APP_VERSION = "0.2.11";
 const BOOT_LOGO_URL = "data:image/png;base64,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";
 let bootLogo = null;
 try { if (typeof Image !== "undefined") { bootLogo = new Image(); bootLogo.src = BOOT_LOGO_URL; } } catch (e) { bootLogo = null; }
@@ -1482,16 +1502,17 @@ function renderMain() {
   const hour = drawScene();
   const day = hour > 6 && hour < 18;
   const sel = menuIdx % (MENU.length - 1);   // 状态项不参与 ▲▼ 选中
-  /* ===== 顶部状态栏（v0.2.0：原左侧面板上移成一条，场景腾出全部空间） ===== */
+  /* ===== 顶部状态栏（称号 + 金币一行，数值单独一条，避免中文行高叠字） ===== */
   const pt = titleOf(S.exp);
   px(0, 0, W, 16, "#1a1e2c");
   px(0, 16, W, 1, "#39415e");
-  text(pt.t, 4, 3, "#f5e9b8", 8);
-  text("金" + S.coins, 124 - (String(S.coins).length * 5 + 14), 3, "#e8c860", 8);
-  text("体" + Math.round(S.hunger) + " 心" + Math.round(S.mood) + " 修" + S.exp, 4, 10,
+  text(pt.t, 4, 1, "#f5e9b8", 9);
+  text("金" + S.coins, 124 - (String(S.coins).length * 5 + 16), 1, "#e8c860", 9);
+  px(0, 17, W, 8, "#141826");
+  text("体" + Math.round(S.hunger) + " 心" + Math.round(S.mood) + " 修" + S.exp, 4, 17,
     (S.hunger < 25 || S.mood < 25) ? "#e8a08a" : "#cfd4e8", 7);
-  /* ===== 中央大场景（v0.2.0 扩到 y18~98）：远山/云/昼夜 + 人物放大 ===== */
-  const sx = 4, sy = 18, sw = 120, sh = 80, groundY = sy + sh - 9;
+  /* ===== 中央大场景（y25~98）：远山/云/昼夜 + 人物 ===== */
+  const sx = 4, sy = 25, sw = 120, sh = 73, groundY = sy + sh - 9;
   const sleeping = hour >= 22 || hour < 6;          // 昼夜作息（与 applyTime 同一判定）
   /* --- 视窗外框（双线 + 四角铆钉） --- */
   px(sx - 2, sy - 2, sw + 4, sh + 4, "#20263a");
@@ -1709,11 +1730,11 @@ function renderMain() {
   if (hintOn) marquee(toast.text, 8, 102, 112, "#f5ecd0", 9, 0.7);
   else if (selOn) marquee(selHint.text, 8, 102, 112, "#7a829c", 8, 0.5);
   // 平时长条留空（贴近正版拓麻歌子：图标即状态，文字只在需要时出现）
-  // ===== 底部一排 4 个功能按钮（活动/游戏/背包/商城，v0.2.0） =====
-  const botCx = [20, 49, 79, 108];
+  // ===== 底部一排 5 个功能按钮（活动/游戏/背包/商城/邮箱，v0.2.11 补上邮箱位） =====
+  const botCx = [16, 40, 64, 88, 112];
   botCx.forEach((cx, i) => {
     const m = MENU[i], on = sel === i;
-    icon(m.id, cx - 8, 112, on);
+    if (m) icon(m.id, cx - 8, 112, on);
   });
   // sparkles
   sparkles = sparkles.filter(sp => sp.life-- > 0);
@@ -3042,7 +3063,13 @@ document.getElementById("reset").onclick = () => {
 };
 
 /* ================= 主循环 ================= */
-if (!load()) { S = newState(); page = "boot"; }   // 新档先看开机 LOGO
+if (!load()) {
+  S = newState();
+  // 存储被环境禁用（隐私窗口 / iframe 沙盒 / 配额满）时直接进江湖：
+  // 否则每次刷新都会停在开机 LOGO，看起来像“几秒钟回到初始界面”
+  page = storageOK ? "boot" : "main";
+  if (!storageOK) setTimeout(() => { try { toastMsg("此环境无法写存档，本局进度不会保存", sfx.err); } catch (e) {} }, 300);
+}   // 新档先看开机 LOGO
 else {
   page = "main"; S._lastTitle = titleOf(S.exp).t;
   checkDailyLogin();                              // 每日登录奖励（跨天自动发）

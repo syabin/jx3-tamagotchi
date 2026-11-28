@@ -1,8 +1,7 @@
-/* display.cpp — ST7735S 128x128 绘制实现
+/* display.cpp — ST7735S 128×128 绘制层
  *
- * 关键设计：所有绘制先写进一块 128*128*2 = 32KB 的整帧缓存（GFXcanvas16），
- * 每帧结束时一次性 push 给屏幕。这样屏幕永远不会看到"画了一半"的中间状态，
- * 彻底消除逐行重绘造成的滚动、撕裂、闪烁。硬件 SPI 40MHz 推一帧约 8ms。
+ * 整帧缓存（GFXcanvas16 32KB）→ 每帧一次推送，消除撕裂/滚动。
+ * 所有坐标与网页版 128×128 画布一一对应，颜色用 HEXC() 直接写网页色值。
  */
 #include "display.h"
 #include "game.h"
@@ -13,23 +12,19 @@
 #include <SPI.h>
 #include <Preferences.h>
 
-/* Adafruit_ST7735 把 MADCTL 常量藏在 .cpp 里，这里补一份 */
 #define CMD_MADCTL   0x36
 #define MADCTL_MY    0x80
 #define MADCTL_MX    0x40
 #define MADCTL_BGR   0x08
 
-/* 派生一层，把 protected 的 setColRowStart 暴露出来做 GRAM 偏移校正 */
 class TFT_JX3 : public Adafruit_ST7735 {
 public:
   TFT_JX3(int8_t cs, int8_t dc, int8_t rst) : Adafruit_ST7735(cs, dc, rst) {}
   void setOffset(int8_t c, int8_t r) { setColRowStart(c, r); }
 };
 
-/* 三参数构造 = 硬件 SPI（SCL/SDA 走 GPIO4/6 的 FSPI 默认线） */
 static TFT_JX3 tft(PIN_CS, PIN_DC, PIN_RES);
-static GFXcanvas16 canvas(SCR_W, SCR_H);   // 32KB 帧缓存
-
+static GFXcanvas16 canvas(SCR_W, SCR_H);
 static uint8_t dispMode = DISP_MODE_DEFAULT;
 
 static void applyDispMode() {
@@ -42,8 +37,7 @@ static void applyDispMode() {
 }
 
 void dispInit() {
-  /* 注意：GPIO5 恰好是 C3 的 FSPI 默认 MISO，而这块屏把 GPIO5 当背光 BLK 用。
-   * 所以必须显式 begin 并指定 MISO = -1，否则 SPI 会去抢 GPIO5，背光被拉低、屏发暗发绿。 */
+  /* GPIO5 是 C3 FSPI 默认 MISO，而屏把它当背光 BLK：必须显式 MISO=-1 */
   SPI.begin(PIN_SCL, -1, PIN_SDA, -1);
 
   pinMode(PIN_BLK, OUTPUT);
@@ -69,37 +63,752 @@ void dispInit() {
   dispFlush();
 }
 
-uint8_t dispGetMode() { return dispMode; }
+void dispFlush() {
+  uint16_t* buf = canvas.getBuffer();
+  if (!buf) return;
+  tft.drawRGBBitmap(0, 0, buf, SCR_W, SCR_H);
+}
 
+uint8_t dispGetMode() { return dispMode; }
 void dispSetMode(uint8_t m, bool persist) {
   dispMode = m & 0x03;
   applyDispMode();
-  if (persist) {
-    Preferences p;
-    if (p.begin(NVS_NAMESPACE, false)) { p.putUChar(DISP_MODE_KEY, dispMode); p.end(); }
-  }
+  if (persist) { Preferences p; if (p.begin(NVS_NAMESPACE, false)) { p.putUChar(DISP_MODE_KEY, dispMode); p.end(); } }
 }
-
 void dispCycleMode() { dispSetMode((dispMode + 1) & 0x03, true); }
-
 const char* dispModeName(uint8_t m) {
   static const char* N[4] = { "BGR", "RGB", "BGR INV", "RGB INV" };
   return N[m & 0x03];
 }
 
-void dispFlush() {
-  uint16_t* buf = canvas.getBuffer();
-  if (!buf) return;                      // 极端情况下堆分配失败，宁可不刷也不崩
-  tft.drawRGBBitmap(0, 0, buf, SCR_W, SCR_H);
+void dispClear(uint16_t c) { canvas.fillScreen(c); }
+void dispRect(int x, int y, int w, int h, uint16_t c) {
+  if (w <= 0 || h <= 0) return;
+  canvas.fillRect(x, y, w, h, c);
+}
+void dispFrame(int x, int y, int w, int h, uint16_t c) { canvas.drawRect(x, y, w, h, c); }
+void dispPixel(int x, int y, uint16_t c) { canvas.drawPixel(x, y, c); }
+
+/* ================= 文字 ================= */
+static const Glyph* findGlyph(uint16_t code) {
+  int lo = 0, hi = FONT_TABLE_N - 1;
+  while (lo <= hi) {
+    int mid = (lo + hi) >> 1;
+    uint16_t c = pgm_read_word(&FONT_TABLE[mid].code);
+    if (c == code) return &FONT_TABLE[mid];
+    if (c < code) lo = mid + 1; else hi = mid - 1;
+  }
+  return NULL;
 }
 
-/* ---------------- 显示校准模式 ----------------
- * 长按 ▲ 3 秒进入。八色块 + 九级灰阶梯，用来一眼判断：
- *   红块发蓝 / 蓝块发红      → 色序（BGR 位）错
- *   白块发黑 / 黑块发白      → 反显（invert）错
- *   灰阶梯断层、跳色、偏紫    → 位深/伽马问题，不是色序能修的
- * 操作：▲ 换一档（不保存） / A 确定这一档（写 NVS） / B 直接退出
- */
+/* UTF-8 解码：返回码点，p 前进 */
+static uint16_t utf8Next(const char*& p) {
+  uint8_t c = (uint8_t)*p;
+  if (c == 0) return 0;
+  if (c < 0x80) { p++; return c; }
+  if ((c & 0xE0) == 0xC0) { uint16_t v = ((c & 0x1F) << 6) | (p[1] & 0x3F); p += 2; return v; }
+  if ((c & 0xF0) == 0xE0) { uint16_t v = ((c & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F); p += 3; return v; }
+  p++; return c;
+}
+
+static void drawHZ(uint16_t code, int x, int y, uint16_t c) {
+  const Glyph* g = findGlyph(code);
+  if (!g) {                     // 缺字画一个空心框，便于发现漏字
+    dispFrame(x + 1, y + 1, 10, 10, C_DIM);
+    return;
+  }
+  for (int r = 0; r < 12; r++) {
+    uint16_t bits = ((uint16_t)pgm_read_byte(&g->data[r * 2]) << 8) | pgm_read_byte(&g->data[r * 2 + 1]);
+    if (!bits) continue;
+    int b = 0;
+    while (b < 12) {
+      if (bits & (0x800 >> b)) {
+        int s = b;
+        while (b < 12 && (bits & (0x800 >> b))) b++;
+        canvas.fillRect(x + s, y + r, b - s, 1, c);
+      } else b++;
+    }
+  }
+}
+
+int textW(const char* s) {
+  int w = 0;
+  if (!s) return 0;
+  while (*s) {
+    uint16_t cp = utf8Next(s);
+    if (!cp) break;
+    w += (cp < 0x80) ? 6 : 12;
+  }
+  return w;
+}
+
+void dispText(const char* s, int x, int y, uint16_t c) {
+  if (!s) return;
+  int cx = x;
+  while (*s) {
+    uint16_t cp = utf8Next(s);
+    if (!cp) break;
+    if (cp < 0x80) {
+      canvas.drawChar(cx, y + 3, (char)cp, c, c, 1);
+      cx += 6;
+    } else {
+      drawHZ(cp, cx, y, c);
+      cx += 12;
+    }
+  }
+}
+
+void dispTextC(const char* s, int cx, int y, uint16_t c) { dispText(s, cx - textW(s) / 2, y, c); }
+void dispTextR(const char* s, int rx, int y, uint16_t c) { dispText(s, rx - textW(s), y, c); }
+
+/* 跑马灯：超宽时按 offsetPx 横向滚动 */
+void dispTextClip(const char* s, int x, int y, int w, uint16_t c, int offsetPx) {
+  if (!s) return;
+  int tw = textW(s);
+  int off = (tw <= w) ? 0 : (offsetPx % (tw + 12));
+  int cx = x - off;
+  const char* p = s;
+  while (*p) {
+    uint16_t cp = utf8Next(p);
+    if (!cp) break;
+    int cw = (cp < 0x80) ? 6 : 12;
+    if (cx + cw > x && cx < x + w) {
+      if (cp < 0x80) canvas.drawChar(cx, y + 3, (char)cp, c, c, 1);
+      else drawHZ(cp, cx, y, c);
+    }
+    cx += cw;
+    if (tw > w && cx > x + w) break;
+  }
+}
+
+/* 按字数折行（与网页 wrapText 一致：纯字符切分，简单可靠） */
+int dispWrap(const char* s, int maxChars, const char** out, int maxLines) {
+  static const char* buf[8];
+  static char store[8][48];
+  int n = 0, ci = 0, si = 0;
+  const char* p = s;
+  while (*p && n < maxLines && n < 8) {
+    if (*p == '\n') { store[n][si] = 0; out[n] = store[n]; n++; si = 0; ci = 0; p++; continue; }
+    uint16_t cp = utf8Next(p);
+    int need = (cp < 0x80) ? 1 : 3;
+    if (ci >= maxChars || si + need >= 47) {
+      store[n][si] = 0; out[n] = store[n]; n++; si = 0; ci = 0;
+      if (n >= maxLines) break;
+    }
+    if (cp < 0x80) store[n][si++] = (char)cp;
+    else {
+      store[n][si++] = (char)(0xE0 | (cp >> 12));
+      store[n][si++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+      store[n][si++] = (char)(0x80 | (cp & 0x3F));
+    }
+    ci++;
+  }
+  if (si > 0 && n < maxLines && n < 8) { store[n][si] = 0; out[n] = store[n]; n++; }
+  (void)buf;
+  return n;
+}
+
+/* ================= 精灵 / 图标 ================= */
+void dispSpr(uint8_t id, int x, int y) {
+  if (id >= SPR_COUNT) return;
+  const uint16_t* s = (const uint16_t*)pgm_read_ptr(&SPR_TAB[id]);
+  for (int row = 0; row < 16; row++) {
+    for (int col = 0; col < 16; col++) {
+      uint16_t c = pgm_read_word(&s[row * 16 + col]);
+      if (c) canvas.drawPixel(x + col, y + row, c);
+    }
+  }
+}
+
+/* 最近邻放大：16×16 → size×size（大图台座用） */
+void dispSprS(uint8_t id, int x, int y, uint8_t size) {
+  if (id >= SPR_COUNT || size == 0) return;
+  const uint16_t* s = (const uint16_t*)pgm_read_ptr(&SPR_TAB[id]);
+  for (int ty = 0; ty < size; ty++) {
+    int sy = ty * 16 / size;
+    for (int tx = 0; tx < size; tx++) {
+      uint16_t c = pgm_read_word(&s[sy * 16 + tx * 16 / size]);
+      if (c) canvas.drawPixel(x + tx, y + ty, c);
+    }
+  }
+}
+
+/* 圆牌（网页 icon() 的 ROWW 造型）+ 精灵 */
+void dispIcon(uint8_t sprId, int x, int y, bool sel) {
+  static const uint8_t ROWW[16] = { 2, 8, 10, 12, 14, 14, 16, 16, 16, 16, 14, 14, 12, 10, 8, 2 };
+  uint16_t rim = sel ? C_GOLD : HEXC(0x7a6a3e);
+  uint16_t disc = sel ? HEXC(0x332b1c) : HEXC(0x1c2130);
+  for (int dy = 0; dy < 16; dy++) {
+    int w = ROWW[dy];
+    int x0 = x + 8 - w / 2;
+    dispRect(x0, y + dy, w, 1, rim);
+    if (w >= 8) dispRect(x0 + 1, y + dy, w - 2, 1, disc);
+  }
+  dispSpr(sprId, x, y);
+}
+
+void dispSelFrame(int x, int y, int w, int h) {
+  dispFrame(x, y, w, h, C_GOLD);
+  dispRect(x, y, 3, 2, C_GOLD_HI); dispRect(x + w - 3, y, 3, 2, C_GOLD_HI);
+  dispRect(x, y + h - 2, 3, 2, C_GOLD_HI); dispRect(x + w - 3, y + h - 2, 3, 2, C_GOLD_HI);
+}
+
+void dispTri(int x, int y, int dir, bool on) {
+  uint16_t c = on ? C_GOLD_HI : HEXC(0x3a4158);
+  for (int i = 0; i < 9; i++) {
+    int L = 3 + 2 * (4 - abs(i - 4));
+    if (dir < 0) dispRect(x + 11 - L, y + i, L, 1, c);
+    else         dispRect(x, y + i, L, 1, c);
+  }
+}
+
+/* ================= 陈月（与网页 drawPet 逐格一致，u=2） ================= */
+static int g_ox, g_oy, g_u = 2;
+#define P(x, y, w, h, c)  dispRect(g_ox + (x) * g_u, g_oy + (y) * g_u, (w) * g_u, (h) * g_u, c)
+
+/* 头部位图：18 行 × 20 列，字符含义见 PET_PAL */
+static const char* const PET_HEAD[18] = {
+  "....OOOOOOOOOOOO....",
+  "..OOWWWWWWWWWWWWOO..",
+  ".OWWWWWWWWWWWWWWWWO.",
+  "OSWHHHHHHHHHHHHHHWSO",
+  "OSSHHHHHHHHHHHHHHSSO",
+  "OSSHHMMMMMMMMMMHHSSO",
+  "OSSgMMMMMMMMMMMMgSSO",
+  "OSSggMMMMMMMMMMggSSO",
+  "OSSgFFFFFFFFFFFFgSSO",
+  "OSSFFeWWeFFeWWeFFSSO",
+  "OSSFFEWWEFFEWWEFFSSO",
+  "OSSFFeWWeFFeWWeFFSSO",
+  "OSSfBBFFFFFFFFBBfSSO",
+  "OSSFFFFFFmmFFFFFFSSO",
+  "OSSfFFFFFFFFFFFFfSSO",
+  ".OOSSFFFFFFFFFFSSOO.",
+  "....OOOOOOOOOOOO....",
+  "......OOOOOOOO......",
+};
+
+static uint16_t headPal(char ch) {
+  switch (ch) {
+    case 'O': return HEXC(0x2b2b3a);
+    case 'H': return HEXC(0x2e2a38);
+    case 'S': return HEXC(0x1e1c28);
+    case 'L': return HEXC(0x4a4658);
+    case 'M': return HEXC(0x3a3648);
+    case 'F': return HEXC(0xfce3d3);
+    case 'f': return HEXC(0xeec9b4);
+    case 'B': return HEXC(0xe8a8b8);
+    case 'E': return HEXC(0x4a3a6a);
+    case 'e': return HEXC(0x7a6aa8);
+    case 'W': return HEXC(0xffffff);
+    case 'w': return HEXC(0xc9a8e0);
+    case 'm': return HEXC(0xc96b74);
+    case 'g': return HEXC(0xd8cce8);
+    default:  return 0;
+  }
+}
+
+static void petHead(int hx, int hy, uint8_t mood) {
+#define Q(x, y, w, h, c) P(hx + (x), hy + (y), (w), (h), (c))
+  const uint16_t WH = HEXC(0xffffff), BOW2 = HEXC(0xe0d8e8), HA = HEXC(0x2e2a38),
+                 HL = HEXC(0x4a4658), SK = HEXC(0xfce3d3), OL = HEXC(0x2b2b3a),
+                 E1 = HEXC(0x4a3a6a), E2 = HEXC(0x7a6aa8), BOW = HEXC(0xf5f0f8);
+  /* 位图（同行同色合并成段） */
+  for (int y = 0; y < 18; y++) {
+    const char* row = PET_HEAD[y];
+    int runStart = 0;
+    char cur = 0;
+    for (int x = 0; x <= 20; x++) {
+      char ch = (x < 20) ? row[x] : 0;
+      if (ch != cur) {
+        if (cur && cur != '.') {
+          uint16_t col = headPal(cur);
+          if (col) Q(runStart, y, x - runStart, 1, col);
+        }
+        runStart = x; cur = ch;
+      }
+    }
+  }
+  /* 白纱抹额 + 黑长直 + 垂纱 */
+  Q(2, 1, 16, 1, WH); Q(3, 2, 14, 1, BOW2); Q(4, 3, 12, 1, WH);
+  Q(1, 6, 2, 11, HA); Q(17, 6, 2, 11, HA);
+  Q(1, 8, 1, 8, HL); Q(18, 8, 1, 8, HL);
+  Q(2, 5, 1, 7, WH); Q(17, 5, 1, 7, WH);
+  Q(2, 5, 1, 1, BOW2); Q(17, 5, 1, 1, BOW2);
+  int sway = (frameCounter() / 40) % 2;
+  Q(sway ? 1 : 2, 12, 1, 3, WH); Q(sway ? 18 : 17, 12, 1, 3, WH);
+
+  /* 眼 */
+  if (mood == 3 || mood == 8) {                 // closed / sleep
+    Q(5, 8, 4, 3, SK); Q(11, 8, 4, 3, SK);
+    Q(5, 8, 1, 1, OL); Q(6, 9, 2, 1, OL); Q(8, 8, 1, 1, OL);
+    Q(11, 8, 1, 1, OL); Q(12, 9, 2, 1, OL); Q(14, 8, 1, 1, OL);
+  } else if (mood == 1) {                       // happy
+    Q(5, 8, 4, 3, SK); Q(11, 8, 4, 3, SK);
+    Q(5, 9, 1, 1, OL); Q(6, 8, 2, 1, OL); Q(8, 9, 1, 1, OL);
+    Q(11, 9, 1, 1, OL); Q(12, 8, 2, 1, OL); Q(14, 9, 1, 1, OL);
+  } else if (mood == 2 || mood == 4) {          // hurt / sick
+    uint16_t et = (mood == 4) ? HEXC(0x6a8a4a) : E2;
+    Q(5, 8, 4, 3, SK); Q(11, 8, 4, 3, SK);
+    Q(5, 9, 4, 2, E1); Q(5, 9, 4, 1, et);
+    Q(11, 9, 4, 2, E1); Q(11, 9, 4, 1, et);
+    Q(6, 10, 1, 1, WH); Q(12, 10, 1, 1, WH);
+  }
+  /* 嘴 */
+  if (mood == 1) { Q(8, 12, 4, 1, HEXC(0x8c3a48)); Q(9, 12, 2, 1, HEXC(0xe88a94)); }
+  else if (mood == 5) {                          // eat
+    Q(9, 12, 2, 1, SK); Q(8, 12, 4, 1, HEXC(0x8c3a48));
+    if ((frameCounter() / 8) % 2) Q(8, 13, 4, 1, HEXC(0x8c3a48));
+  } else if (mood == 2 || mood == 4) { Q(9, 12, 2, 1, SK); Q(9, 12, 2, 1, HEXC(0x8c3a48)); }
+  /* 淡紫面纱（只露双眼） */
+  Q(3, 11, 14, 3, HEXC(0xd8c4e8));
+  Q(3, 11, 14, 1, HEXC(0xb89ad4));
+  Q(3, 13, 14, 1, HEXC(0xc4aae0));
+  for (int vx = 5; vx <= 15; vx += 5) Q(vx, 12, 1, 1, HEXC(0xf0e6f8));
+  if (mood == 1 || mood == 5) Q(9, 12, 2, 1, HEXC(0x8c3a48));
+  /* 白纱结 + 梅花发饰 */
+  Q(1, 6, 2, 1, WH); Q(0, 7, 4, 1, WH); Q(0, 8, 4, 1, BOW2);
+  Q(1, 7, 2, 1, BOW); Q(1, 8, 1, 1, HEXC(0xc9a8e0));
+  Q(15, 2, 1, 1, HEXC(0xe86a9a)); Q(16, 3, 1, 1, HEXC(0xf5a8c8)); Q(15, 4, 1, 1, HEXC(0xe86a9a));
+#undef Q
+}
+
+static void petBody(int by) {
+  const uint16_t ROBE = HEXC(0xf0ecf5), TRIM = HEXC(0xffffff), DARK = HEXC(0xb8a8d0),
+                 SK = HEXC(0xfce3d3), GOLD = HEXC(0xe8c860), SKIRT = HEXC(0xc9a8e0),
+                 SKIRT2 = HEXC(0xd9c0ea), GAUZE = HEXC(0xf5f0fa);
+  P(4, by, 12, 1, TRIM);
+  P(8, by + 1, 4, 1, TRIM);
+  P(7, by + 2, 1, 1, TRIM); P(12, by + 2, 1, 1, TRIM);
+  P(9, by + 3, 2, 1, TRIM);
+  P(4, by + 1, 12, 7, ROBE);
+  P(4, by + 1, 1, 7, DARK); P(15, by + 1, 1, 7, DARK);
+  P(9, by + 6, 2, 1, GOLD);
+  P(2, by + 1, 2, 5, ROBE); P(16, by + 1, 2, 5, ROBE);
+  P(2, by + 1, 2, 1, TRIM); P(16, by + 1, 2, 1, TRIM);
+  P(2, by + 5, 2, 1, TRIM); P(16, by + 5, 2, 1, TRIM);
+  P(2, by + 6, 1, 1, SK); P(17, by + 6, 1, 1, SK);
+  P(4, by + 8, 12, 1, TRIM);
+  P(9, by + 9, 2, 1, GOLD);
+  /* 花瓣裙 + 白纱罩裙 */
+  P(5, by + 9, 10, 1, SKIRT);
+  P(3, by + 10, 14, 1, SKIRT2);
+  P(2, by + 11, 16, 1, SKIRT);
+  P(4, by + 9, 2, 3, GAUZE); P(14, by + 9, 2, 3, GAUZE);
+  P(6, by + 11, 2, 2, HEXC(0x3a3a52)); P(12, by + 11, 2, 2, HEXC(0x3a3a52));
+  P(6, by + 13, 2, 1, HEXC(0x23232f)); P(12, by + 13, 2, 1, HEXC(0x23232f));
+  /* 药箱 */
+  P(1, by + 7, 4, 4, HEXC(0x8a5a34)); P(1, by + 7, 4, 1, HEXC(0xb88a52));
+  P(2, by + 8, 2, 2, HEXC(0xf0e6d6)); P(3, by + 8, 1, 2, HEXC(0xc04050)); P(2, by + 9, 2, 1, HEXC(0xc04050));
+  P(5, by + 2, 1, 6, HEXC(0xa88c60));
+}
+
+static void petUmbrella(int ux, int uy) {
+  const uint16_t OUT = HEXC(0x4a3a58), CAN = HEXC(0xd8c2e8), CAN2 = HEXC(0xc4a8dc), RIB = HEXC(0x8f6fae);
+  uint16_t sky = gameIsDay() ? HEXC(0x7aa0b8) : HEXC(0x0d0f18);
+  static const uint8_t ROWS[8][2] = { {5, 7}, {3, 11}, {2, 13}, {1, 15}, {0, 15}, {1, 14}, {2, 13}, {3, 11} };
+  for (int r = 0; r < 8; r++) {
+    int rx = ROWS[r][0], rw = ROWS[r][1];
+    P(ux + rx, uy + r, rw, 1, (r % 2) ? CAN : CAN2);
+    P(ux + rx, uy + r, 1, 1, OUT);
+    P(ux + rx + rw - 1, uy + r, 1, 1, OUT);
+  }
+  /* 右下撕缺一瓣（用天空色挖） */
+  P(ux + 13, uy + 4, 3, 1, sky);
+  P(ux + 11, uy + 5, 4, 1, sky);
+  P(ux + 9, uy + 6, 5, 1, sky);
+  P(ux + 7, uy + 7, 5, 1, sky);
+  P(ux + 12, uy + 4, 1, 1, OUT); P(ux + 10, uy + 5, 1, 1, OUT); P(ux + 8, uy + 6, 1, 1, OUT);
+  /* 伞骨 */
+  P(ux + 7, uy + 1, 1, 6, RIB);
+  P(ux + 3, uy + 2, 1, 4, RIB); P(ux + 11, uy + 2, 1, 3, RIB);
+  P(ux + 1, uy + 4, 1, 2, RIB);
+  /* 梅花纹 */
+  static const uint8_t BLOSSOM[3][2] = { {5, 3}, {11, 2}, {8, 5} };
+  for (int i = 0; i < 3; i++) {
+    int bx = BLOSSOM[i][0], by = BLOSSOM[i][1];
+    P(ux + bx, uy + by, 1, 1, HEXC(0xf5d0e0));
+    P(ux + bx - 1, uy + by, 1, 1, HEXC(0xe86a9a)); P(ux + bx + 1, uy + by, 1, 1, HEXC(0xe86a9a));
+    P(ux + bx, uy + by - 1, 1, 1, HEXC(0xe86a9a)); P(ux + bx, uy + by + 1, 1, 1, HEXC(0xe86a9a));
+  }
+  P(ux + 7, uy + 8, 1, 5, HEXC(0x7a5a3a));
+  P(ux + 6, uy + 13, 1, 3, HEXC(0x7a5a3a));
+  P(ux + 5, uy + 16, 1, 2, HEXC(0x7a5a3a));
+}
+
+void dispPet(uint8_t pose, int ox, int oy) {
+  g_ox = ox; g_oy = oy; g_u = 2;
+  int bob = (pose == 0) ? ((frameCounter() / 30) % 2) : 0;
+  g_oy = oy + bob * g_u;
+
+  if (pose == 8) {                                   // 就寝
+    petHead(1, 10, 8);
+    P(3, 27, 14, 2, HEXC(0xf0ecf5)); P(2, 29, 16, 2, HEXC(0xffffff));
+    return;
+  }
+  if (pose == 3) {                                   // 重伤
+    petHead(1, 3, 2);
+    P(4, 20, 12, 7, HEXC(0xf0ecf5)); P(5, 20, 10, 1, HEXC(0xffffff));
+    P(4, 27, 12, 2, HEXC(0x3a3a52)); P(4, 29, 12, 1, HEXC(0x23232f));
+    int a = frameCounter() / 12;
+    dispRect(g_ox + (11 + (int)(cos(a * 0.1f) * 7)) * g_u, g_oy + (1 + (int)(sin(a * 0.1f) * 2)) * g_u,
+             3, 3, C_GOLD_HI);
+    return;
+  }
+  if (pose == 2) {                                   // 中毒
+    petHead(1, 5, 4);
+    P(4, 22, 12, 5, HEXC(0xf0ecf5)); P(5, 22, 10, 1, HEXC(0xffffff));
+    P(3, 27, 14, 2, HEXC(0xf0ecf5)); P(4, 29, 12, 1, HEXC(0x3a3a52));
+    return;
+  }
+  if (pose == 5) {                                   // 打坐
+    petHead(0, 8, 3);
+    P(6, 23, 8, 2, HEXC(0xf0ecf5)); P(6, 23, 8, 1, HEXC(0xffffff));
+    P(3, 25, 14, 3, HEXC(0xf0ecf5));
+    P(3, 25, 1, 3, HEXC(0xffffff)); P(16, 25, 1, 3, HEXC(0xffffff));
+    P(4, 28, 12, 2, HEXC(0x3a3a52));
+    return;
+  }
+  if (pose == 1) {                                   // 吃饭
+    petUmbrella(16, 0);
+    petHead(0, 0, 5); petBody(17);
+    int bo = (frameCounter() / 8) % 2;
+    P(19, 22, 6, 3, HEXC(0xd8d8e0)); P(20, 25, 4, 1, HEXC(0xd8d8e0));
+    if (bo) { P(20, 19, 2, 2, HEXC(0xe8d8a0)); P(22, 18, 1, 1, HEXC(0xe8d8a0)); }
+    return;
+  }
+  if (pose == 6) {                                   // 打木桩
+    int wx = g_ox + 22 * g_u, wy = g_oy + 5 * g_u;
+    dispRect(wx, wy + g_u, 7 * g_u, 25 * g_u, HEXC(0x7a5a34));
+    dispRect(wx + g_u, wy, 6 * g_u, g_u, HEXC(0x8a6a40));
+    dispRect(wx - g_u, wy + 4 * g_u, 9 * g_u, 2 * g_u, HEXC(0x6a4a2a));
+    dispRect(wx - g_u, wy + 14 * g_u, 9 * g_u, 2 * g_u, HEXC(0x6a4a2a));
+    int punch = (frameCounter() / 10) % 2;
+    petHead(0, 0, 1); petBody(17);
+    if (punch) { P(16, 19, 7, 2, HEXC(0xfce3d3)); P(22, 19, 2, 2, HEXC(0xffffff)); }
+    else { P(16, 21, 5, 2, HEXC(0xfce3d3)); }
+    P(15, 18, 3, 2, HEXC(0x8a5a2a)); P(16, 20, 1, 6, HEXC(0xb8c0d0));
+    if (punch) dispRect(g_ox + 3 * g_u, g_oy + g_u, 2, 3, HEXC(0x9ad0e8));
+    return;
+  }
+  if (pose == 7) {                                   // 挖宝
+    int sw = (frameCounter() / 8) % 2;
+    petHead(0, 2, 1); petBody(19);
+    if (sw) { P(15, 16, 2, 6, HEXC(0x8a6a40)); P(14, 13, 4, 3, HEXC(0xb8c0d0)); }
+    else { P(15, 23, 2, 7, HEXC(0x8a6a40)); P(14, 29, 4, 3, HEXC(0xb8c0d0)); P(6, 30, 8, 2, HEXC(0x5a4a30)); }
+    return;
+  }
+  if (pose == 4) {                                   // 副本
+    int mx = g_ox + 21 * g_u + ((frameCounter() / 14) % 2) * g_u, my = g_oy + 3 * g_u;
+    dispRect(mx, my + 3 * g_u, 11 * g_u, 7 * g_u, HEXC(0x4a7a3a));
+    dispRect(mx + g_u, my, 9 * g_u, 3 * g_u, HEXC(0x4a7a3a));
+    dispRect(mx + 2 * g_u, my + g_u, g_u, g_u, HEXC(0xe8d840));
+    dispRect(mx + 6 * g_u, my + g_u, g_u, g_u, HEXC(0xe8d840));
+    dispRect(mx - g_u, my + g_u, g_u, 2 * g_u, HEXC(0x2e4a24));
+    dispRect(mx + 11 * g_u, my + g_u, g_u, 2 * g_u, HEXC(0x2e4a24));
+    int slash = (frameCounter() / 6) % 2;
+    petHead(0, 0, 1); petBody(17);
+    if (slash) { P(16, 19, 7, 2, HEXC(0xffffff)); dispRect(g_ox + 20 * g_u, g_oy + 12 * g_u, 10, 3, HEXC(0xe8f0ff)); }
+    else { P(16, 21, 5, 2, HEXC(0xfce3d3)); }
+    return;
+  }
+  /* idle */
+  int blink = (frameCounter() % 160) < 8;
+  petUmbrella(16, 0);
+  petHead(0, 0, blink ? 3 : 0);
+  petBody(17);
+}
+#undef P
+
+/* ================= 稻香村场景 ================= */
+#define SX 4
+#define SY 27
+#define SW 120
+#define SH 71
+#define GY (SY + SH - 9)
+
+void dispScene(bool night, uint32_t f) {
+  bool day = !night;
+  /* 外框 */
+  dispRect(SX - 2, SY - 2, SW + 4, SH + 4, HEXC(0x20263a));
+  dispRect(SX - 1, SY - 1, SW + 2, SH + 2, HEXC(0x39415e));
+  dispPixel(SX - 1, SY - 1, HEXC(0x5a6488)); dispPixel(SX + SW, SY - 1, HEXC(0x5a6488));
+  dispPixel(SX - 1, SY + SH, HEXC(0x5a6488)); dispPixel(SX + SW, SY + SH, HEXC(0x5a6488));
+
+  /* 天空三段 + 抖动过渡 */
+  uint16_t sky0 = day ? HEXC(0x5a86a8) : HEXC(0x0a0c15);
+  uint16_t sky1 = day ? HEXC(0x7aa0b8) : HEXC(0x0d0f18);
+  uint16_t sky2 = day ? HEXC(0x9ec0c8) : HEXC(0x11131f);
+  dispRect(SX, SY, SW, 12, sky0);
+  dispRect(SX, SY + 12, SW, 14, sky1);
+  dispRect(SX, SY + 26, SW, 10, sky2);
+  for (int i = 0; i < 30; i++) dispRect(SX + (i * 9) % SW, SY + 12 + (i % 2), 1, 1, sky0);
+  for (int i = 0; i < 26; i++) dispRect(SX + (i * 11 + 5) % SW, SY + 26 + (i % 2), 1, 1, sky1);
+
+  /* 云 */
+  uint16_t cT = day ? HEXC(0xf0f4f0) : HEXC(0x1e2438);
+  uint16_t cM = day ? HEXC(0xe0e8e4) : HEXC(0x181d30);
+  uint16_t cB = day ? HEXC(0xc8d4d0) : HEXC(0x131728);
+  struct CloudPos { int x, y; bool big; };
+  CloudPos cl[3] = {
+    { SX + 12 + (int)fmod(f * 0.15, SW - 34), 26, true },
+    { SX + 6  + (int)fmod(f * 0.09, SW - 24), 38, false },
+    { SX + 30 + (int)fmod(f * 0.06, SW - 44), 33, false },
+  };
+  for (int i = 0; i < 3; i++) {
+    int w = cl[i].big ? 20 : 14, cx = cl[i].x, cy = cl[i].y;
+    dispRect(cx, cy + 2, w, 3, cM);
+    dispRect(cx + 2, cy, 6, 3, cM);
+    dispRect(cx + 8, cy + 1, 5, 2, cM);
+    dispRect(cx + 3, cy, 4, 1, cT);
+    dispRect(cx + 9, cy + 1, 3, 1, cT);
+    dispRect(cx, cy + 5, w - 2, 1, cB);
+  }
+
+  /* 稻香村木牌 */
+  dispRect(SX + 8, SY + 3, 34, 11, HEXC(0x5a3a22));
+  dispRect(SX + 9, SY + 4, 32, 9, HEXC(0x8a6a40));
+  dispRect(SX + 9, SY + 4, 32, 1, HEXC(0xc9a86a));
+  dispRect(SX + 9, SY + 12, 32, 1, HEXC(0x3a2418));
+  dispText("稻香村", SX + 12, SY + 4, C_GOLD_HI);
+  dispRect(SX + 14, SY + 14, 1, 4, HEXC(0x6a4a2a));
+  dispRect(SX + 36, SY + 14, 1, 4, HEXC(0x6a4a2a));
+
+  if (!day) {
+    static const uint8_t ST[15][2] = {
+      {18,24},{30,22},{44,25},{58,21},{70,24},{84,22},{94,27},{26,32},
+      {50,30},{78,33},{100,25},{38,38},{64,40},{88,42},{108,32}
+    };
+    for (int i = 0; i < 15; i++) {
+      uint32_t tw = (f + i * 17) % 120;
+      int x = ST[i][0], y = ST[i][1];
+      if (tw < 80) dispPixel(x, y, HEXC(0xcfd8ea));
+      if (tw < 20) {
+        dispPixel(x - 1, y, HEXC(0x8a94b8)); dispPixel(x + 1, y, HEXC(0x8a94b8));
+        dispPixel(x, y - 1, HEXC(0x8a94b8)); dispPixel(x, y + 1, HEXC(0x8a94b8));
+      }
+    }
+    if (f % 400 > 380) {
+      int mp = f % 400 - 380;
+      dispPixel(96 + mp, 22 + mp / 2, HEXC(0xe8f0ff));
+      dispPixel(97 + mp, 21 + mp / 2, HEXC(0x8a94b8));
+    }
+    dispRect(100, 22, 12, 12, HEXC(0x2a3350));
+    dispRect(102, 24, 8, 8, HEXC(0xd8d8e8));
+    dispRect(104, 26, 4, 4, HEXC(0x0d0f18));
+    dispRect(103, 25, 2, 1, HEXC(0xf0f0f8));
+    dispPixel(107, 30, HEXC(0xb8b8cc));
+  } else {
+    dispRect(102, 22, 12, 12, HEXC(0xe8d890));
+    dispRect(104, 24, 8, 8, HEXC(0xfff5d8));
+    dispRect(106, 26, 4, 4, HEXC(0xf5e9b8));
+    if (f % 60 < 45) {
+      dispRect(107, 20, 2, 2, HEXC(0xf0e2a0)); dispRect(107, 34, 2, 2, HEXC(0xf0e2a0));
+      dispRect(100, 27, 2, 2, HEXC(0xf0e2a0)); dispRect(114, 27, 2, 2, HEXC(0xf0e2a0));
+    }
+    int bx = (int)fmod(f * 0.35, 170) - 25;
+    int by = 28 + (int)(sinf(f / 24.0f) * 3);
+    int wf = (f / 8) % 2;
+    dispPixel(bx, by, HEXC(0x1c2438));
+    dispPixel(bx + 2, by, HEXC(0x1c2438));
+    dispPixel(bx + 1, by - wf, HEXC(0x1c2438));
+    dispPixel(bx + 14, by + 4, HEXC(0x1c2438));
+    dispPixel(bx + 16, by + 4, HEXC(0x1c2438));
+    dispPixel(bx + 15, by + 4 - wf, HEXC(0x1c2438));
+  }
+
+  /* 远山 + 梯田 + 远村 */
+  uint16_t mtnF = day ? HEXC(0x5a7e6a) : HEXC(0x141c28);
+  uint16_t mtnN = day ? HEXC(0x4a6a58) : HEXC(0x0e1520);
+  dispRect(SX, 60, SW, GY - 60, mtnF);
+  dispRect(SX + 8, 52, 30, GY - 52, mtnF);
+  dispRect(SX + 60, 54, 46, GY - 54, mtnF);
+
+  for (int i = 0; i < 4; i++) {
+    int ty = 64 + i * 5, tw2 = 96 - i * 10, tx = SX + 8 + i * 6;
+    dispRect(tx, ty, tw2, 1, day ? HEXC(0x3e5a34) : HEXC(0x101a14));
+    dispRect(tx + 1, ty + 1, tw2 - 2, 3, day ? HEXC(0x7a9e5a) : HEXC(0x1c2820));
+    dispRect(tx + 1, ty + 1, tw2 - 2, 1, day ? HEXC(0x9ebb68) : HEXC(0x243226));
+    dispRect(tx + 1, ty + 3, tw2 - 2, 1, day ? HEXC(0x668848) : HEXC(0x162018));
+    for (int sp = 12; sp < tw2 - 10; sp += 18) {
+      dispRect(tx + sp, ty, 1, 2, day ? HEXC(0xc8d878) : HEXC(0x2c3a28));
+      dispRect(tx + sp + 1, ty - 1, 1, 2, day ? HEXC(0xd8e898) : HEXC(0x344430));
+    }
+  }
+  /* 远村茅屋 */
+  static const uint8_t VH[2][2] = { {26, 66}, {84, 64} };
+  for (int i = 0; i < 2; i++) {
+    int hx = VH[i][0], hy = VH[i][1];
+    dispRect(hx + 2, hy, 8, 4, day ? HEXC(0x8a7a5a) : HEXC(0x1a1e28));
+    dispRect(hx + 5, hy + 1, 2, 3, day ? HEXC(0x4a3a2a) : HEXC(0x0d1218));
+    dispRect(hx, hy - 2, 12, 2, day ? HEXC(0x6a8a5a) : HEXC(0x121820));
+    dispRect(hx + 2, hy - 4, 8, 2, day ? HEXC(0x7a9e6a) : HEXC(0x16201c));
+    dispRect(hx + 4, hy - 5, 4, 1, day ? HEXC(0x8eae7a) : HEXC(0x1a2420));
+    if (day && f % 80 < 50)
+      dispPixel(hx + 6 + (int)((f / 40) % 2), hy - 8 - (int)((f / 60) % 3), HEXC(0xd8e0dc));
+  }
+
+  /* 近景矮丘 */
+  dispRect(SX - 2, 74, 34, GY - 74, mtnN); dispRect(SX + 6, 68, 16, GY - 68, mtnN);
+  dispRect(SX + 36, 78, 26, GY - 78, mtnN); dispRect(SX + 44, 72, 12, GY - 72, mtnN);
+  dispRect(SX + 62, 76, 46, GY - 76, mtnN); dispRect(SX + 72, 70, 16, GY - 70, mtnN);
+
+  /* 地面 */
+  dispRect(SX, GY, SW, 3, HEXC(0x3a5a34));
+  dispRect(SX, GY + 3, SW, 1, HEXC(0x2a3d2a));
+  dispRect(SX, GY + 4, SW, 5, HEXC(0x3a2f22));
+  dispRect(SX, GY + 6, SW, 1, HEXC(0x2e2418));
+  for (int i = 0; i < 8; i++) dispRect(SX + (i * 23 + 8) % SW, GY + 5 + (i % 2), 2, 1, HEXC(0x4a3c2a));
+  for (int i = 0; i < 16; i++) {
+    int gx = SX + (i * 9 + 3) % SW;
+    int gw = (int)((f + i * 7) / 30) % 2;
+    dispRect(gx, GY - 1 - gw, 1, 1 + gw, (i % 3) ? HEXC(0x4a6e40) : HEXC(0x5a7e4a));
+  }
+  /* 小花 + 石径 */
+  static const uint8_t FL[4] = { 26, 46, 90, 110 };
+  for (int i = 0; i < 4; i++) {
+    int fx = FL[i];
+    uint16_t fc = (i == 0) ? HEXC(0xe86a6a) : (i == 1) ? HEXC(0xf5d858) : (i == 2) ? HEXC(0xe88ab8) : HEXC(0xe86a6a);
+    dispRect(fx + 1, GY - 3, 1, 3, HEXC(0x3a5a34));
+    dispRect(fx, GY - 5, 3, 2, fc);
+    dispPixel(fx + 1, GY - 4, HEXC(0xf5e9b8));
+  }
+  static const uint8_t PATH[3][2] = { {24, 1}, {32, 2}, {42, 1} };
+  for (int i = 0; i < 3; i++) {
+    dispRect(PATH[i][0], GY + PATH[i][1], 4, 2, HEXC(0x7a6a4c));
+    dispRect(PATH[i][0], GY + PATH[i][1], 4, 1, HEXC(0x8a7a5a));
+  }
+
+  /* 大水车 */
+  int wx = SX + 99, wy = GY - 20, wr = 15;
+  float wa = f / 110.0f;
+  dispRect(wx - 18, wy + 8, 20, 2, day ? HEXC(0x6a4a2a) : HEXC(0x2a2018));
+  dispRect(wx - 18, wy + 10, 2, GY - wy - 10, day ? HEXC(0x5a3a22) : HEXC(0x201810));
+  dispRect(wx + 12, wy + 6, 2, GY - wy - 6, day ? HEXC(0x5a3a22) : HEXC(0x201810));
+  for (int i = 0; i < 8; i++) {
+    float a2 = wa + i * 0.7853982f;
+    int ex = wx + (int)(cosf(a2) * wr), ey = wy + (int)(sinf(a2) * wr);
+    for (int k = 0; k <= 11; k++)
+      dispRect(wx + (ex - wx) * k / 11, wy + (ey - wy) * k / 11, 2, 2,
+               day ? HEXC(0x7a5a34) : HEXC(0x2e2418));
+    dispRect(ex - 2, ey - 1, 5, 3, day ? HEXC(0x5a3a22) : HEXC(0x201810));
+    dispRect(ex - 1, ey, 3, 1, day ? HEXC(0xc9a86a) : HEXC(0x4a3a2a));
+  }
+  for (int i = 0; i < 30; i++) {
+    float a2 = i * 0.2094395f;
+    dispRect(wx + (int)(cosf(a2) * wr), wy + (int)(sinf(a2) * wr), 2, 2,
+             day ? HEXC(0xb08a52) : HEXC(0x403224));
+  }
+  dispRect(wx - 3, wy - 3, 7, 7, day ? HEXC(0x5a3a22) : HEXC(0x201810));
+  dispRect(wx - 2, wy - 2, 5, 5, day ? HEXC(0x8a6a40) : HEXC(0x342a20));
+  dispRect(wx - 1, wy - 1, 3, 3, day ? HEXC(0xc9a86a) : HEXC(0x4a3a2a));
+
+  /* 溪流 + 拱桥 */
+  uint16_t water = day ? HEXC(0x5a9eb8) : HEXC(0x1a3448);
+  uint16_t wave = day ? HEXC(0x8ac8d8) : HEXC(0x2a5068);
+  dispRect(SX + 2, GY + 2, 118, 6, water);
+  dispRect(SX + 2, GY + 2, 118, 1, wave);
+  for (int i = 0; i < 11; i++) {
+    int xx = SX + 6 + (int)((i * 9 + (f / 6) % 9) % 108);
+    dispRect(xx, GY + 3 + (i % 3), 4, 1, wave);
+  }
+  int bx0 = SX + 24, by0 = GY - 1;
+  for (int i = 0; i < 13; i++) {
+    int arch = (int)(sinf(i / 12.0f * PI) * 3);
+    dispRect(bx0 + i * 3, by0 - arch, 4, 2, day ? HEXC(0x8a6a40) : HEXC(0x342a20));
+    dispRect(bx0 + i * 3, by0 - arch - 1, 4, 1, day ? HEXC(0xb08a52) : HEXC(0x4a3a2a));
+    if (i % 4 == 0) dispRect(bx0 + i * 3, by0 - arch - 4, 1, 4, day ? HEXC(0x6a4a2a) : HEXC(0x2a2018));
+  }
+  dispRect(bx0, by0 - 5, 39, 1, day ? HEXC(0x6a4a2a) : HEXC(0x2a2018));
+
+  /* 荷花池 */
+  dispRect(SX + 4, GY + 2, 20, 6, day ? HEXC(0x4a8a9e) : HEXC(0x142c3c));
+  static const uint8_t LOTUS[3][2] = { {7, 3}, {15, 5}, {21, 2} };
+  for (int i = 0; i < 3; i++) {
+    int lx = LOTUS[i][0], ly = LOTUS[i][1];
+    dispRect(SX + lx, GY + ly, 7, 2, day ? HEXC(0x4a8a52) : HEXC(0x1a3428));
+    dispPixel(SX + lx + 3, GY + ly - 1, day ? HEXC(0x6aa862) : HEXC(0x244436));
+    if (i != 1) {
+      dispRect(SX + lx + 2, GY + ly - 3, 2, 2, HEXC(0xe88ab8));
+      dispPixel(SX + lx + 3, GY + ly - 4, HEXC(0xf5c8d8));
+      dispPixel(SX + lx + 1, GY + ly - 2, HEXC(0xd86a9a));
+    }
+  }
+  /* 草丛 */
+  static const uint8_t GS[2][2] = { {48, 3}, {88, 2} };
+  for (int i = 0; i < 2; i++) {
+    int gx = GS[i][0], gy = GY - GS[i][1];
+    dispRect(gx, gy, 5, 3, HEXC(0x2e4a28));
+    dispRect(gx + 1, gy - 1, 3, 1, HEXC(0x2e4a28));
+    dispPixel(gx + 1, gy, HEXC(0x3f6a38));
+    dispPixel(gx + 3, gy + 1, HEXC(0xc04858));
+  }
+  /* 左侧老树 */
+  dispRect(9, 78, 3, GY - 78, HEXC(0x5a4632));
+  dispRect(9, 78, 1, GY - 78, HEXC(0x6a5438));
+  dispRect(4, 70, 13, 8, HEXC(0x2e4a28));
+  dispRect(6, 67, 9, 4, HEXC(0x2e4a28));
+  dispRect(3, 72, 15, 4, HEXC(0x2e4a28));
+  dispRect(6, 68, 4, 2, HEXC(0x3f6a38));
+  dispRect(11, 71, 3, 2, HEXC(0x3f6a38));
+  dispRect(5, 76, 2, 1, HEXC(0xc04858));
+  dispRect(12, 74, 2, 1, HEXC(0xc04858));
+
+  /* 夜间流萤 */
+  if (!day) {
+    for (int i = 0; i < 3; i++) {
+      int fx = SX + 24 + (int)((sinf(f / 40.0f + i * 2.1f) * 0.5f + 0.5f) * 72);
+      int fy = GY - 16 + (int)(sinf(f / 30.0f + i * 1.7f) * 6);
+      if ((f + i * 23) % 60 < 40) dispPixel(fx, fy, HEXC(0xd8e88a));
+    }
+  }
+}
+#undef SX
+#undef SY
+#undef SW
+#undef SH
+#undef GY
+
+/* 家园小屋（随等级变大） */
+void dispHouse(int x0, int y0, bool night) {
+  uint8_t lv = G.homeLv;
+  if (lv == 0) return;
+  int w = 12 + lv * 5, h = 7 + lv * 3;
+  uint16_t wall = lv >= 3 ? HEXC(0x8a6a44) : HEXC(0x6a5a3a);
+  uint16_t wallD = lv >= 3 ? HEXC(0x6e5434) : HEXC(0x544730);
+  uint16_t roofC = lv >= 4 ? HEXC(0xd8c68a) : (lv >= 2 ? HEXC(0xa04030) : HEXC(0x4a3a26));
+  uint16_t roofD = lv >= 4 ? HEXC(0xb8a468) : (lv >= 2 ? HEXC(0x7e3026) : HEXC(0x3a2e1e));
+  dispRect(x0 + 1, y0 - h, w, h, wall);
+  for (int i = 2; i < w - 1; i += 3) dispRect(x0 + 1 + i, y0 - h + 1, 1, h - 2, wallD);
+  dispRect(x0 + 1, y0 - 1, w, 1, wallD);
+  for (int i = 0; i < 3; i++) dispRect(x0 - 2 + i, y0 - h - 3 + i, w + 4 - i * 2, 1, roofC);
+  dispRect(x0 + 2, y0 - h - 1, w - 4, 1, roofD);
+  dispRect(x0 - 3, y0 - h - 4, w + 6, 1, roofC);
+  dispRect(x0 + w / 2 - 2, y0 - h - 4, 2, 1, lv >= 4 ? HEXC(0xf0e2a0) : C_GOLD);
+  dispRect(x0 + w / 2 - 1, y0 - 5, 3, 5, HEXC(0x2e2519));
+  dispPixel(x0 + w / 2 + 1, y0 - 3, HEXC(0xc9b070));
+  if (w >= 14) {
+    dispRect(x0 + 2, y0 - h + 2, 3, 3, night ? HEXC(0xf0d878) : HEXC(0x3a3a52));
+    dispRect(x0 + 2, y0 - h + 2, 3, 1, HEXC(0x5a4632));
+  }
+  if (lv >= 3) { dispRect(x0 + w - 3, y0 - h - 7, 1, 4, HEXC(0x5a4a32)); dispRect(x0 + w - 2, y0 - h - 7, 4, 2, C_GOLD); }
+  if (night && lv >= 2) {
+    dispRect(x0 + w - 1, y0 - h + 1, 1, 2, HEXC(0x5a4a32));
+    dispRect(x0 + w, y0 - h + 3, 2, 3, HEXC(0xd85a4a));
+    dispRect(x0 + w, y0 - h + 4, 2, 1, HEXC(0xf0a060));
+  }
+}
+
+void dispMess(uint8_t n) {
+  for (int i = 0; i < n; i++) {
+    int x = 50 + i * 15;
+    dispRect(x, 91, 8, 4, HEXC(0x6a5a3a));
+    dispRect(x + 1, 89, 6, 2, HEXC(0x8a7a52));
+    dispRect(x + 2, 87, 3, 2, HEXC(0x8a7a52));
+  }
+}
+
+/* ================= 八色卡校准 ================= */
 static void waitRel(uint8_t pin, uint32_t maxMs = 4000) {
   uint32_t t = millis();
   while (digitalRead(pin) == LOW && millis() - t < maxMs) delay(10);
@@ -107,341 +816,32 @@ static void waitRel(uint8_t pin, uint32_t maxMs = 4000) {
 
 static void drawCard() {
   canvas.fillScreen(C_BG);
-
   canvas.fillRect(0, 0, SCR_W, 14, C_PANEL);
   canvas.drawFastHLine(0, 14, SCR_W, C_GOLD);
-  int x = 4, y = 1;
-  for (const char* p = dispModeName(dispMode); *p; p++, x += 6)
-    canvas.drawChar(x, y, *p, C_GOLD_HI, C_PANEL, 1);
-
-  static const uint16_t SW[8] = {
-    0xF800, 0x07E0, 0x001F, 0xFFE0,   // 红 绿 蓝 黄
-    0x07FF, 0xF81F, 0xFFFF, 0x0000    // 青 品 白 黑
-  };
+  dispText(dispModeName(dispMode), 4, 1, C_GOLD_HI);
+  static const uint16_t SW8[8] = { 0xF800, 0x07E0, 0x001F, 0xFFE0, 0x07FF, 0xF81F, 0xFFFF, 0x0000 };
   for (int i = 0; i < 8; i++) {
     int cx = 5 + (i % 4) * 31, cy = 17 + (i / 4) * 30;
-    canvas.fillRect(cx, cy, 26, 26, SW[i]);
+    canvas.fillRect(cx, cy, 26, 26, SW8[i]);
     canvas.drawRect(cx, cy, 26, 26, C_DIM);
   }
-
-  /* 九级灰阶梯 */
   for (int i = 0; i < 9; i++) {
     uint8_t v = (uint8_t)(i * 255 / 8);
     uint16_t g = (uint16_t)(((v * 31 / 255) << 11) | ((v * 63 / 255) << 5) | (v * 31 / 255));
     canvas.fillRect(2 + i * 14, 78, 13, 9, g);
   }
   canvas.drawFastHLine(0, 89, SCR_W, C_DARK);
-
-  dispTextC(TXT_CAL_A, 64, 93, C_TEXT);
-  dispTextC(TXT_CAL_B, 64, 109, C_DIM);
+  dispTextC("A 确定此色彩", 64, 93, C_TEXT);
+  dispTextC("▲ 换档   B 退出", 64, 108, C_DIM);
   dispFlush();
 }
 
 void dispCalibrate() {
   for (;;) {
     drawCard();
-    delay(60);                              // 消抖
-
-    if (digitalRead(PIN_K1) == LOW) {       // ▲ 换下一档
-      dispSetMode((dispMode + 1) & 0x03, false);
-      waitRel(PIN_K1);
-      continue;
-    }
-    if (digitalRead(PIN_K3) == LOW) {       // A 确定并保存
-      dispSetMode(dispMode, true);
-      waitRel(PIN_K3);
-      return;
-    }
-    if (digitalRead(PIN_K4) == LOW) {       // B 退出不保存
-      waitRel(PIN_K4);
-      return;
-    }
+    delay(60);
+    if (digitalRead(PIN_K1) == LOW) { dispSetMode((dispMode + 1) & 0x03, false); waitRel(PIN_K1); continue; }
+    if (digitalRead(PIN_K3) == LOW) { dispSetMode(dispMode, true); waitRel(PIN_K3); return; }
+    if (digitalRead(PIN_K4) == LOW) { waitRel(PIN_K4); return; }
   }
-}
-
-/* 这两个对帧缓存无意义，保留空实现以兼容调用点 */
-void dispBegin() {}
-void dispEnd()   {}
-
-void dispClear(uint16_t c) { canvas.fillScreen(c); }
-void dispRect(int x, int y, int w, int h, uint16_t c) { canvas.fillRect(x, y, w, h, c); }
-void dispFrame(int x, int y, int w, int h, uint16_t c) { canvas.drawRect(x, y, w, h, c); }
-void dispPixel(int x, int y, uint16_t c) { canvas.drawPixel(x, y, c); }
-
-/* ---------- 点阵文字 ---------- */
-static const Glyph* findGlyph(uint16_t code) {
-  int lo = 0, hi = FONT_TABLE_N - 1;
-  while (lo <= hi) {
-    int mid = (lo + hi) >> 1;
-    uint16_t c = FONT_TABLE[mid].code;
-    if (c == code) return &FONT_TABLE[mid];
-    if (c < code) lo = mid + 1; else hi = mid - 1;
-  }
-  return NULL;
-}
-
-int textWidth(const char* s) {
-  int w = 0;
-  if (!s) return 0;
-  for (const uint8_t* p = (const uint8_t*)s; *p; ) {
-    uint16_t cp = *p;
-    int len = 1;
-    if (cp >= 0xC0) {
-      if ((cp & 0xE0) == 0xC0 && p[1]) { cp = ((cp & 0x1F) << 6) | (p[1] & 0x3F); len = 2; }
-      else if ((cp & 0xF0) == 0xE0 && p[1] && p[2]) {
-        cp = ((cp & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F); len = 3;
-      }
-    }
-    w += (cp < 127) ? 6 : 12;
-    p += len;
-  }
-  return w;
-}
-
-static void drawOne(uint16_t cp, int x, int y, uint16_t c) {
-  const Glyph* g = findGlyph(cp);
-  if (!g) return;
-  int cols = (cp < 127) ? 6 : 12;
-  for (int row = 0; row < 12; row++) {
-    uint16_t bits = ((uint16_t)g->data[row * 2] << 8) | g->data[row * 2 + 1];
-    for (int col = 0; col < cols; col++) {
-      if (bits & (1 << (11 - col))) canvas.drawPixel(x + col, y + row, c);
-    }
-  }
-}
-
-void dispText(const char* s, int x, int y, uint16_t c) {
-  if (!s) return;
-  dispBegin();
-  for (const uint8_t* p = (const uint8_t*)s; *p; ) {
-    uint16_t cp = *p; int len = 1;
-    if (cp >= 0xC0) {
-      if ((cp & 0xE0) == 0xC0 && p[1]) { cp = ((cp & 0x1F) << 6) | (p[1] & 0x3F); len = 2; }
-      else if ((cp & 0xF0) == 0xE0 && p[1] && p[2]) {
-        cp = ((cp & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F); len = 3;
-      }
-    }
-    drawOne(cp, x, y, c);
-    x += (cp < 127) ? 6 : 12;
-    p += len;
-  }
-  dispEnd();
-}
-void dispTextC(const char* s, int cx, int y, uint16_t c) { dispText(s, cx - textWidth(s) / 2, y, c); }
-void dispTextR(const char* s, int rx, int y, uint16_t c) { dispText(s, rx - textWidth(s), y, c); }
-void dispNum(int n, int x, int y, uint16_t c) {
-  char b[16]; snprintf(b, sizeof(b), "%d", n); dispTextR(b, x, y, c);
-}
-
-void dispBar(int x, int y, int w, int h, int val, uint16_t c) {
-  if (val < 0) val = 0; if (val > 100) val = 100;
-  dispRect(x, y, w, h, C_PANEL2);
-  dispRect(x + 1, y + 1, (w - 2) * val / 100, h - 2, c);
-  dispFrame(x, y, w, h, C_DIM);
-}
-void dispSelFrame(int x, int y, int w, int h) {
-  dispFrame(x, y, w, h, C_GOLD);
-  dispRect(x, y, 3, 1, C_GOLD_HI); dispRect(x, y, 1, 3, C_GOLD_HI);
-  dispRect(x + w - 3, y, 3, 1, C_GOLD_HI); dispRect(x + w - 1, y, 1, 3, C_GOLD_HI);
-  dispRect(x, y + h - 1, 3, 1, C_GOLD_HI); dispRect(x, y + h - 3, 1, 3, C_GOLD_HI);
-  dispRect(x + w - 3, y + h - 1, 3, 1, C_GOLD_HI); dispRect(x + w - 1, y + h - 3, 1, 3, C_GOLD_HI);
-}
-
-/* ---------- 统一 16×16 像素精灵（1px 精度，与网页版同源） ----------
-   sprites.h 由 gen_sprites.py 从同一份字符网格生成；off=2 时取中心 12×12 供列表缩略。 */
-static void dispSpr(const uint16_t (*tbl)[256], int sid, int x, int y, int scale, int off) {
-  for (int row = off; row < 16 - off; row++) {
-    for (int col = off; col < 16 - off; col++) {
-      uint16_t c = pgm_read_word(&tbl[sid][row * 16 + col]);
-      if (!c) continue;
-      dispRect(x + (col - off) * scale, y + (row - off) * scale, scale, scale, c);
-    }
-  }
-}
-
-/* ---------- 菜单图标：圆牌底 + 1px 精灵 ---------- */
-void dispIcon(uint8_t id, int x, int y, bool selected) {
-  if (id >= 9) return;   /* v0.2.8：第 9 格邮箱 */
-  dispRect(x, y, 24, 24, selected ? C_PANEL2 : C_PANEL);
-  dispRect(x + 2, y,      20, 1, C_GOLD);
-  dispRect(x + 2, y + 23, 20, 1, C_GOLD);
-  dispRect(x,     y + 2,   1, 20, C_GOLD);
-  dispRect(x + 23,y + 2,   1, 20, C_GOLD);
-  dispSpr(selected ? SPR_MENU_SEL : SPR_MENU, FW_MENU_ID[id], x + 4, y + 4, 1, 0);
-}
-
-/* ---------- 物品图标：16×16 精灵；s=1 取中心 12×12，s>=4 画 48×48 大图 ---------- */
-void dispItemIcon(uint8_t idx, int x, int y, uint8_t s) {
-  if (idx >= 19) return;
-  if (s <= 1) dispSpr(SPR_ITEM, idx, x, y, 1, 2);
-  else        dispSpr(SPR_ITEM, idx, x, y, s >= 4 ? 3 : 2, 0);
-}
-
-/* ---------- 像素小人：成年陈月（黑长直 / 白纱 / 紫面纱 / 梅纹破伞 / 药箱） ---------- */
-void dispPet(int x, int y, uint8_t pose, uint8_t sectIdx) {
-  (void)sectIdx;  /* 取消门派，固定陈月配色 */
-  SectDef sd = PET_STYLE;
-  uint16_t robe = sd.robe, trim = sd.trim, skin = C_SKIN, hair = 0x18C6;
-  uint16_t gold = C_GOLD, white = C_WHITE;
-  #define P(dx,dy,w,h,col) dispRect(x+(dx)*2, y+(dy)*2, (w)*2, (h)*2, col)
-  const bool day = gameHour() > 6 && gameHour() < 18;
-  const uint16_t sky = day ? 0x74AA : 0x0821;
-  const uint16_t CAN = 0xD6B8, CAN2 = 0xCBF0, RIB = 0xB990, OUT = 0x3028;
-
-  /* 梅纹淡紫伞：右下撕缺一瓣，画在人后，脸不被遮 */
-  if (pose != 3 && pose != 8) {
-    P(18,0,6,1,OUT); P(16,1,10,1,CAN2); P(15,2,12,1,CAN);
-    P(14,3,14,1,CAN2); P(14,4,14,1,CAN); P(15,5,12,1,CAN2);
-    P(16,6,9,1,CAN); P(17,7,6,1,CAN2);
-    P(21,4,3,1,sky); P(20,5,4,1,sky); P(18,6,4,1,sky); P(17,7,3,1,sky); // 缺角
-    P(20,4,1,1,OUT); P(19,5,1,1,OUT); P(17,6,1,1,OUT);                   // 毛边
-    P(19,1,1,5,RIB); P(16,2,1,3,RIB); P(22,2,1,3,RIB);                   // 伞骨
-    P(17,3,2,2,0xE86A); P(17,4,1,1,white); P(21,2,2,2,0xE86A);           // 梅花
-    P(20,8,1,6,0x8A60); P(19,13,1,3,0x8A60);                             // 伞柄
-  }
-
-  if (pose == 3) {  // 重伤：佝偻站立 + 星星
-    P(3,11,11,5,robe); P(12,9,5,5,skin); P(12,8,5,2,hair);
-    P(13,10,1,1,hair); P(15,10,1,1,hair); P(13,11,3,1,0x8030);
-    P(6,9,5,2,trim); P(5,14,4,3,robe);
-    P(14,4,2,2,C_GOLD_HI); P(17,6,1,1,C_GOLD_HI);
-    return;
-  }
-  if (pose == 8) {  // 就寝：躺下 + Z
-    P(2,13,12,4,robe); P(13,11,5,4,skin); P(13,10,5,2,hair);
-    P(17,6,3,1,0x9CD3); P(19,7,2,1,0x9CD3); P(17,8,3,1,0x9CD3);
-    return;
-  }
-
-  /* 花瓣裙 + 黑长直 + 脸：先裙后身，避免裙边盖住衣襟 */
-  P(5,15,10,1,CAN2); P(4,16,12,1,0xD6B8); P(3,17,14,1,CAN2);
-  P(6,10,8,6,robe); P(8,12,4,5,trim);
-  P(6,7,8,5,skin);                                     // 脸
-  P(4,5,2,10,hair); P(14,5,2,10,hair);                 // 黑长直到肩
-  P(5,2,10,1,white); P(6,3,8,1,0xCBF0);               // 白纱抹额
-  P(6,8,8,2,0xD6B8); P(6,8,8,1,0xB990);               // 淡紫面纱
-  P(7,6,1,1,hair); P(12,6,1,1,hair);                   // 眼
-  P(13,2,1,1,0xE86A);                                  // 梅纹发饰
-  /* 斜背药箱：白底红十字 */
-  P(2,14,4,4,0x8A60); P(2,14,4,1,0xB080);
-  P(3,15,2,2,white); P(4,15,1,2,0xD2A8); P(3,16,2,1,0xD2A8);
-  P(7,18,2,2,0x3028); P(13,18,2,2,0x3028);            // 腿靴
-
-  if (pose == 2) {            // 中毒：绿脸
-    P(6,7,8,5,0x3688); P(6,8,8,2,0xD6B8);
-    P(7,6,1,1,hair); P(12,6,1,1,hair);
-    P(15,2,2,2,0x3661);
-  }
-  if (pose == 1) {            // 吃东西：张口 + 饭碗
-    P(8,10,4,1,0x8030); P(15,8,4,4,white);
-  }
-  if (pose == 4) {            // 副本：举剑
-    P(16,2,1,10,0x9CD3); P(15,5,3,1,gold);
-  }
-  if (pose == 5) {            // 打坐
-    P(5,16,10,3,robe); P(7,10,6,6,robe);
-  }
-  if (pose == 6) {            // 木桩
-    P(16,4,1,12,0x8A40); P(14,6,4,1,0x9CD3);
-  }
-  if (pose == 7) {            // 挖宝
-    P(17,6,1,9,0x8A40); P(15,14,5,1,0x9CD3);
-  }
-  #undef P
-}
-
-/* ---------- 场景：稻香村（木牌 / 梯田 / 大水车 / 溪桥） ---------- */
-void dispScene(bool night, uint16_t frame) {
-  if (night) {
-    dispRect(0, 18, 128, 64, 0x0821);
-    for (int i = 0; i < 11; i++) {
-      int sx = (i * 37 + 5) % 124, sy = 22 + ((i * 19) % 22);
-      uint16_t c = ((frame / 8 + i) % 7 == 0) ? C_GOLD_HI : C_DIM;
-      dispPixel(sx, sy, c);
-    }
-    dispRect(100, 24, 10, 10, 0xF7DE); dispRect(104, 22, 8, 12, 0x0821);
-  } else {
-    dispRect(0, 18, 128, 64, 0x9CD3);   /* 稻香村晴天 */
-    dispRect(108, 24, 9, 9, 0xFFF5);
-    for (int i = 0; i < 2; i++) {
-      int cx = 16 + i * 52 + (frame / 16) % 44;
-      dispRect(cx, 30, 14, 2, 0x74AA);
-      dispRect(cx + 3, 28, 9, 2, 0xD8E8);
-    }
-  }
-  /* 稻香村木牌：最强地标识别 */
-  dispRect(4, 19, 44, 14, night ? 0x2018 : 0x4228);
-  dispRect(5, 20, 42, 12, night ? 0x3A2C20 : 0x8A60);
-  dispRect(5, 20, 42, 1, night ? 0x4A3828 : 0xC9A8);
-  dispRect(5, 31, 42, 1, night ? 0x181008 : 0x3A2418);
-  dispText("稻香村", 8, 20, night ? C_DIM : C_GOLD_HI);
-  dispRect(9, 33, 1, 4, 0x6A40); dispRect(42, 33, 1, 4, 0x6A40);
-  /* 梯田：四层宽田带，少量稻苗 */
-  for (int i = 0; i < 4; i++) {
-    int ty = 56 + i * 5, tw = 96 - i * 10, tx = 6 + i * 6;
-    dispRect(tx, ty, tw, 1, night ? 0x1020 : 0x3E5A34);
-    dispRect(tx + 1, ty + 1, tw - 2, 3, night ? 0x1428 : 0x7A9E5A);
-    dispRect(tx + 1, ty + 1, tw - 2, 1, night ? 0x182C : 0x9EBB68);
-    for (int sp = 12; sp < tw - 10; sp += 18)
-      dispRect(tx + sp, ty, 1, 2, night ? 0x243226 : 0xC8D878);
-  }
-  /* 远村茅屋 */
-  dispRect(20, 62, 12, 5, night ? 0x1A1E28 : 0x8A7A5A);
-  dispRect(24, 63, 3, 4, night ? 0x0D1218 : 0x4A3A2A);
-  dispRect(18, 60, 16, 2, night ? 0x121820 : 0x6A8A5A);
-  dispRect(20, 58, 12, 2, night ? 0x16201C : 0x7A9E6A);
-  /* 大水车：8 根粗辐 + 水斗 + 加粗外圈 */
-  int wx = 104, wy = 64, wr = 11;
-  float wa = frame / 100.0f;
-  dispRect(wx - 16, wy + 7, 18, 2, night ? 0x2A2018 : 0x6A4A2A); // 引水槽
-  for (int i = 0; i < 8; i++) {
-    float a = wa + i * 0.7854f;
-    int ex = wx + (int)(cosf(a) * wr), ey = wy + (int)(sinf(a) * wr);
-    for (int k = 0; k <= 9; k++)
-      dispRect(wx + (ex - wx) * k / 9, wy + (ey - wy) * k / 9, 2, 2,
-               night ? 0x2E2418 : 0x7A5A34);
-    dispRect(ex - 2, ey - 1, 5, 3, night ? 0x201810 : 0x5A3A22);
-    dispRect(ex - 1, ey, 3, 1, night ? 0x4A3A2A : 0xC9A86A);
-  }
-  for (int i = 0; i < 24; i++) {
-    float a = i * 0.2618f;
-    dispRect(wx + (int)(cosf(a) * wr), wy + (int)(sinf(a) * wr), 2, 2,
-             night ? 0x403224 : 0xB08A52);
-  }
-  dispRect(wx - 3, wy - 3, 7, 7, night ? 0x201810 : 0x5A3A22);
-  dispRect(wx - 2, wy - 2, 5, 5, night ? 0x342A20 : 0x8A6A40);
-  dispRect(wx - 1, wy - 1, 3, 3, night ? 0x4A3A2A : 0xC9A86A);
-  /* 溪流 + 拱桥 */
-  uint16_t water = night ? 0x1838 : 0x5A9EB8, wave = night ? 0x2A50 : 0x8AC8D8;
-  dispRect(0, 79, 128, 4, water);
-  dispRect(0, 79, 128, 1, wave);
-  for (int i = 0; i < 9; i++)
-    dispRect((i * 13 + frame / 6) % 124, 80 + (i % 2), 4, 1, wave);
-  for (int i = 0; i < 12; i++) {
-    int arch = (int)(sinf(i / 11.0f * 3.1416f) * 3);
-    dispRect(22 + i * 3, 79 - arch, 4, 2, night ? 0x342A20 : 0x8A6A40);
-    dispRect(22 + i * 3, 78 - arch, 4, 1, night ? 0x4A3A2A : 0xB08A52);
-  }
-  /* 荷花池 */
-  dispRect(2, 80, 22, 3, night ? 0x142C3C : 0x4A8A9E);
-  dispRect(5, 81, 6, 2, night ? 0x1A3428 : 0x4A8A52);
-  dispRect(14, 82, 6, 2, night ? 0x1A3428 : 0x4A8A52);
-  dispRect(7, 79, 2, 2, 0xE86A9A); dispRect(16, 80, 2, 2, 0xE86A9A);
-}
-
-void dispHouse(int x0, int y0) {
-  dispRect(x0, y0 - 16, 32, 16, 0x6A28);
-  dispRect(x0 - 3, y0 - 20, 38, 4, 0xB4C0);
-  dispRect(x0 + 13, y0 - 10, 7, 10, 0x8A40);
-  dispRect(x0 + 5, y0 - 13, 5, 5, C_GOLD);
-  dispRect(x0 + 23, y0 - 13, 5, 5, C_GOLD);
-  dispRect(x0, y0, 32, 2, 0x4228);
-}
-void dispDecos(int gy) {
-  dispRect(24, gy - 14, 14, 14, 0x8A40);
-  dispRect(26, gy - 12, 10, 10, 0xD4A0);
-  dispRect(88, gy - 3, 7, 3, 0x8A40);
-  dispRect(89, gy - 8, 5, 5, 0x2428);
-  dispRect(103, gy - 11, 1, 11, 0x8A40);
-  dispRect(101, gy - 16, 5, 6, C_GOLD_HI);
 }

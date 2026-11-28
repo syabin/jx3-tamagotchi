@@ -218,7 +218,7 @@ assert(g("SET_MENU.some(m => m.id === 'server')") === false, "设置菜单无区
 assert(g("typeof S.server") === "undefined", "存档不再含 server 字段");
 
 /* ---- v8.2 手札 B 返回 / 音效开关 / 默认速度 ---- */
-assert(g("APP_VERSION") === "0.2.10", "版本号为语义化 0.2.10");
+assert(g("APP_VERSION") === "0.2.11", "版本号为语义化 0.2.11");
 
 /* ---- v0.2.10：剑三化命名 + 最高识别度素材 ---- */
 assert(g("TITLES.map(t=>t.t).join(',')") === "初闯江湖,江湖新秀,一方名侠,武林名宿,武林至尊", "称号表对齐剑三成就称谓");

@@ -1,37 +1,55 @@
-/* ui.h — 页面状态与渲染 */
-#ifndef JX3_UI_H
-#define JX3_UI_H
-
+#pragma once
 #include <Arduino.h>
 #include "config.h"
+#include "game.h"
+
+#define LIST_BAG  0
+#define LIST_SHOP 1
+#define GAME_HUB  0xFF
+
+struct GameSt {
+  uint8_t id;          // 0..4，GAME_HUB = 大厅
+  uint8_t phase;
+  uint8_t sel, betIdx, side;
+  uint8_t dice[3]; uint8_t sum; bool win, baozi;
+  uint16_t pay;
+  int16_t mole; uint16_t next; uint16_t t; uint8_t cur, hits, swings;
+  uint8_t pos, dir, cast, zoneL, zoneW; uint8_t gain, good;
+  uint8_t faces[6]; bool open[6]; bool done[6]; int8_t first; uint8_t matched; uint16_t wait;
+  struct HorseRun { float pos; uint8_t burst; } hs[4];
+  uint8_t winner;
+  char pop[28]; uint16_t popT;
+};
 
 struct UIState {
-  uint8_t page;          // PageId
-  uint8_t menuIdx;       // 主页 0..8（8=邮箱）
-  uint8_t catIdx;        // 分类 0..5
-  bool    catMode;       // 分类栏激活（v8.1 两级导航）
-  uint8_t listSel;       // 列表行选中
-  uint8_t itemFrom;      // 0=背包 1=商城
+  uint8_t page;
+  uint8_t menuIdx;
+  uint8_t settingsFrom;
+  uint8_t bagSel, shopSel;
+  uint8_t itemFrom;
+  uint8_t bagCat, shopCat;
+  bool    catMode;
+  uint8_t mailSel;
+  bool    mailDetail;
+  uint8_t actSel;
   uint8_t homeSel;
-  uint8_t dailySel;
+  uint8_t notePage;
+  bool    noteDetail;
+  uint8_t noteDetailPage;
   uint8_t setIdx;
-  uint8_t setPage;       // 0=列表 1=流速 2=音效 3=存档 4=清档 5=关于
-  uint8_t settingsFrom;  // 长按 B 前的页面
-  uint8_t confirmSel;    // 清档确认 0=否 1=是
-  uint8_t mailSel;       // 邮箱选中
-  bool    mailDetail;    // 邮箱详情
-  uint16_t frame;
+  int8_t  setPage;     // -1 = 菜单列表
+  bool    apOn, muted;
+  uint8_t otaPhase, otaPct;
+  GameSt  gm;
 };
-extern UIState U;
 
-/* 过滤后的列表：返回数量，idx 写入物品索引数组 */
-int  uiFiltered(bool shop, uint8_t* out, int maxN);
+extern UIState UI;
+
+void uiInit();
 void uiRender();
-void uiToastOverlay();
-
-/* 页面切换辅助 */
-void uiGoto(uint8_t page);
-void uiDoMenu();
-void uiItemAction();
-
-#endif /* JX3_UI_H */
+void uiMoveSel(int8_t d);
+void uiConfirmA();
+bool uiBack();          // 返回 true 表示已处理
+void uiLongB();         // 长按 B → 设置
+void uiTick();          // 每秒逻辑
+void uiFrameTick();     // 每帧（游戏动画）
